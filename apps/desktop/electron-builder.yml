@@ -61,7 +61,7 @@ linux:
   target:
     - AppImage
     - deb
-  maintainer: nexmoex@gmail.com
+  maintainer: team@vidbee.org
   category: Utility
 deb:
   # Issue #378: fix chrome-sandbox SUID perms so the .deb launches.

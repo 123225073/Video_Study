@@ -1,6 +1,12 @@
 import type { OneClickContainerOption } from '@vidbee/downloader-core/format-preferences'
 import { defaultLanguageCode, type LanguageCode } from '@vidbee/i18n/languages'
 
+export type {
+  YtDlpKernelPreparationStep,
+  YtDlpKernelState,
+  YtDlpKernelStatus
+} from './ytdlp-kernel'
+
 export type { OneClickContainerOption }
 
 // Download related types

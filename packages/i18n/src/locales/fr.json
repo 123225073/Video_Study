@@ -16,6 +16,19 @@
     "betaProgramDescription": "Recevez les versions préliminaires et les prochaines fonctionnalités avant tout le monde.",
     "betaProgramTitle": "Canal de prévisualisation",
     "description": "VidBee est un téléchargeur gratuit et open-source construit avec Electron et alimenté par yt-dlp.",
+    "downloadEngine": {
+      "status": {
+        "bundled-fallback": "Secours intégré",
+        "checking": "Vérification",
+        "installing": "Installation",
+        "preparing": "Préparation",
+        "retry-scheduled": "Nouvelle tentative planifiée",
+        "unavailable": "Indisponible",
+        "up-to-date": "À jour"
+      },
+      "title": "Moteur de téléchargement",
+      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+    },
     "followAuthorActions": {
       "follow": "Suivre @nexmoex"
     },
@@ -623,6 +636,18 @@
       "openDocs": "Ouvrir la documentation RSSHub",
       "hint": "Vous n'avez pas d'URL de flux RSS ? \nUtilisez RSSHub pour générer des flux RSS pour YouTube, Twitter et des milliers d'autres plateformes."
     }
+  },
+  "kernelPreparation": {
+    "copying": "Copie du moteur de téléchargement…",
+    "description": "VidBee prépare son moteur de téléchargement. Cela ne prendra qu’un instant.",
+    "errorDescription": "VidBee n’a pas pu préparer un moteur de téléchargement fonctionnel. Vérifiez l’accès au stockage local, puis réessayez.",
+    "errorTitle": "Moteur de téléchargement indisponible",
+    "finalizing": "Finalisation de la configuration…",
+    "progressLabel": "Progression de la préparation du moteur de téléchargement",
+    "retry": "Réessayer",
+    "retrying": "Nouvelle tentative…",
+    "title": "Préparation de VidBee",
+    "validating": "Vérification du moteur de téléchargement…"
   },
   "sites": {
     "homeInlineDescription": "Supporte {{sites}} et plus.",

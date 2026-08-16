@@ -16,6 +16,19 @@
     "betaProgramDescription": "Erhalten Sie frühe Builds und kommende Funktionen vor allen anderen.",
     "betaProgramTitle": "Vorschau-Kanal",
     "description": "VidBee ist ein kostenloser, quelloffener Downloader, der mit Electron erstellt wurde und von yt-dlp angetrieben wird.",
+    "downloadEngine": {
+      "status": {
+        "bundled-fallback": "Mitgelieferte Reserve",
+        "checking": "Wird geprüft",
+        "installing": "Wird installiert",
+        "preparing": "Wird vorbereitet",
+        "retry-scheduled": "Wiederholung geplant",
+        "unavailable": "Nicht verfügbar",
+        "up-to-date": "Aktuell"
+      },
+      "title": "Download-Engine",
+      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+    },
     "followAuthorActions": {
       "follow": "Folgen Sie @nexmoex"
     },
@@ -623,6 +636,18 @@
       "openDocs": "RSSHub-Dokumentation öffnen",
       "hint": "Keine RSS-Feed-URL? Verwenden Sie RSSHub, um RSS-Feeds für YouTube, Twitter und Tausende anderer Plattformen zu generieren."
     }
+  },
+  "kernelPreparation": {
+    "copying": "Download-Engine wird kopiert…",
+    "description": "VidBee bereitet seine Download-Engine vor. Dies dauert nur einen Moment.",
+    "errorDescription": "VidBee konnte keine funktionsfähige Download-Engine vorbereiten. Prüfen Sie den Zugriff auf den lokalen Speicher und versuchen Sie es erneut.",
+    "errorTitle": "Download-Engine nicht verfügbar",
+    "finalizing": "Einrichtung wird abgeschlossen…",
+    "progressLabel": "Fortschritt bei der Vorbereitung der Download-Engine",
+    "retry": "Erneut versuchen",
+    "retrying": "Neuer Versuch…",
+    "title": "VidBee wird vorbereitet",
+    "validating": "Download-Engine wird überprüft…"
   },
   "sites": {
     "homeInlineDescription": "Unterstützt {{sites}} und mehr.",

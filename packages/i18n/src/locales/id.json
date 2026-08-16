@@ -16,6 +16,19 @@
     "betaProgramDescription": "Terima build awal dan fitur yang akan datang sebelum orang lain.",
     "betaProgramTitle": "Saluran pratinjau",
     "description": "VidBee adalah pengunduh gratis dan open-source yang dibangun dengan Electron dan didukung oleh yt-dlp.",
+    "downloadEngine": {
+      "status": {
+        "bundled-fallback": "Cadangan bawaan",
+        "checking": "Memeriksa",
+        "installing": "Memasang",
+        "preparing": "Menyiapkan",
+        "retry-scheduled": "Coba lagi dijadwalkan",
+        "unavailable": "Tidak tersedia",
+        "up-to-date": "Terbaru"
+      },
+      "title": "Mesin unduhan",
+      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+    },
     "followAuthorActions": {
       "follow": "Ikuti @nexmoex"
     },
@@ -623,6 +636,18 @@
       "openDocs": "Buka Dokumentasi RSSHub",
       "hint": "Tidak punya URL feed RSS? Gunakan RSSHub untuk menghasilkan feed RSS untuk YouTube, Twitter, dan ribuan platform lainnya."
     }
+  },
+  "kernelPreparation": {
+    "copying": "Menyalin mesin unduhan…",
+    "description": "VidBee sedang menyiapkan mesin unduhannya. Proses ini hanya memerlukan waktu sebentar.",
+    "errorDescription": "VidBee tidak dapat menyiapkan mesin unduhan yang berfungsi. Periksa akses penyimpanan lokal, lalu coba lagi.",
+    "errorTitle": "Mesin unduhan tidak tersedia",
+    "finalizing": "Menyelesaikan penyiapan…",
+    "progressLabel": "Progres penyiapan mesin unduhan",
+    "retry": "Coba lagi",
+    "retrying": "Mencoba lagi…",
+    "title": "Menyiapkan VidBee",
+    "validating": "Memverifikasi mesin unduhan…"
   },
   "sites": {
     "homeInlineDescription": "Mendukung {{sites}} dan lainnya.",

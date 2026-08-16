@@ -1,5 +1,6 @@
 import { Changelog } from '@renderer/components/changelog/Changelog'
 import { useAppInfo } from '@renderer/components/feedback/FeedbackLinks'
+import { DownloadEngineRow } from '@renderer/components/kernel/DownloadEngineRow'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
 import {
@@ -30,6 +31,7 @@ import { ipcEvents, ipcServices } from '../lib/ipc'
 import { withDesktopUtm } from '../lib/url'
 import { saveSettingAtom, settingsAtom } from '../store/settings'
 import { updateAvailableAtom, updateReadyAtom } from '../store/update'
+import { ytdlpKernelStatusAtom } from '../store/ytdlp-kernel'
 
 interface AboutResource {
   icon: LucideIcon
@@ -52,6 +54,7 @@ export function About() {
   const [updateAvailableState] = useAtom(updateAvailableAtom)
   const setUpdateAvailable = useSetAtom(updateAvailableAtom)
   const settings = useAtomValue(settingsAtom)
+  const kernelStatus = useAtomValue(ytdlpKernelStatusAtom)
   const saveSetting = useSetAtom(saveSettingAtom)
   const { appVersion, osVersion } = useAppInfo()
   const appVersionLabel = appVersion || '—'
@@ -356,6 +359,7 @@ export function About() {
                 </div>
                 <Switch aria-label={t('about.autoUpdateTitle')} checked disabled />
               </div>
+              <DownloadEngineRow status={kernelStatus} />
             </div>
           </CardContent>
         </Card>
@@ -394,7 +398,7 @@ export function About() {
               <div className="flex flex-wrap gap-2">
                 <Button
                   className="gap-2"
-                  onClick={() => openShareUrl('https://x.com/nexmoex')}
+                  onClick={() => openShareUrl('https://x.com/nexmoe')}
                   size="sm"
                   variant="outline"
                 >

@@ -16,6 +16,19 @@
     "betaProgramDescription": "抢先获得预览版和即将发布的新功能。",
     "betaProgramTitle": "预览通道",
     "description": "这是一个基于 Node.js 和 Electron 构建的自由开源应用，使用 yt-dlp 来完成下载。",
+    "downloadEngine": {
+      "status": {
+        "bundled-fallback": "使用内置备用版本",
+        "checking": "正在检查",
+        "installing": "正在安装",
+        "preparing": "正在准备",
+        "retry-scheduled": "已安排重试",
+        "unavailable": "不可用",
+        "up-to-date": "已是最新版本"
+      },
+      "title": "下载引擎",
+      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+    },
     "followAuthorActions": {
       "follow": "关注 @nexmoex"
     },
@@ -623,6 +636,18 @@
       "openDocs": "打开 RSSHub 文档",
       "hint": "没有 RSS 源 URL？\n使用 RSSHub 为 YouTube、Twitter 和数千个其他平台生成 RSS 源。"
     }
+  },
+  "kernelPreparation": {
+    "copying": "正在复制下载引擎…",
+    "description": "VidBee 正在准备下载引擎，这只需要一点时间。",
+    "errorDescription": "VidBee 无法准备可用的下载引擎。请检查本地存储访问权限，然后重试。",
+    "errorTitle": "下载引擎不可用",
+    "finalizing": "正在完成设置…",
+    "progressLabel": "下载引擎准备进度",
+    "retry": "重试",
+    "retrying": "正在重试…",
+    "title": "正在准备 VidBee",
+    "validating": "正在验证下载引擎…"
   },
   "sites": {
     "homeInlineDescription": "支持 {{sites}} 等更多网站。",

@@ -16,6 +16,19 @@
     "betaProgramDescription": "Herkesten önce erken sürümleri ve gelecek özellikleri alın.",
     "betaProgramTitle": "Kanal önizlemesi",
     "description": "VidBee - RSS otomatik indirme, toplu işleme ve 1000'den fazla platform desteği sunan ücretsiz ve açık kaynaklı otomatik video indirici.",
+    "downloadEngine": {
+      "status": {
+        "bundled-fallback": "Paketlenmiş yedek",
+        "checking": "Kontrol ediliyor",
+        "installing": "Kuruluyor",
+        "preparing": "Hazırlanıyor",
+        "retry-scheduled": "Yeniden deneme planlandı",
+        "unavailable": "Kullanılamıyor",
+        "up-to-date": "Güncel"
+      },
+      "title": "İndirme motoru",
+      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+    },
     "followAuthorActions": {
       "follow": "@nexmoex'i takip edin"
     },
@@ -623,6 +636,18 @@
       "openDocs": "RSSHub Dökümantasyonunu Aç",
       "hint": "RSS besleme URL'iniz yok mu? RSSHub'ı kullanarak YouTube, Twitter ve binlerce diğer platform için RSS beslemeleri oluşturun."
     }
+  },
+  "kernelPreparation": {
+    "copying": "İndirme motoru kopyalanıyor…",
+    "description": "VidBee indirme motorunu hazırlıyor. Bu işlem yalnızca kısa bir süre alır.",
+    "errorDescription": "VidBee çalışan bir indirme motoru hazırlayamadı. Yerel depolama erişimini kontrol edip yeniden deneyin.",
+    "errorTitle": "İndirme motoru kullanılamıyor",
+    "finalizing": "Kurulum tamamlanıyor…",
+    "progressLabel": "İndirme motoru hazırlama ilerlemesi",
+    "retry": "Yeniden dene",
+    "retrying": "Yeniden deneniyor…",
+    "title": "VidBee hazırlanıyor",
+    "validating": "İndirme motoru doğrulanıyor…"
   },
   "sites": {
     "homeInlineDescription": "{{sites}} ve daha fazlasını destekler.",

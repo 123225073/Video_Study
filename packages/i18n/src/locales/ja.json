@@ -16,6 +16,19 @@
     "betaProgramDescription": "他の人より先に早期ビルドと今後の機能を受け取ります。",
     "betaProgramTitle": "プレビューチャンネル",
     "description": "VidBeeはElectronで構築され、yt-dlpによって動力を得る無料のオープンソースダウンローダーです。",
+    "downloadEngine": {
+      "status": {
+        "bundled-fallback": "同梱版に切り替え済み",
+        "checking": "確認中",
+        "installing": "インストール中",
+        "preparing": "準備中",
+        "retry-scheduled": "再試行予定",
+        "unavailable": "利用できません",
+        "up-to-date": "最新"
+      },
+      "title": "ダウンロードエンジン",
+      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+    },
     "followAuthorActions": {
       "follow": "@nexmoexをフォロー"
     },
@@ -623,6 +636,18 @@
       "openDocs": "RSSHub ドキュメントを開く",
       "hint": "RSS フィード URL をお持ちでない場合は、 \nRSSHub を使用して、YouTube、Twitter、その他数千のプラットフォーム用の RSS フィードを生成します。"
     }
+  },
+  "kernelPreparation": {
+    "copying": "ダウンロードエンジンをコピーしています…",
+    "description": "VidBee のダウンロードエンジンを準備しています。しばらくお待ちください。",
+    "errorDescription": "VidBee は使用可能なダウンロードエンジンを準備できませんでした。ローカルストレージへのアクセスを確認して、もう一度お試しください。",
+    "errorTitle": "ダウンロードエンジンを利用できません",
+    "finalizing": "セットアップを完了しています…",
+    "progressLabel": "ダウンロードエンジンの準備状況",
+    "retry": "もう一度試す",
+    "retrying": "再試行しています…",
+    "title": "VidBee を準備しています",
+    "validating": "ダウンロードエンジンを検証しています…"
   },
   "sites": {
     "homeInlineDescription": "{{sites}}およびその他のサイトをサポートしています。",

@@ -374,7 +374,7 @@ export const AboutPage = () => {
 								<div className="flex flex-wrap gap-2">
 									<Button
 										className="gap-2"
-										onClick={() => openShareUrl("https://x.com/nexmoex")}
+										onClick={() => openShareUrl("https://x.com/nexmoe")}
 										size="sm"
 										variant="outline"
 									>

@@ -19,6 +19,19 @@
     "betaProgramDescription": "Receive early builds and upcoming features before everyone else.",
     "betaProgramTitle": "Preview channel",
     "description": "VidBee - Free and open-source automated video downloader with RSS auto-download, batch processing, and support for 1000+ platforms.",
+    "downloadEngine": {
+      "status": {
+        "bundled-fallback": "Bundled fallback",
+        "checking": "Checking",
+        "installing": "Installing",
+        "preparing": "Preparing",
+        "retry-scheduled": "Retry scheduled",
+        "unavailable": "Unavailable",
+        "up-to-date": "Up to date"
+      },
+      "title": "Download engine",
+      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+    },
     "followAuthorActions": {
       "follow": "Follow @nexmoex"
     },
@@ -623,6 +636,18 @@
       "openDocs": "Open RSSHub Documentation",
       "hint": "Don't have an RSS feed URL? Use RSSHub to generate RSS feeds for YouTube, Twitter, and thousands of other platforms."
     }
+  },
+  "kernelPreparation": {
+    "copying": "Copying the download engine…",
+    "description": "VidBee is preparing its download engine. This only takes a moment.",
+    "errorDescription": "VidBee could not prepare a working download engine. Check local storage access, then try again.",
+    "errorTitle": "Download engine unavailable",
+    "finalizing": "Finishing setup…",
+    "progressLabel": "Download engine preparation progress",
+    "retry": "Try again",
+    "retrying": "Trying again…",
+    "title": "Preparing VidBee",
+    "validating": "Verifying the download engine…"
   },
   "sites": {
     "homeInlineDescription": "Supports {{sites}} and more.",

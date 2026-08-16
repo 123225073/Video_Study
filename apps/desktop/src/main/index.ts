@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { APP_PROTOCOL, APP_PROTOCOL_SCHEME } from '@shared/constants'
+import type { YtDlpKernelStatus } from '@shared/types'
 import {
   app,
   BrowserWindow,
@@ -41,7 +42,7 @@ import {
 } from './lib/subscriptions-host'
 import { runDesktopTaskQueueMigration } from './lib/task-queue-migrate'
 import { applyUpdateChannel } from './lib/update-channel'
-import { ytdlpManager } from './lib/ytdlp-manager'
+import { initializeYtDlpKernelService, stopYtDlpKernelService } from './lib/ytdlp-kernel-host'
 import { startExtensionApiServer, stopExtensionApiServer } from './local-api'
 import { isPortableMode } from './portable'
 import { settingsManager } from './settings'
@@ -103,6 +104,7 @@ protocol.registerSchemesAsPrivileged([
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
 let isYtdlpReady = false
+let kernelBackgroundUpdatesStarted = false
 interface DeepLinkData {
   url: string
   type: 'single' | 'playlist'
@@ -196,7 +198,7 @@ const parseDownloadDeepLink = (rawUrl: string): DeepLinkData | null => {
 
 const deliverDeepLink = (data: DeepLinkData): void => {
   const window = getActiveMainWindow()
-  if (!(window && isRendererReady)) {
+  if (!(window && isRendererReady && isYtdlpReady)) {
     pendingDeepLinkUrls.push(data)
     return
   }
@@ -212,7 +214,10 @@ const deliverDeepLink = (data: DeepLinkData): void => {
 }
 
 const flushPendingDeepLinks = (): void => {
-  if (!(getActiveMainWindow() && isRendererReady) || pendingDeepLinkUrls.length === 0) {
+  if (
+    !(getActiveMainWindow() && isRendererReady && isYtdlpReady) ||
+    pendingDeepLinkUrls.length === 0
+  ) {
     return
   }
 
@@ -549,6 +554,23 @@ const flushPendingOneClickDownloads = (): void => {
   }
 }
 
+/**
+ * Broadcast kernel state and unlock downloads exactly once after local readiness.
+ */
+const handleYtDlpKernelStatus = (status: YtDlpKernelStatus): void => {
+  sendToRenderer('ytdlp-kernel:status', status)
+  if (status.ready && !isYtdlpReady) {
+    isYtdlpReady = true
+    downloadEngine.restoreActiveDownloads()
+    flushPendingOneClickDownloads()
+    flushPendingDeepLinks()
+  }
+  if (status.ready && app.isPackaged && !kernelBackgroundUpdatesStarted) {
+    kernelBackgroundUpdatesStarted = true
+    initializeYtDlpKernelService().startBackgroundUpdates()
+  }
+}
+
 const startOneClickDownload = async (data: DeepLinkData): Promise<void> => {
   try {
     const settings = settingsManager.getAll()
@@ -820,31 +842,19 @@ app.whenReady().then(async () => {
   // IPC services are automatically registered by electron-ipc-decorator when imported
   log.info('IPC services available:', Object.keys(services))
 
-  await initializeOptionalTool({
+  const ffmpegInitialization = initializeOptionalTool({
     initialize: () => ffmpegManager.initialize(),
     label: 'ffmpeg',
     logger: log
   })
+  const kernelService = initializeYtDlpKernelService()
+  kernelService.on('status', handleYtDlpKernelStatus)
+  const kernelPreparation = kernelService.prepare()
 
-  // Initialize yt-dlp
-  try {
-    log.info('Initializing yt-dlp...')
-    await ytdlpManager.initialize()
-    isYtdlpReady = true
-    log.info('yt-dlp initialized successfully')
-  } catch (error) {
-    log.error('Failed to initialize yt-dlp:', error)
-    captureMainException(error, {
-      tags: {
-        source: 'ytdlp.initialize'
-      }
-    })
-  }
+  // Create the renderer immediately so first-time preparation has visible feedback.
+  createWindow()
 
-  if (isYtdlpReady) {
-    downloadEngine.restoreActiveDownloads()
-    flushPendingOneClickDownloads()
-  }
+  await Promise.all([ffmpegInitialization, kernelPreparation])
 
   // NEX-131 A段: copy any pre-existing download-session.json + legacy
   // download_history rows into the new task-queue tasks table. Idempotent;
@@ -863,8 +873,6 @@ app.whenReady().then(async () => {
   }
 
   applyAutoLaunchSetting(settingsManager.get('launchAtLogin'))
-
-  createWindow()
 
   initAutoUpdater()
 
@@ -900,6 +908,7 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   isQuitting = true
+  stopYtDlpKernelService()
   downloadEngine.flushDownloadSession()
 })
 

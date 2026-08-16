@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { ErrorBoundary } from './components/error/ErrorBoundary'
+import { KernelPreparationScreen } from './components/kernel/KernelPreparationScreen'
 import { useDownloadEvents } from './hooks/use-download-events'
 import { useRybbitDailyClientVersion } from './hooks/use-rybbit-daily-client-version'
 import { useRybbitScript } from './hooks/use-rybbit-script'
@@ -22,6 +23,7 @@ import { Subscriptions } from './pages/Subscriptions'
 import { loadSettingsAtom, settingsAtom } from './store/settings'
 import { loadSubscriptionsAtom, setSubscriptionsAtom } from './store/subscriptions'
 import { updateAvailableAtom, updateReadyAtom } from './store/update'
+import { useYtDlpKernelStatus } from './store/ytdlp-kernel'
 
 type Page = 'home' | 'subscriptions' | 'settings' | 'about'
 
@@ -51,8 +53,14 @@ const pathToPage = (pathname: string): Page => {
   }
 }
 
-function AppContent() {
-  const [platform, setPlatform] = useState<string>('')
+interface AppContentProps {
+  platform: string
+}
+
+/**
+ * Render the download application after its local kernel is ready.
+ */
+function AppContent({ platform }: AppContentProps) {
   const [appVersion, setAppVersion] = useState<string>('')
   const loadSubscriptions = useSetAtom(loadSubscriptionsAtom)
   const setSubscriptions = useSetAtom(setSubscriptionsAtom)
@@ -78,10 +86,6 @@ function AppContent() {
     platform,
     version: appVersion
   })
-
-  useEffect(() => {
-    window.api?.send('app:renderer-ready')
-  }, [])
 
   const handlePageChange = useCallback(
     (page: Page) => {
@@ -154,15 +158,10 @@ function AppContent() {
   useEffect(() => {
     const getRuntimeInfo = async () => {
       try {
-        const [platformInfo, version] = await Promise.all([
-          ipcServices.app.getPlatform(),
-          ipcServices.app.getVersion()
-        ])
-        setPlatform(platformInfo)
+        const version = await ipcServices.app.getVersion()
         setAppVersion(version)
       } catch (error) {
         console.error('Failed to get runtime info:', error)
-        setPlatform('unknown')
         setAppVersion('')
       }
     }
@@ -287,13 +286,51 @@ function AppContent() {
   )
 }
 
+/**
+ * Keep download features unmounted until the managed kernel is usable.
+ */
+function KernelGate() {
+  const [platform, setPlatform] = useState('')
+  const { retry, status } = useYtDlpKernelStatus()
+
+  useEffect(() => {
+    window.api?.send('app:renderer-ready')
+  }, [])
+
+  useEffect(() => {
+    void ipcServices.app
+      .getPlatform()
+      .then(setPlatform)
+      .catch((error) => {
+        console.error('Failed to get platform:', error)
+        setPlatform('unknown')
+      })
+  }, [])
+
+  if (!status.ready) {
+    return (
+      <div className="flex h-screen flex-col bg-background">
+        <TitleBar platform={platform} />
+        <KernelPreparationScreen onRetry={retry} status={status} />
+      </div>
+    )
+  }
+
+  return (
+    <HashRouter>
+      <AppContent platform={platform} />
+    </HashRouter>
+  )
+}
+
+/**
+ * Provide global renderer boundaries and theme state.
+ */
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <HashRouter>
-          <AppContent />
-        </HashRouter>
+        <KernelGate />
       </ThemeProvider>
     </ErrorBoundary>
   )

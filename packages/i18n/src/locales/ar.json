@@ -16,6 +16,19 @@
     "betaProgramDescription": "تلقي البناءات المبكرة والميزات القادمة قبل أي شخص آخر.",
     "betaProgramTitle": "قناة المعاينة",
     "description": "VidBee هو برنامج تنزيل مجاني ومفتوح المصدر مبني باستخدام Electron ويعمل بواسطة yt-dlp.",
+    "downloadEngine": {
+      "status": {
+        "bundled-fallback": "النسخة المضمّنة الاحتياطية",
+        "checking": "جارٍ التحقق",
+        "installing": "جارٍ التثبيت",
+        "preparing": "جارٍ التحضير",
+        "retry-scheduled": "تمت جدولة إعادة المحاولة",
+        "unavailable": "غير متاح",
+        "up-to-date": "محدّث"
+      },
+      "title": "محرك التنزيل",
+      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+    },
     "followAuthorActions": {
       "follow": "متابعة @nexmoex"
     },
@@ -623,6 +636,18 @@
       "openDocs": "فتح وثائق RSSHub",
       "hint": "ليس لديك رابط تغذية RSS؟ استخدم RSSHub لإنشاء تغذيات RSS لـ YouTube و Twitter والآلاف من المنصات الأخرى."
     }
+  },
+  "kernelPreparation": {
+    "copying": "جارٍ نسخ محرك التنزيل…",
+    "description": "يقوم VidBee بإعداد محرك التنزيل. لن يستغرق ذلك سوى لحظات.",
+    "errorDescription": "تعذّر على VidBee إعداد محرك تنزيل يعمل. تحقق من إمكانية الوصول إلى التخزين المحلي، ثم حاول مجددًا.",
+    "errorTitle": "محرك التنزيل غير متاح",
+    "finalizing": "جارٍ إنهاء الإعداد…",
+    "progressLabel": "تقدّم إعداد محرك التنزيل",
+    "retry": "حاول مجددًا",
+    "retrying": "جارٍ المحاولة مجددًا…",
+    "title": "جارٍ إعداد VidBee",
+    "validating": "جارٍ التحقق من محرك التنزيل…"
   },
   "sites": {
     "homeInlineDescription": "يدعم {{sites}} والمزيد.",

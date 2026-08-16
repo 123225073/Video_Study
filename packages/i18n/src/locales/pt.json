@@ -16,6 +16,19 @@
     "betaProgramDescription": "Receba builds antecipados e próximos recursos antes de todos.",
     "betaProgramTitle": "Canal de visualização",
     "description": "VidBee é um baixador gratuito e de código aberto construído com Electron e alimentado por yt-dlp.",
+    "downloadEngine": {
+      "status": {
+        "bundled-fallback": "Reserva incluída",
+        "checking": "Verificando",
+        "installing": "Instalando",
+        "preparing": "Preparando",
+        "retry-scheduled": "Nova tentativa agendada",
+        "unavailable": "Indisponível",
+        "up-to-date": "Atualizado"
+      },
+      "title": "Mecanismo de download",
+      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+    },
     "followAuthorActions": {
       "follow": "Seguir @nexmoex"
     },
@@ -623,6 +636,18 @@
       "openDocs": "Abra a documentação do RSSHub",
       "hint": "Não tem um URL de feed RSS? \nUse o RSSHub para gerar feeds RSS para YouTube, Twitter e milhares de outras plataformas."
     }
+  },
+  "kernelPreparation": {
+    "copying": "Copiando o mecanismo de download…",
+    "description": "O VidBee está preparando seu mecanismo de download. Isso leva apenas um momento.",
+    "errorDescription": "O VidBee não conseguiu preparar um mecanismo de download funcional. Verifique o acesso ao armazenamento local e tente novamente.",
+    "errorTitle": "Mecanismo de download indisponível",
+    "finalizing": "Finalizando a configuração…",
+    "progressLabel": "Progresso da preparação do mecanismo de download",
+    "retry": "Tentar novamente",
+    "retrying": "Tentando novamente…",
+    "title": "Preparando o VidBee",
+    "validating": "Verificando o mecanismo de download…"
   },
   "sites": {
     "homeInlineDescription": "Suporta {{sites}} e mais.",

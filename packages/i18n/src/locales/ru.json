@@ -16,6 +16,19 @@
     "betaProgramDescription": "Получайте ранние сборки и предстоящие функции раньше всех.",
     "betaProgramTitle": "Канал предпросмотра",
     "description": "VidBee — это бесплатный загрузчик с открытым исходным кодом, созданный на Electron и работающий на yt-dlp.",
+    "downloadEngine": {
+      "status": {
+        "bundled-fallback": "Встроенная резервная версия",
+        "checking": "Проверка",
+        "installing": "Установка",
+        "preparing": "Подготовка",
+        "retry-scheduled": "Повтор запланирован",
+        "unavailable": "Недоступно",
+        "up-to-date": "Актуально"
+      },
+      "title": "Модуль загрузки",
+      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+    },
     "followAuthorActions": {
       "follow": "Подписаться на @nexmoex"
     },
@@ -623,6 +636,18 @@
       "openDocs": "Открыть документацию RSSHub",
       "hint": "Нет URL RSS-канала? Используйте RSSHub для создания RSS-каналов для YouTube, Twitter и тысяч других платформ."
     }
+  },
+  "kernelPreparation": {
+    "copying": "Копирование модуля загрузки…",
+    "description": "VidBee подготавливает модуль загрузки. Это займёт всего несколько секунд.",
+    "errorDescription": "VidBee не удалось подготовить рабочий модуль загрузки. Проверьте доступ к локальному хранилищу и повторите попытку.",
+    "errorTitle": "Модуль загрузки недоступен",
+    "finalizing": "Завершение настройки…",
+    "progressLabel": "Ход подготовки модуля загрузки",
+    "retry": "Повторить",
+    "retrying": "Повторная попытка…",
+    "title": "Подготовка VidBee",
+    "validating": "Проверка модуля загрузки…"
   },
   "sites": {
     "homeInlineDescription": "Поддерживает {{sites}} и другие.",

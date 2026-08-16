@@ -74,6 +74,8 @@ ffmpeg is required for merging audio/video streams and audio extraction. ffprobe
 
 yt-dlp uses an external JS runtime (Deno by default) for some extractors. Bundle a Deno binary so the app can run without system dependencies.
 
+The packaged yt-dlp and Deno files form the offline recovery bundle. At runtime, Desktop copies and verifies both files as one immutable bundle under the Electron `userData` directory, then silently checks the official Stable channels for newer versions. Runtime kernel updates do not change the Desktop version, changelog, or Git tags.
+
 ### Required Files
 
 1. **Windows**: `deno.exe`
