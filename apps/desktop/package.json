@@ -15,6 +15,7 @@
     "dev:update-notice": "node scripts/dev-update-notice.mjs",
     "start": "pnpm run prepare:native-deps && electron-vite preview",
     "dev": "pnpm run setup && pnpm run prepare:native-deps && node scripts/set-console-encoding.js && electron-vite dev",
+    "dev:kernel": "pnpm run dev -- --kernel-preparation-preview",
     "build": "electron-vite build",
     "test": "vitest run --config ../../internal/tests/desktop/vitest.config.ts",
     "build:glitchtip": "pnpm run build && node scripts/upload-glitchtip-sourcemaps.mjs",

@@ -30,7 +30,7 @@
       "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
     },
     "followAuthorActions": {
-      "follow": "Ikuti @nexmoex"
+      "follow": "Ikuti @nexmoe"
     },
     "followAuthorDescription": "Tetap update dengan berita dan pembaruan VidBee terbaru.",
     "followAuthorSupport": "Ikuti pengembang di X (Twitter) untuk mendapatkan pembaruan dan berita terbaru tentang VidBee.",
@@ -67,7 +67,7 @@
       "githubIssues": "GitHub",
       "githubIssuesDescription": "Laporkan bug atau minta fitur di GitHub.",
       "xFeedback": "Twitter",
-      "xFeedbackDescription": "Bagikan masukan atau saran di X dengan menyebut @nexmoex.",
+      "xFeedbackDescription": "Bagikan masukan atau saran di X dengan menyebut @nexmoe.",
       "discord": "Discord",
       "discordDescription": "Bergabunglah dengan komunitas Discord kami untuk diskusi dan dukungan.",
       "faq": "FAQ",

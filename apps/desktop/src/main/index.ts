@@ -56,6 +56,8 @@ const isBackgroundLaunch = (argv: string[]): boolean =>
   argv.some((arg) => arg === '--background' || arg === '--from-cli')
 
 const BACKGROUND_MODE = isBackgroundLaunch(process.argv)
+const KERNEL_PREPARATION_PREVIEW =
+  !app.isPackaged && process.argv.includes('--kernel-preparation-preview')
 
 // Initialize electron-log for main process
 log.initialize()
@@ -849,7 +851,13 @@ app.whenReady().then(async () => {
   })
   const kernelService = initializeYtDlpKernelService()
   kernelService.on('status', handleYtDlpKernelStatus)
-  const kernelPreparation = kernelService.prepare()
+  const kernelPreparation = KERNEL_PREPARATION_PREVIEW
+    ? Promise.resolve(false)
+    : kernelService.prepare()
+
+  if (KERNEL_PREPARATION_PREVIEW) {
+    log.info('Kernel preparation preview is active')
+  }
 
   // Create the renderer immediately so first-time preparation has visible feedback.
   createWindow()

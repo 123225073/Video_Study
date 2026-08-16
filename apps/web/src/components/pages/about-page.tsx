@@ -133,9 +133,7 @@ export const AboutPage = () => {
 
 	const shareLinks = useMemo(() => {
 		const encodedUrl = encodeURIComponent(SHARE_TARGET_URL);
-		const encodedText = encodeURIComponent(
-			`${t("about.description")} @nexmoex`,
-		);
+		const encodedText = encodeURIComponent(`${t("about.description")} @nexmoe`);
 
 		return {
 			facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,

@@ -30,7 +30,7 @@
       "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
     },
     "followAuthorActions": {
-      "follow": "Подписаться на @nexmoex"
+      "follow": "Подписаться на @nexmoe"
     },
     "followAuthorDescription": "Будьте в курсе последних новостей и обновлений VidBee.",
     "followAuthorSupport": "Подпишитесь на разработчика в X (Twitter), чтобы получать последние обновления и новости о VidBee.",
@@ -67,7 +67,7 @@
       "githubIssues": "GitHub",
       "githubIssuesDescription": "Сообщайте об ошибках или предлагайте функции на GitHub.",
       "xFeedback": "Twitter",
-      "xFeedbackDescription": "Поделитесь отзывом или предложениями в X, упомянув @nexmoex.",
+      "xFeedbackDescription": "Поделитесь отзывом или предложениями в X, упомянув @nexmoe.",
       "discord": "Discord",
       "discordDescription": "Присоединяйтесь к нашему сообществу Discord для обсуждений и поддержки.",
       "faq": "FAQ",

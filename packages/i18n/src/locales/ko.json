@@ -30,7 +30,7 @@
       "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
     },
     "followAuthorActions": {
-      "follow": "@nexmoex 팔로우"
+      "follow": "@nexmoe 팔로우"
     },
     "followAuthorDescription": "VidBee의 최신 뉴스와 업데이트를 받아보세요.",
     "followAuthorSupport": "X (Twitter)에서 개발자를 팔로우하여 VidBee의 최신 업데이트와 뉴스를 받아보세요.",
@@ -67,7 +67,7 @@
       "githubIssues": "GitHub",
       "githubIssuesDescription": "GitHub에서 버그를 보고하거나 기능을 요청하세요.",
       "xFeedback": "Twitter",
-      "xFeedbackDescription": "X에서 @nexmoex를 멘션하여 피드백이나 제안을 공유하세요.",
+      "xFeedbackDescription": "X에서 @nexmoe를 멘션하여 피드백이나 제안을 공유하세요.",
       "discord": "Discord",
       "discordDescription": "Discord 커뮤니티에 참여해 토론과 지원을 받으세요.",
       "faq": "FAQ",

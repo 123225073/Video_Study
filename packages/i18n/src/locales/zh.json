@@ -30,7 +30,7 @@
       "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
     },
     "followAuthorActions": {
-      "follow": "关注 @nexmoex"
+      "follow": "关注 @nexmoe"
     },
     "followAuthorDescription": "获取 VidBee 的最新消息和更新。",
     "followAuthorSupport": "在 X (Twitter) 上关注开发者，获取 VidBee 的最新更新和消息。",
@@ -67,7 +67,7 @@
       "githubIssues": "GitHub",
       "githubIssuesDescription": "在 GitHub 上报告问题或请求功能。",
       "xFeedback": "Twitter",
-      "xFeedbackDescription": "在 X 上提及 @nexmoex 分享反馈或建议。",
+      "xFeedbackDescription": "在 X 上提及 @nexmoe 分享反馈或建议。",
       "discord": "Discord",
       "discordDescription": "加入我们的 Discord 社区进行讨论和支持。",
       "faq": "常见问题",
