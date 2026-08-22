@@ -3,6 +3,19 @@
 This page only includes user-visible updates and avoids implementation details.
 For full release notes, see [GitHub Releases](https://github.com/nexmoe/VidBee/releases).
 
+## [v2.0.0](https://github.com/nexmoe/VidBee/releases/tag/v2.0.0) - 2026-08-22
+### Features
+- Transcribe downloads on your computer, with labels for who is speaking.
+- Turn a transcript into AI summaries, translations, and other write-ups.
+- Import local audio or video files to transcribe them in the app.
+- The mini player stays available while you move between screens.
+- The download engine can update itself in the background so more sites keep working.
+
+### Improvements
+- Portable mode no longer resets a custom download folder you chose outside the portable directory.
+- Transcription now works on Intel Macs as well as Apple Silicon.
+- Downloads and self-hosted setups are more reliable.
+
 ## [v1.3.14](https://github.com/nexmoe/VidBee/releases/tag/v1.3.14) - 2026-07-05
 ### Requirement Updates
 - Updated the bundled yt-dlp runtime from v2026.06.09 to v2026.07.04 so site compatibility stays current.

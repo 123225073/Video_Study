@@ -3,6 +3,19 @@
 Cette page ne présente que les évolutions visibles par les utilisateurs, sans détails techniques.
 Pour les notes de version complètes, consultez [GitHub Releases](https://github.com/nexmoe/VidBee/releases).
 
+## [v2.0.0](https://github.com/nexmoe/VidBee/releases/tag/v2.0.0) - 2026-08-22
+### Fonctionnalités
+- Transcrivez vos telechargements sur l'ordinateur, avec le nom de chaque locuteur.
+- Transformez une transcription en resume, traduction ou autre texte genere par l'IA.
+- Importez un fichier audio ou video local pour le transcrire dans l'application.
+- Le mini lecteur reste disponible quand vous changez d'ecran.
+- Le moteur de telechargement peut se mettre a jour en arriere-plan pour continuer a prendre en charge plus de sites.
+
+### Ameliorations
+- En mode portable, un dossier de telechargement choisi hors du repertoire portable n'est plus reinitialise.
+- La transcription fonctionne aussi sur les Mac Intel.
+- Telechargements et installations auto-hebergees plus fiables.
+
 ## [v1.3.10](https://github.com/nexmoe/VidBee/releases/tag/v1.3.10) - 2026-04-11
 ### Ameliorations
 - Telechargement en un clic active par defaut pour demarrer plus vite des la premiere utilisation.
