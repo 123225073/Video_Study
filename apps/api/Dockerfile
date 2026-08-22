@@ -16,16 +16,22 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/downloader-core/package.json packages/downloader-core/package.json
-COPY packages/task-queue/package.json packages/task-queue/package.json
+COPY packages/i18n/package.json packages/i18n/package.json
+COPY packages/logger/package.json packages/logger/package.json
 COPY packages/subscriptions-core/package.json packages/subscriptions-core/package.json
+COPY packages/task-queue/package.json packages/task-queue/package.json
+COPY packages/transcription/package.json packages/transcription/package.json
 
 RUN pnpm install --filter "{./apps/api}..." --frozen-lockfile
 
 COPY apps/api apps/api
 COPY packages/db packages/db
 COPY packages/downloader-core packages/downloader-core
-COPY packages/task-queue packages/task-queue
+COPY packages/i18n packages/i18n
+COPY packages/logger packages/logger
 COPY packages/subscriptions-core packages/subscriptions-core
+COPY packages/task-queue packages/task-queue
+COPY packages/transcription packages/transcription
 
 RUN pnpm --filter ./apps/api run build
 RUN pnpm --filter ./apps/api deploy --prod --legacy /prod/api

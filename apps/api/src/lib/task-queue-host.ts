@@ -19,6 +19,7 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { TASK_QUEUE_DDL_V1 } from '@vidbee/db/task-queue'
 import { TRANSCRIPT_DDL_V1 } from '@vidbee/db/transcripts'
 import { YtDlpExecutor } from '@vidbee/downloader-core'
@@ -133,10 +134,13 @@ const downloadExecutor = new YtDlpExecutor({
 })
 
 const apiModelsDir = path.join(unifiedDbDir, 'models', 'transcription')
-const apiWorkerScript = path.join(
-  path.dirname(new URL(import.meta.url).pathname),
-  '../../../../packages/transcription/src/worker/entry.ts'
-)
+const apiHere = path.dirname(fileURLToPath(import.meta.url))
+const apiWorkerCandidates = [
+  path.join(apiHere, 'transcription-worker.js'),
+  path.join(apiHere, '../../../../packages/transcription/src/worker/entry.ts')
+]
+const apiWorkerScript =
+  apiWorkerCandidates.find((candidate) => fs.existsSync(candidate)) ?? apiWorkerCandidates[0]
 
 const Database = require('better-sqlite3') as typeof import('better-sqlite3')
 fs.mkdirSync(path.dirname(taskQueueDbPath), { recursive: true })
@@ -172,6 +176,7 @@ const transcriptionExecutor = new TranscriptionExecutor({
   store: transcriptStore,
   workerScript: apiWorkerScript,
   modelsDir: apiModelsDir,
+  execArgv: apiWorkerScript.endsWith('.ts') ? ['--import', 'tsx'] : undefined,
   resolveFfmpegPath: () => {
     const loc = resolveFfmpegLocation()
     if (!loc) {
