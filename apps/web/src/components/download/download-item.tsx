@@ -26,10 +26,10 @@ import {
 	SheetTitle,
 } from "@vidbee/ui/components/ui/sheet";
 import {
+	TabItem,
+	TabPanel,
 	Tabs,
-	TabsContent,
 	TabsList,
-	TabsTrigger,
 } from "@vidbee/ui/components/ui/tabs";
 import {
 	Tooltip,
@@ -490,7 +490,8 @@ export function DownloadItem({
 
 	const isInProgressStatus = isActiveStatus(download.status);
 	const isCompletedStatus = download.status === "completed";
-	const canRetry = download.status === "error";
+	const canRetry =
+		download.status === "error" || download.status === "cancelled";
 	const showCopyAction = isCompletedStatus && fileExists;
 	const showOpenFolderAction = Boolean(
 		download.title && getEffectiveDownloadPath().trim(),
@@ -898,7 +899,13 @@ export function DownloadItem({
 										)}
 									</div>
 								</div>
-								<div className="relative z-20 flex shrink-0 flex-wrap items-center justify-end gap-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+								<div
+									className={`relative z-20 flex shrink-0 flex-wrap items-center justify-end gap-1 text-muted-foreground transition-opacity ${
+										canRetry
+											? "opacity-100"
+											: "opacity-0 group-hover:opacity-100"
+									}`}
+								>
 									{canRetry && (
 										<Button
 											className="h-8 w-8 shrink-0 rounded-full"
@@ -1008,10 +1015,10 @@ export function DownloadItem({
 					{canShowSheet && (
 						<Sheet onOpenChange={setSheetOpen} open={sheetOpen}>
 							<SheetContent
-								className="flex w-full flex-col p-0 sm:max-w-lg"
+								className="flex h-full w-full min-h-0 flex-col p-0 sm:max-w-lg"
 								side="right"
 							>
-								<div className="flex h-full flex-col overflow-hidden">
+								<div className="flex h-full min-h-0 flex-col overflow-hidden">
 									<SheetHeader className="shrink-0 border-b px-6 pt-6 pb-4">
 										<SheetTitle className="line-clamp-2">
 											{download.title}
@@ -1021,35 +1028,29 @@ export function DownloadItem({
 										</SheetDescription>
 									</SheetHeader>
 									<Tabs
-										className="flex-1 overflow-hidden"
+										className="flex min-h-0 flex-1 flex-col overflow-hidden"
 										onValueChange={(value) =>
 											setActiveTab(value as "details" | "logs")
 										}
 										value={activeTab}
 									>
-										<div className="px-6 pt-4">
+										<div className="shrink-0 px-6 pt-4">
 											<TabsList>
-												<TabsTrigger
+												<TabItem
 													disabled={!hasMetadataDetails}
+													label={t("download.detailsTab")}
 													value="details"
-												>
-													{t("download.detailsTab")}
-												</TabsTrigger>
-												<TabsTrigger value="logs">
-													{t("download.logsTab")}
-												</TabsTrigger>
+												/>
+												<TabItem label={t("download.logsTab")} value="logs" />
 											</TabsList>
 										</div>
-										<TabsContent
-											className="flex-1 overflow-y-auto px-6 py-4"
+										<TabPanel
+											className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-6 py-4"
 											value="details"
 										>
 											<div className="space-y-4">
-												{metadataDetails.map((item, index) => (
-													<div
-														className="flex flex-col gap-1"
-														key={`${item.label}-${index}`}
-													>
+												{metadataDetails.map((item) => (
+													<div className="flex flex-col gap-1" key={item.label}>
 														<span className="font-medium text-muted-foreground text-sm">
 															{item.label}
 														</span>
@@ -1059,9 +1060,9 @@ export function DownloadItem({
 													</div>
 												))}
 											</div>
-										</TabsContent>
-										<TabsContent
-											className="flex flex-1 flex-col gap-3 overflow-hidden px-6 py-4"
+										</TabPanel>
+										<TabPanel
+											className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-6 py-4"
 											value="logs"
 										>
 											<div className="flex items-center justify-between text-muted-foreground text-xs">
@@ -1097,7 +1098,7 @@ export function DownloadItem({
 														: t("download.logs.empty")}
 												</div>
 											</div>
-										</TabsContent>
+										</TabPanel>
 									</Tabs>
 								</div>
 							</SheetContent>

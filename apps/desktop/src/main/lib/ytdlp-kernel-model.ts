@@ -4,6 +4,22 @@ const HOUR_MS = 60 * 60 * 1000
 const MAX_RETRY_DELAY_MS = 24 * HOUR_MS
 
 /**
+ * Return the official yt-dlp release asset name for a supported target.
+ */
+export function getYtDlpReleaseAssetName(platform: string): string {
+  if (platform === 'win32') {
+    return 'yt-dlp.exe'
+  }
+  if (platform === 'darwin') {
+    return 'yt-dlp_macos'
+  }
+  if (platform === 'linux') {
+    return 'yt-dlp_linux'
+  }
+  throw new Error(`Unsupported platform: ${platform}`)
+}
+
+/**
  * Return the official Deno release archive name for a supported target.
  */
 export function getDenoReleaseAssetName(platform: string, arch: string): string {

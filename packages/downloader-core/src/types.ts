@@ -1,3 +1,4 @@
+import type { FilenameStyle } from './filename-style'
 import type { OneClickContainerOption } from './format-preferences'
 
 export type DownloadType = 'video' | 'audio'
@@ -98,9 +99,12 @@ export interface DownloadRuntimeSettings {
   proxy?: string
   configPath?: string
   embedSubs?: boolean
+  writeAutoSubs?: boolean
   embedThumbnail?: boolean
   embedMetadata?: boolean
   embedChapters?: boolean
+  filenameStyle?: FilenameStyle
+  filenameViaVidBee?: boolean
   shareWatermark?: boolean
 }
 

@@ -2,6 +2,11 @@ import { existsSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { parseBrowserCookiesSetting } from './browser-cookies-setting'
+import {
+  DEFAULT_FILENAME_TEMPLATE,
+  type FilenameStyle,
+  resolveFilenameTemplate
+} from './filename-style'
 import type { OneClickContainerOption } from './format-preferences'
 
 export interface YtDlpDownloadSettings {
@@ -11,9 +16,12 @@ export interface YtDlpDownloadSettings {
   proxy?: string
   configPath?: string
   embedSubs?: boolean
+  writeAutoSubs?: boolean
   embedThumbnail?: boolean
   embedMetadata?: boolean
   embedChapters?: boolean
+  filenameStyle?: FilenameStyle
+  filenameViaVidBee?: boolean
   shareWatermark?: boolean
 }
 
@@ -35,8 +43,6 @@ const YOUTUBE_HOST_SUFFIXES = ['youtube.com', 'youtu.be', 'youtube-nocookie.com'
 // token and frequently 403s) but keep `web_safari` and the other defaults so
 // extraction has more fallbacks before failing.
 const YOUTUBE_SAFE_PLAYER_CLIENTS = 'default,-web'
-const DEFAULT_FILENAME_TEMPLATE = '%(title)s.%(ext)s'
-const SHARED_FILENAME_TEMPLATE = '%(title)s via VidBee.%(ext)s'
 const SUBTITLE_LANGUAGE_SELECTOR = 'all,-live_chat,-rechat'
 export const VIDBEE_OUTPUT_PATH_PREFIX = '__VIDBEE_OUTPUT_PATH__:'
 const WINDOWS_FILENAME_TRIM_LENGTH = '120'
@@ -392,6 +398,7 @@ export const buildDownloadArgs = (
   }
 
   const embedSubs = settings.embedSubs ?? true
+  const writeAutoSubs = settings.writeAutoSubs ?? true
   const embedThumbnail = settings.embedThumbnail ?? false
   const embedMetadata = settings.embedMetadata ?? true
   const embedChapters = settings.embedChapters ?? true
@@ -399,21 +406,30 @@ export const buildDownloadArgs = (
   const cookiesPath = trim(settings.cookiesPath)
   const hasSubtitleAuth =
     (browserForCookies && browserForCookies !== 'none') || Boolean(cookiesPath)
-  // GitHub issue #370: Twitch exposes the `rechat` chat-replay as a subtitle
-  // track that frequently 404s; forcing `--write-subs` then aborts the whole
-  // VOD. Like Bilibili, skip forced subtitles for Twitch unless the user has
-  // provided cookies that may unlock real subtitle tracks.
-  const shouldAttemptSubtitles =
-    !(isBilibiliUrl(options.url) || isTwitchUrl(options.url)) || hasSubtitleAuth
+  const isBilibili = isBilibiliUrl(options.url)
+  // GitHub issue #370: Twitch `rechat` 404s abort the VOD. GitHub issue #196:
+  // Bilibili subtitle fetch without cookies can fail and abort the video.
+  // Skip forced subtitle downloads on those sites unless cookies are present.
+  const shouldAttemptSubtitles = !(isBilibili || isTwitchUrl(options.url)) || hasSubtitleAuth
+  // GitHub issues #129, #196, #199, #291, #347: Bilibili lists danmaku as a
+  // subtitle track (`danmaku.xml`). ffmpeg cannot mux XML into MP4/MKV and
+  // aborts with `Invalid data found when processing input` after the video
+  // and audio have already merged. Keep XML/SRT as sidecar files instead.
+  const shouldEmbedSubs = embedSubs && shouldAttemptSubtitles && !isBilibili
 
   if (shouldAttemptSubtitles) {
     args.push('--sub-langs', SUBTITLE_LANGUAGE_SELECTOR)
-    if (embedSubs) {
+    // `--embed-subs` only writes official / creator-uploaded captions.
+    // YouTube videos often have automatic captions and no official track, so
+    // also request those when the setting is on; otherwise the embed step
+    // has nothing to mux.
+    if (writeAutoSubs) {
+      args.push('--write-auto-subs')
+    }
+    if (shouldEmbedSubs) {
       args.push('--embed-subs')
     } else {
       args.push('--write-subs')
-    }
-    if (!embedSubs) {
       args.push('--no-embed-subs')
     }
   } else {
@@ -426,9 +442,12 @@ export const buildDownloadArgs = (
 
   const baseDownloadPath =
     trim(options.customDownloadPath) || trim(settings.downloadPath) || fallbackDownloadPath
-  const defaultFilenameTemplate = settings.shareWatermark
-    ? SHARED_FILENAME_TEMPLATE
-    : DEFAULT_FILENAME_TEMPLATE
+  const defaultFilenameTemplate = resolveFilenameTemplate(
+    settings.filenameStyle,
+    options.type,
+    settings.shareWatermark,
+    settings.filenameViaVidBee
+  )
   const filenameTemplate = sanitizeFilenameTemplate(
     options.customFilenameTemplate ?? defaultFilenameTemplate,
     defaultFilenameTemplate

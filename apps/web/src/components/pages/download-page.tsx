@@ -23,8 +23,8 @@ import { cn } from "@vidbee/ui/lib/cn";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { logger } from "../../lib/logger";
 import { eventsUrl, orpcClient } from "../../lib/orpc-client";
-import { readOrpcDownloadSettings } from "../../lib/orpc-download-settings";
 import { readWebSettings } from "../../lib/web-settings";
 import { DownloadDialog } from "../download/download-dialog";
 import { DownloadItem } from "../download/download-item";
@@ -417,11 +417,11 @@ export const DownloadPage = () => {
 			setAlsoDeleteFiles(false);
 		} catch (error) {
 			if (confirmAction.type === "delete-selected") {
-				console.error("Failed to remove selected history items:", error);
+				logger.error("Failed to remove selected history items:", error);
 				toast.error(t("notifications.itemsRemoveFailed"));
 			}
 			if (confirmAction.type === "delete-playlist") {
-				console.error("Failed to remove playlist history:", error);
+				logger.error("Failed to remove playlist history:", error);
 				toast.error(t("notifications.playlistHistoryRemoveFailed"));
 			}
 		} finally {
@@ -526,7 +526,7 @@ export const DownloadPage = () => {
 			await orpcClient.downloads.cancel({ id });
 			await refreshData();
 		} catch (error) {
-			console.error("Failed to cancel download:", error);
+			logger.error("Failed to cancel download:", error);
 			toast.error(t("notifications.downloadFailed"));
 		}
 	};
@@ -538,29 +538,14 @@ export const DownloadPage = () => {
 		}
 
 		try {
-			await orpcClient.downloads.create({
-				url: download.url,
-				type: download.type,
-				title: download.title,
-				thumbnail: download.thumbnail,
-				duration: download.duration,
-				description: download.description,
-				channel: download.channel,
-				uploader: download.uploader,
-				viewCount: download.viewCount,
-				tags: download.tags,
-				selectedFormat: download.selectedFormat,
-				playlistId: download.playlistId,
-				playlistTitle: download.playlistTitle,
-				playlistIndex: download.playlistIndex,
-				playlistSize: download.playlistSize,
-				format: download.selectedFormat?.formatId,
-				audioFormat: download.type === "audio" ? "mp3" : undefined,
-				settings: readOrpcDownloadSettings(),
-			});
+			const result = await orpcClient.downloads.retry({ id: download.id });
+			if (!result.retried) {
+				toast.info(t("notifications.downloadAlreadyQueued"));
+				return;
+			}
 			await refreshData();
 		} catch (error) {
-			console.error("Failed to retry download:", error);
+			logger.error("Failed to retry download:", error);
 			toast.error(t("notifications.downloadFailed"));
 		}
 	};
@@ -571,7 +556,7 @@ export const DownloadPage = () => {
 			pruneSelectedIds([id]);
 			await refreshData();
 		} catch (error) {
-			console.error("Failed to remove history record:", error);
+			logger.error("Failed to remove history record:", error);
 			toast.error(t("notifications.removeFailed"));
 		}
 	};
@@ -586,7 +571,7 @@ export const DownloadPage = () => {
 			await navigator.clipboard.writeText(url);
 			toast.success(t("notifications.urlCopied"));
 		} catch (error) {
-			console.error("Failed to copy url:", error);
+			logger.error("Failed to copy url:", error);
 			toast.error(t("notifications.copyFailed"));
 		}
 	};
@@ -613,6 +598,7 @@ export const DownloadPage = () => {
 						{filteredRecords.length === 0 ? (
 							<DownloadEmptyState
 								className="mx-6 mb-4"
+								hint={t("download.ingestEmptyHint")}
 								message={t("download.noItems")}
 							/>
 						) : (

@@ -7,10 +7,11 @@ import { AddUrlPopover } from "@vidbee/ui/components/ui/add-url-popover";
 import { Button } from "@vidbee/ui/components/ui/button";
 import { Checkbox } from "@vidbee/ui/components/ui/checkbox";
 import { DownloadDialogLayout } from "@vidbee/ui/components/ui/download-dialog-layout";
+import { IngestDropOverlay } from "@vidbee/ui/components/ui/ingest-drop-overlay";
 import { Input } from "@vidbee/ui/components/ui/input";
 import { Label } from "@vidbee/ui/components/ui/label";
 import { useAddUrlInteraction } from "@vidbee/ui/lib/use-add-url-interaction";
-import { useAddUrlShortcut } from "@vidbee/ui/lib/use-add-url-shortcut";
+import { useHomeIngest } from "@vidbee/ui/lib/use-home-ingest";
 import { FolderOpen, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,6 +21,7 @@ import {
 	buildAudioFormatPreference,
 	buildVideoFormatPreference,
 } from "../../lib/download-format-preferences";
+import { logger } from "../../lib/logger";
 import { orpcClient } from "../../lib/orpc-client";
 import { readOrpcDownloadSettings } from "../../lib/orpc-download-settings";
 import { PlaylistDownload } from "./playlist-download";
@@ -234,7 +236,7 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 					setUrl("");
 				}
 			} catch (startError) {
-				console.error("Failed to start one-click download:", startError);
+				logger.error("Failed to start one-click download:", startError);
 				toast.error(t("notifications.downloadFailed"));
 			}
 		},
@@ -283,7 +285,7 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 					t("playlist.foundVideos", { count: info.playlist.entryCount }),
 				);
 			} catch (fetchError) {
-				console.error("Failed to fetch playlist info:", fetchError);
+				logger.error("Failed to fetch playlist info:", fetchError);
 				const message =
 					fetchError instanceof Error && fetchError.message
 						? fetchError.message
@@ -336,6 +338,7 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 		hasAddUrlValue,
 		setAddUrlPopoverOpen,
 		setAddUrlValue,
+		submitUrl,
 	} = useAddUrlInteraction({
 		activeTab,
 		isOneClickDownloadEnabled: settings.oneClickDownload,
@@ -351,9 +354,30 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 		onParseSingle: handleParseSingleUrl,
 	});
 
-	useAddUrlShortcut({
-		enabled: open,
-		onTrigger: handleOpenAddUrlPopover,
+	/**
+	 * Send pasted or dropped URLs through the existing download flow.
+	 */
+	const ingestUrls = useCallback(
+		async (urls: string[]) => {
+			for (const nextUrl of urls) {
+				await submitUrl(nextUrl);
+			}
+		},
+		[submitUrl],
+	);
+
+	const { dropKind, isDragging } = useHomeIngest({
+		enabled: true,
+		onUrls: ingestUrls,
+		onMediaPaths: async () => {
+			toast.error(t("notifications.localMediaDesktopOnly"));
+		},
+		onMediaFiles: async () => {
+			toast.error(t("notifications.localMediaDesktopOnly"));
+		},
+		onUnsupported: () => {
+			toast.error(t("notifications.unsupportedDrop"));
+		},
 	});
 
 	const handleOneClickDownload = useCallback(async () => {
@@ -384,7 +408,7 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 				t("playlist.foundVideos", { count: info.playlist.entryCount }),
 			);
 		} catch (fetchError) {
-			console.error("Failed to fetch playlist info:", fetchError);
+			logger.error("Failed to fetch playlist info:", fetchError);
 			const message =
 				fetchError instanceof Error && fetchError.message
 					? fetchError.message
@@ -472,7 +496,7 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 			await notifyDownloadsChanged();
 			setOpen(false);
 		} catch (startError) {
-			console.error("Failed to start playlist download:", startError);
+			logger.error("Failed to start playlist download:", startError);
 			toast.error(t("playlist.downloadFailed"));
 		} finally {
 			setPlaylistDownloadLoading(false);
@@ -550,7 +574,7 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 			await notifyDownloadsChanged();
 			setOpen(false);
 		} catch (startError) {
-			console.error("Failed to start download:", startError);
+			logger.error("Failed to start download:", startError);
 			toast.error(t("notifications.downloadFailed"));
 		}
 	}, [notifyDownloadsChanged, singleVideoState, t, url, videoInfo]);
@@ -596,192 +620,202 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 			: singleVideoState.selectedAudioFormat;
 
 	return (
-		<DownloadDialogLayout
-			activeTab={activeTab}
-			addUrlPopover={
-				<AddUrlPopover
-					cancelLabel={t("download.cancel")}
-					confirmDisabled={!canConfirmAddUrl}
-					confirmLabel={t("download.fetch")}
-					invalidMessage={
-						hasAddUrlValue && !canConfirmAddUrl
-							? t("errors.invalidUrl")
-							: undefined
-					}
-					onCancel={() => {
-						setAddUrlPopoverOpen(false);
-					}}
-					onConfirm={() => {
-						void handleConfirmAddUrl();
-					}}
-					onOpenChange={setAddUrlPopoverOpen}
-					onTriggerClick={() => {
-						void handleOpenAddUrlPopover();
-					}}
-					onValueChange={setAddUrlValue}
-					open={addUrlPopoverOpen}
-					placeholder={t("download.urlPlaceholder")}
-					title={t("download.enterUrl")}
-					triggerLabel={t("download.pasteUrlButton")}
-					value={addUrlValue}
-				/>
-			}
-			footer={
-				<div className="flex w-full items-center justify-between gap-3">
-					<div className="flex items-center gap-3">
-						{activeTab === "playlist" &&
-							!playlistInfo &&
-							!playlistPreviewLoading && (
-								<div className="flex items-center gap-2">
-									<Checkbox
-										checked={advancedOptionsOpen}
-										id={advancedOptionsId}
-										onCheckedChange={(checked) => {
-											setAdvancedOptionsOpen(checked === true);
-										}}
+		<>
+			<DownloadDialogLayout
+				activeTab={activeTab}
+				addUrlPopover={
+					<AddUrlPopover
+						cancelLabel={t("download.cancel")}
+						confirmDisabled={!canConfirmAddUrl}
+						confirmLabel={t("download.fetch")}
+						invalidMessage={
+							hasAddUrlValue && !canConfirmAddUrl
+								? t("errors.invalidUrl")
+								: undefined
+						}
+						onCancel={() => {
+							setAddUrlPopoverOpen(false);
+						}}
+						onConfirm={() => {
+							void handleConfirmAddUrl();
+						}}
+						onOpenChange={setAddUrlPopoverOpen}
+						onTriggerClick={() => {
+							void handleOpenAddUrlPopover();
+						}}
+						onValueChange={setAddUrlValue}
+						open={addUrlPopoverOpen}
+						placeholder={t("download.urlPlaceholder")}
+						title={t("download.enterUrl")}
+						triggerLabel={t("download.pasteUrlButton")}
+						value={addUrlValue}
+					/>
+				}
+				footer={
+					<div className="flex w-full items-center justify-between gap-3">
+						<div className="flex items-center gap-3">
+							{activeTab === "playlist" &&
+								!playlistInfo &&
+								!playlistPreviewLoading && (
+									<div className="flex items-center gap-2">
+										<Checkbox
+											checked={advancedOptionsOpen}
+											id={advancedOptionsId}
+											onCheckedChange={(checked) => {
+												setAdvancedOptionsOpen(checked === true);
+											}}
+										/>
+										<Label
+											className="cursor-pointer text-xs"
+											htmlFor={advancedOptionsId}
+										>
+											{t("advancedOptions.title")}
+										</Label>
+									</div>
+								)}
+
+							{activeTab === "single" && !videoInfo && !loading && (
+								<div className="relative w-[320px]">
+									<Input
+										className="h-8 pr-8 text-xs"
+										onChange={(event) => setUrl(event.target.value)}
+										placeholder={t("download.urlPlaceholder")}
+										value={url}
 									/>
-									<Label
-										className="cursor-pointer text-xs"
-										htmlFor={advancedOptionsId}
-									>
-										{t("advancedOptions.title")}
-									</Label>
+									<div className="absolute top-1/2 right-1 -translate-y-1/2">
+										<Button
+											className="h-6 w-6"
+											onClick={async () => {
+												if (!navigator.clipboard?.readText) {
+													return;
+												}
+												try {
+													const clipboardText =
+														await navigator.clipboard.readText();
+													if (clipboardText.trim()) {
+														setUrl(clipboardText.trim());
+													}
+												} catch {
+													// ignore
+												}
+											}}
+											size="icon"
+											variant="ghost"
+										>
+											<FolderOpen className="h-3 w-3 text-muted-foreground" />
+										</Button>
+									</div>
 								</div>
 							)}
-
-						{activeTab === "single" && !videoInfo && !loading && (
-							<div className="relative w-[320px]">
-								<Input
-									className="h-8 pr-8 text-xs"
-									onChange={(event) => setUrl(event.target.value)}
-									placeholder={t("download.urlPlaceholder")}
-									value={url}
-								/>
-								<div className="absolute top-1/2 right-1 -translate-y-1/2">
+						</div>
+						<div className="ml-auto flex gap-2">
+							{activeTab === "single" ? (
+								videoInfo || loading ? (
+									!loading && videoInfo ? (
+										<Button
+											disabled={loading || !selectedSingleFormat}
+											onClick={handleSingleVideoDownload}
+										>
+											{singleVideoState.activeTab === "video"
+												? t("download.downloadVideo")
+												: t("download.downloadAudio")}
+										</Button>
+									) : null
+								) : (
 									<Button
-										className="h-6 w-6"
-										onClick={async () => {
-											if (!navigator.clipboard?.readText) {
-												return;
-											}
-											try {
-												const clipboardText =
-													await navigator.clipboard.readText();
-												if (clipboardText.trim()) {
-													setUrl(clipboardText.trim());
-												}
-											} catch {
-												// ignore
-											}
-										}}
-										size="icon"
-										variant="ghost"
+										disabled={loading || !url.trim()}
+										onClick={
+											settings.oneClickDownload
+												? handleOneClickDownload
+												: handleFetchVideo
+										}
 									>
-										<FolderOpen className="h-3 w-3 text-muted-foreground" />
+										{settings.oneClickDownload
+											? t("download.oneClickDownloadNow")
+											: t("download.startDownload")}
 									</Button>
-								</div>
-							</div>
-						)}
-					</div>
-					<div className="ml-auto flex gap-2">
-						{activeTab === "single" ? (
-							videoInfo || loading ? (
-								!loading && videoInfo ? (
-									<Button
-										disabled={loading || !selectedSingleFormat}
-										onClick={handleSingleVideoDownload}
-									>
-										{singleVideoState.activeTab === "video"
-											? t("download.downloadVideo")
-											: t("download.downloadAudio")}
-									</Button>
-								) : null
-							) : (
+								)
+							) : playlistInfo && !playlistPreviewLoading ? (
 								<Button
-									disabled={loading || !url.trim()}
-									onClick={
-										settings.oneClickDownload
-											? handleOneClickDownload
-											: handleFetchVideo
+									disabled={
+										playlistDownloadLoading ||
+										selectedPlaylistEntries.length === 0
 									}
+									onClick={handleDownloadPlaylist}
 								>
-									{settings.oneClickDownload
-										? t("download.oneClickDownloadNow")
-										: t("download.startDownload")}
+									{playlistDownloadLoading ? (
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+									) : (
+										t("playlist.downloadCurrentRange")
+									)}
 								</Button>
-							)
-						) : playlistInfo && !playlistPreviewLoading ? (
-							<Button
-								disabled={
-									playlistDownloadLoading ||
-									selectedPlaylistEntries.length === 0
-								}
-								onClick={handleDownloadPlaylist}
-							>
-								{playlistDownloadLoading ? (
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								) : (
-									t("playlist.downloadCurrentRange")
-								)}
-							</Button>
-						) : playlistPreviewLoading ? null : (
-							<Button
-								disabled={playlistBusy || !playlistUrl.trim()}
-								onClick={handlePreviewPlaylist}
-							>
-								{playlistPreviewLoading ? (
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								) : (
-									t("download.startDownload")
-								)}
-							</Button>
-						)}
+							) : playlistPreviewLoading ? null : (
+								<Button
+									disabled={playlistBusy || !playlistUrl.trim()}
+									onClick={handlePreviewPlaylist}
+								>
+									{playlistPreviewLoading ? (
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+									) : (
+										t("download.startDownload")
+									)}
+								</Button>
+							)}
+						</div>
 					</div>
-				</div>
-			}
-			lockDialogHeight={lockDialogHeight}
-			oneClickDownloadEnabled={settings.oneClickDownload}
-			oneClickTooltip={t("download.oneClickDownloadTooltip")}
-			onActiveTabChange={setActiveTab}
-			onOpenChange={setOpen}
-			onToggleOneClickDownload={() => {
-				updateSettings({
-					oneClickDownload: !settings.oneClickDownload,
-				});
-			}}
-			open={open}
-			playlistTabContent={
-				<PlaylistDownload
-					advancedOptionsOpen={advancedOptionsOpen}
-					downloadType={downloadType}
-					downloadTypeId={downloadTypeId}
-					endIndex={endIndex}
-					playlistBusy={playlistBusy}
-					playlistInfo={playlistInfo}
-					playlistPreviewError={playlistPreviewError}
-					playlistPreviewLoading={playlistPreviewLoading}
-					selectedEntryIds={selectedEntryIds}
-					selectedPlaylistEntries={selectedPlaylistEntries}
-					setDownloadType={setDownloadType}
-					setEndIndex={setEndIndex}
-					setSelectedEntryIds={setSelectedEntryIds}
-					setStartIndex={setStartIndex}
-					startIndex={startIndex}
-				/>
-			}
-			playlistTabLabel={t("download.metadata.playlist")}
-			singleTabContent={
-				<SingleVideoDownload
-					error={error}
-					feedbackSourceUrl={url}
-					loading={loading}
-					onStateChange={handleSingleVideoStateChange}
-					oneClickQuality={settings.oneClickQuality}
-					state={singleVideoState}
-					videoInfo={videoInfo}
-				/>
-			}
-			singleTabLabel={t("download.singleVideo")}
-		/>
+				}
+				lockDialogHeight={lockDialogHeight}
+				oneClickDownloadEnabled={settings.oneClickDownload}
+				oneClickTooltip={t("download.oneClickDownloadTooltip")}
+				onActiveTabChange={setActiveTab}
+				onOpenChange={setOpen}
+				onToggleOneClickDownload={() => {
+					updateSettings({
+						oneClickDownload: !settings.oneClickDownload,
+					});
+				}}
+				open={open}
+				playlistTabContent={
+					<PlaylistDownload
+						advancedOptionsOpen={advancedOptionsOpen}
+						downloadType={downloadType}
+						downloadTypeId={downloadTypeId}
+						endIndex={endIndex}
+						playlistBusy={playlistBusy}
+						playlistInfo={playlistInfo}
+						playlistPreviewError={playlistPreviewError}
+						playlistPreviewLoading={playlistPreviewLoading}
+						selectedEntryIds={selectedEntryIds}
+						selectedPlaylistEntries={selectedPlaylistEntries}
+						setDownloadType={setDownloadType}
+						setEndIndex={setEndIndex}
+						setSelectedEntryIds={setSelectedEntryIds}
+						setStartIndex={setStartIndex}
+						startIndex={startIndex}
+					/>
+				}
+				playlistTabLabel={t("download.metadata.playlist")}
+				singleTabContent={
+					<SingleVideoDownload
+						error={error}
+						feedbackSourceUrl={url}
+						loading={loading}
+						onStateChange={handleSingleVideoStateChange}
+						oneClickQuality={settings.oneClickQuality}
+						state={singleVideoState}
+						videoInfo={videoInfo}
+					/>
+				}
+				singleTabLabel={t("download.singleVideo")}
+			/>
+			<IngestDropOverlay
+				description={t("download.ingestDropDescription")}
+				kind={dropKind}
+				mediaTitle={t("download.ingestDropMedia")}
+				mixedTitle={t("download.ingestDropMixed")}
+				urlTitle={t("download.ingestDropUrl")}
+				visible={isDragging}
+			/>
+		</>
 	);
 }

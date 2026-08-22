@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { cn } from '../../lib/cn'
 import { Button } from './button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader } from './dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './tabs'
+import { TabItem, TabPanel, Tabs, TabsList } from './tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from './tooltip'
 
 interface DownloadDialogLayoutProps {
@@ -80,22 +80,16 @@ export const DownloadDialogLayout = ({
         >
           <DialogHeader>
             <TabsList>
-              <TabsTrigger onClick={() => onActiveTabChange('single')} value="single">
-                <Video className="h-3.5 w-3.5" />
-                {singleTabLabel}
-              </TabsTrigger>
-              <TabsTrigger onClick={() => onActiveTabChange('playlist')} value="playlist">
-                <List className="h-3.5 w-3.5" />
-                {playlistTabLabel}
-              </TabsTrigger>
+              <TabItem icon={Video} label={singleTabLabel} value="single" />
+              <TabItem icon={List} label={playlistTabLabel} value="playlist" />
             </TabsList>
           </DialogHeader>
-          <TabsContent className="mt-0 flex min-h-0 flex-1 flex-col" value="single">
+          <TabPanel className="mt-0 flex min-h-0 flex-1 flex-col" value="single">
             {singleTabContent}
-          </TabsContent>
-          <TabsContent className="mt-0 flex min-h-0 flex-1 flex-col" value="playlist">
+          </TabPanel>
+          <TabPanel className="mt-0 flex min-h-0 flex-1 flex-col" value="playlist">
             {playlistTabContent}
-          </TabsContent>
+          </TabPanel>
         </Tabs>
         <DialogFooter className="relative z-10 shrink-0 border-t bg-background pt-3">
           {footer}

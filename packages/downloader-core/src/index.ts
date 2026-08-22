@@ -5,7 +5,55 @@ export {
   parseBrowserCookiesSetting
 } from './browser-cookies-setting'
 export { downloaderContract } from './contract'
+export {
+  getBrowserCookieDatabaseName,
+  getBrowserProfileBaseDirs,
+  getBrowserProfileCandidates
+} from './cookie-browser-paths'
+export type {
+  CookieBrowserId,
+  CookieHealth,
+  CookieHealthReason,
+  CookieHealthSource,
+  CookieHealthStatus,
+  CookieSetupFailureKind,
+  CookieSetupMethod,
+  CookieSetupReason,
+  CookieSetupRecommendation,
+  CookieSiteMatch,
+  InstalledCookieBrowser
+} from './cookie-setup'
+export {
+  COOKIE_BROWSER_IDS,
+  COOKIES_CHROME_EXTENSION_URL,
+  COOKIES_FIREFOX_EXTENSION_URL,
+  COOKIES_GUIDE_URL,
+  getCookieSetupFailureKind,
+  getMaxCookiesFileBytes,
+  hasConfiguredCookieSettings,
+  inspectNetscapeCookies,
+  isBrowserCookieReadSupported,
+  isCookieBrowserId,
+  isWindowsBlockedCookieBrowser,
+  listSelectableCookieBrowsers,
+  looksLikeNetscapeCookies,
+  recommendCookieSetup,
+  unconfiguredCookieHealth
+} from './cookie-setup'
 export { DownloaderCore } from './downloader-core'
+export type { FilenameStyle } from './filename-style'
+export {
+  applyViaVidBeeFilename,
+  DEFAULT_FILENAME_STYLE,
+  DEFAULT_FILENAME_TEMPLATE,
+  DEFAULT_FILENAME_VIA_VIDBEE,
+  FILENAME_STYLE_PREVIEWS,
+  FILENAME_STYLES,
+  isFilenameStyle,
+  resolveFilenameTemplate,
+  SHARED_FILENAME_TEMPLATE,
+  VIA_VIDBEE_LABEL
+} from './filename-style'
 export type {
   OneClickContainerOption,
   OneClickFormatSettings,

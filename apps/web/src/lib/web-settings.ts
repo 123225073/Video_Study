@@ -1,5 +1,9 @@
 import type { DownloadType } from "@vidbee/downloader-core";
 import {
+	type FilenameStyle,
+	isFilenameStyle,
+} from "@vidbee/downloader-core/filename-style";
+import {
 	defaultLanguageCode,
 	type LanguageCode,
 	normalizeLanguageCode,
@@ -40,9 +44,12 @@ export interface WebAppSettings {
 	subscriptionOnlyLatestDefault: boolean;
 	enableAnalytics: boolean;
 	embedSubs: boolean;
+	writeAutoSubs: boolean;
 	embedThumbnail: boolean;
 	embedMetadata: boolean;
 	embedChapters: boolean;
+	filenameStyle: FilenameStyle;
+	filenameViaVidBee: boolean;
 	shareWatermark: boolean;
 }
 
@@ -67,9 +74,12 @@ export const defaultWebSettings: WebAppSettings = {
 	subscriptionOnlyLatestDefault: true,
 	enableAnalytics: true,
 	embedSubs: true,
+	writeAutoSubs: true,
 	embedThumbnail: false,
 	embedMetadata: true,
 	embedChapters: true,
+	filenameStyle: "pretty",
+	filenameViaVidBee: true,
 	shareWatermark: false,
 };
 
@@ -105,6 +115,9 @@ const toOneClickContainer = (value: unknown): OneClickContainerOption => {
 	}
 	return defaultWebSettings.oneClickContainer;
 };
+
+const toFilenameStyle = (value: unknown): FilenameStyle =>
+	isFilenameStyle(value) ? value : defaultWebSettings.filenameStyle;
 
 const toDownloadType = (value: unknown): DownloadType => {
 	if (value === "audio" || value === "video") {
@@ -170,6 +183,10 @@ const parseSettings = (raw: string | null): WebAppSettings => {
 				defaultWebSettings.enableAnalytics,
 			),
 			embedSubs: toBoolean(parsed.embedSubs, defaultWebSettings.embedSubs),
+			writeAutoSubs: toBoolean(
+				parsed.writeAutoSubs,
+				defaultWebSettings.writeAutoSubs,
+			),
 			embedThumbnail: toBoolean(
 				parsed.embedThumbnail,
 				defaultWebSettings.embedThumbnail,
@@ -181,6 +198,11 @@ const parseSettings = (raw: string | null): WebAppSettings => {
 			embedChapters: toBoolean(
 				parsed.embedChapters,
 				defaultWebSettings.embedChapters,
+			),
+			filenameStyle: toFilenameStyle(parsed.filenameStyle),
+			filenameViaVidBee: toBoolean(
+				parsed.filenameViaVidBee,
+				defaultWebSettings.filenameViaVidBee,
 			),
 			shareWatermark: toBoolean(
 				parsed.shareWatermark,

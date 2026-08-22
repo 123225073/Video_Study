@@ -1,7 +1,10 @@
 import { join } from 'node:path'
+import { createGithubMirrorFetch, preferChinaMirrors } from '@vidbee/transcription/download-mirrors'
 import { app } from 'electron'
+import { settingsManager } from '../settings'
 import { scopedLoggers } from '../utils/logger'
 import { resolveBundledResourcesPath } from './bundled-resources-path'
+import { readElectronLocaleHints } from './system-locale'
 import { runKernelCommand } from './ytdlp-kernel-command'
 import { YtDlpKernelService } from './ytdlp-kernel-service'
 import { ytdlpManager } from './ytdlp-manager'
@@ -40,7 +43,12 @@ export function initializeYtDlpKernelService(): YtDlpKernelService {
     arch: process.arch,
     bundledDenoPath: join(resourcesPath, denoName),
     bundledYtDlpPath: join(resourcesPath, ytDlpName),
-    fetch,
+    fetch: createGithubMirrorFetch(fetch, () =>
+      preferChinaMirrors({
+        ...readElectronLocaleHints(),
+        mirror: settingsManager.get('downloadMirror')
+      })
+    ),
     kernelRoot: join(app.getPath('userData'), 'kernels', 'yt-dlp'),
     logger: {
       error: (message) => scopedLoggers.engine.error(message),

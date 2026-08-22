@@ -3,13 +3,7 @@ import { useAppInfo } from '@renderer/components/feedback/FeedbackLinks'
 import { DownloadEngineRow } from '@renderer/components/kernel/DownloadEngineRow'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@renderer/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@renderer/components/ui/card'
 import { Progress } from '@renderer/components/ui/progress'
 import { Switch } from '@renderer/components/ui/switch'
 import { FeedbackLinkButtons } from '@vidbee/ui/components/ui/feedback-link-buttons'
@@ -20,6 +14,7 @@ import {
   Facebook,
   Github,
   Link as LinkIcon,
+  Mail,
   MessageSquare,
   RefreshCw,
   Twitter
@@ -28,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ipcEvents, ipcServices } from '../lib/ipc'
+import { logger } from '../lib/logger'
 import { withDesktopUtm } from '../lib/url'
 import { saveSettingAtom, settingsAtom } from '../store/settings'
 import { updateAvailableAtom, updateReadyAtom } from '../store/update'
@@ -39,8 +35,11 @@ interface AboutResource {
   description?: string
   actionLabel: string
   href?: string
+  external?: boolean
   onClick?: () => void
 }
+
+const SUPPORT_EMAIL = 'team@vidbee.org'
 
 type LatestVersionState =
   | { status: 'available'; version: string }
@@ -165,7 +164,7 @@ export function About() {
         })
       }
     } catch (error) {
-      console.error('Failed to check for updates:', error)
+      logger.error('Failed to check for updates:', error)
       toast.error(t('about.notifications.updateError', { error: 'Unknown error' }))
       setLatestVersionState({
         status: 'error'
@@ -204,7 +203,7 @@ export function About() {
       await navigator.clipboard.writeText(shareTargetUrl)
       toast.success(t('notifications.urlCopied'))
     } catch (error) {
-      console.error('Failed to copy share link:', error)
+      logger.error('Failed to copy share link:', error)
       toast.error(t('notifications.copyFailed'))
     }
   }
@@ -229,11 +228,19 @@ export function About() {
   const aboutResources = useMemo<AboutResource[]>(
     () => [
       {
+        icon: Mail,
+        label: t('about.resources.contact'),
+        description: t('about.resources.contactDescription'),
+        actionLabel: SUPPORT_EMAIL,
+        href: `mailto:${SUPPORT_EMAIL}`
+      },
+      {
         icon: LinkIcon,
         label: t('about.resources.website'),
         description: t('about.resources.websiteDescription'),
         actionLabel: t('about.actions.visit'),
-        href: withDesktopUtm('https://vidbee.org/')
+        href: withDesktopUtm('https://vidbee.org/'),
+        external: true
       }
     ],
     [t]
@@ -331,10 +338,6 @@ export function About() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>{t('about.preferencesTitle')}</CardTitle>
-            <CardDescription>{t('about.preferencesDescription')}</CardDescription>
-          </CardHeader>
           <CardContent className="p-0">
             <div className="flex flex-col divide-y">
               <div className="flex items-center justify-between gap-4 px-6 py-4">
@@ -347,7 +350,8 @@ export function About() {
                 <Switch
                   aria-label={t('about.betaProgramTitle')}
                   checked={settings.betaProgram}
-                  onCheckedChange={handleToggleBetaProgram}
+                  label=""
+                  onToggle={() => handleToggleBetaProgram(!settings.betaProgram)}
                 />
               </div>
               <div className="flex items-center justify-between gap-4 px-6 py-4">
@@ -357,7 +361,13 @@ export function About() {
                     {t('about.autoUpdateDescription')}
                   </p>
                 </div>
-                <Switch aria-label={t('about.autoUpdateTitle')} checked disabled />
+                <Switch
+                  aria-label={t('about.autoUpdateTitle')}
+                  checked
+                  disabled
+                  label=""
+                  onToggle={() => undefined}
+                />
               </div>
               <DownloadEngineRow status={kernelStatus} />
             </div>
@@ -456,7 +466,11 @@ export function About() {
                     </div>
                     {resource.href ? (
                       <Button asChild size="sm" variant="outline">
-                        <a href={resource.href} rel="noreferrer" target="_blank">
+                        <a
+                          href={resource.href}
+                          rel={resource.external ? 'noreferrer' : undefined}
+                          target={resource.external ? '_blank' : undefined}
+                        >
                           {resource.actionLabel}
                         </a>
                       </Button>

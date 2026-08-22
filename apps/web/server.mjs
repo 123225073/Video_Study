@@ -1,4 +1,5 @@
 import { createReadStream } from 'node:fs'
+import { log } from '@vidbee/logger/script'
 import { stat } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
@@ -155,7 +156,10 @@ const handleRequest = async (request, response, options) => {
     const rendered = await serverEntry.fetch(toFetchRequest(request, requestUrl))
     await writeFetchResponse(rendered, response, request.method)
   } catch (error) {
-    console.error(`Web request failed: ${error instanceof Error ? error.message : String(error)}`)
+    log.error({
+      event: 'web_request_failed',
+      error: error instanceof Error ? error.message : String(error)
+    })
     if (!response.headersSent) {
       response.statusCode = isProxyPath(requestUrl.pathname) ? 502 : 500
       response.setHeader('content-type', 'text/plain; charset=utf-8')
@@ -164,7 +168,7 @@ const handleRequest = async (request, response, options) => {
   }
 }
 
-/** Create the production web server with injectable paths for integration tests. */
+/** Create the production web server with injectable paths. */
 export const createWebServer = (options = {}) => {
   const resolvedOptions = {
     apiUrl: new URL(options.apiUrl ?? process.env.VIDBEE_API_URL_INTERNAL ?? DEFAULT_API_URL),
@@ -187,6 +191,6 @@ if (isMainModule()) {
     throw new Error('VIDBEE_WEB_PORT must be an integer between 1 and 65535.')
   }
   createWebServer().listen(parsedPort, host, () => {
-    console.info(`VidBee Web listening on http://${host}:${parsedPort}`)
+    log.info({ event: 'web_listening', host, port: parsedPort })
   })
 }

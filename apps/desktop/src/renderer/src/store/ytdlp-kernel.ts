@@ -2,6 +2,7 @@ import type { YtDlpKernelStatus } from '@shared/types'
 import { atom, useAtom } from 'jotai'
 import { useCallback, useEffect } from 'react'
 import { ipcEvents, ipcServices } from '../lib/ipc'
+import { logger } from '../lib/logger'
 
 export const initialYtDlpKernelStatus: YtDlpKernelStatus = {
   denoVersion: null,
@@ -43,7 +44,7 @@ export function useYtDlpKernelStatus(): {
           setStatus(snapshot)
         }
       })
-      .catch((error) => console.error('Failed to load yt-dlp kernel status:', error))
+      .catch((error) => logger.error('Failed to load yt-dlp kernel status:', error))
 
     return () => {
       disposed = true

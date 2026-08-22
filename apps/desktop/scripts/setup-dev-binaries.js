@@ -12,6 +12,9 @@ import https from 'node:https'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { log as evlog } from '@vidbee/logger/script'
+import { expandGithubMirrors } from './github-mirrors.js'
+import { downloadNodeRuntime } from './setup-node-runtime.js'
 import { YTDLP_PLATFORM_ASSETS } from './ytdlp-assets.js'
 
 // Configuration
@@ -102,7 +105,16 @@ function log(message, type = 'info') {
     warn: '⚠️',
     download: '⬇️'
   }
-  console.log(`${icons[type] || 'ℹ️'} ${message}`)
+  const line = `${icons[type] || 'ℹ️'} ${message}`
+  if (type === 'error') {
+    evlog.error(line)
+    return
+  }
+  if (type === 'warn') {
+    evlog.warn(line)
+    return
+  }
+  evlog.info(line)
 }
 
 function ensureDir(dir) {
@@ -194,7 +206,7 @@ function downloadFile(url, dest) {
       })
     })
 
-    request.setTimeout(30_000, () => {
+    request.setTimeout(600_000, () => {
       if (isSettled) {
         return
       }
@@ -216,40 +228,44 @@ function downloadFile(url, dest) {
 }
 
 async function downloadFileWithRetry(url, dest, retries = 3, delayMs = 2000) {
+  const candidates = expandGithubMirrors(url)
   let lastError
   for (let attempt = 1; attempt <= retries; attempt += 1) {
-    try {
-      log(`Downloading ${url} (attempt ${attempt}/${retries})...`, 'download')
-      await downloadFile(url, dest)
-      return
-    } catch (error) {
-      lastError = error
-      safeUnlink(dest)
-      if (attempt < retries) {
-        const backoff = delayMs * attempt
-        log(`Download failed for ${url} (attempt ${attempt}/${retries}): ${error.message}`, 'warn')
-        await new Promise((resolve) => setTimeout(resolve, backoff))
+    for (const candidate of candidates) {
+      try {
+        log(`Downloading ${candidate} (attempt ${attempt}/${retries})...`, 'download')
+        await downloadFile(candidate, dest)
+        return
+      } catch (error) {
+        lastError = error
+        safeUnlink(dest)
+        log(`Download failed for ${candidate}: ${error.message}`, 'warn')
       }
+    }
+    if (attempt < retries) {
+      const backoff = delayMs * attempt
+      log(`Retrying download after ${backoff}ms...`, 'warn')
+      await new Promise((resolve) => setTimeout(resolve, backoff))
     }
   }
   throw lastError
 }
 
-function fetchJson(url) {
+function fetchJsonFrom(url) {
   return new Promise((resolve, reject) => {
     const protocol = url.startsWith('https') ? https : http
     const headers = {
       'User-Agent': 'vidbee-setup',
       Accept: 'application/vnd.github+json'
     }
-    if (GITHUB_TOKEN) {
+    if (GITHUB_TOKEN && /github\.com|githubusercontent\.com/.test(url)) {
       headers.Authorization = `Bearer ${GITHUB_TOKEN}`
     }
 
     protocol
       .get(url, { headers }, (response) => {
         if (response.statusCode === 302 || response.statusCode === 301) {
-          return fetchJson(response.headers.location).then(resolve).catch(reject)
+          return fetchJsonFrom(response.headers.location).then(resolve).catch(reject)
         }
         if (response.statusCode !== 200) {
           return reject(new Error(`Failed to fetch ${url}: ${response.statusCode}`))
@@ -271,6 +287,20 @@ function fetchJson(url) {
         reject(err)
       })
   })
+}
+
+async function fetchJson(url) {
+  const candidates = expandGithubMirrors(url)
+  let lastError
+  for (const candidate of candidates) {
+    try {
+      return await fetchJsonFrom(candidate)
+    } catch (error) {
+      lastError = error
+      log(`JSON fetch failed for ${candidate}: ${error.message}`, 'warn')
+    }
+  }
+  throw lastError
 }
 
 function inferFfmpegInnerPath(assetName, binaryName) {
@@ -1087,6 +1117,9 @@ async function setup() {
 
     // Download JS runtime (Deno)
     await downloadDenoRuntime()
+
+    // Bundled Node for transcription worker (§11.1)
+    await downloadNodeRuntime()
 
     // Download ffmpeg
     if (platform === 'win32') {

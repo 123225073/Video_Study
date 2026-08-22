@@ -124,33 +124,12 @@ export function PlaylistDownload({
                     )}
                     key={entry.id}
                     onClick={handleToggle}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        handleToggle()
-                      }
-                    }}
                     type="button"
                   >
                     <Checkbox
                       checked={isSelected || isInRange}
-                      className="shrink-0"
-                      onCheckedChange={(checked) => {
-                        setSelectedEntryIds((prev) => {
-                          const next = new Set(prev)
-                          if (checked) {
-                            next.add(entry.id)
-                          } else {
-                            next.delete(entry.id)
-                          }
-                          return next
-                        })
-                        if (selectedEntryIds.size === 0) {
-                          setStartIndex('1')
-                          setEndIndex('')
-                        }
-                      }}
-                      onClick={(event) => event.stopPropagation()}
+                      className="pointer-events-none shrink-0"
+                      tabIndex={-1}
                     />
                     <div className="w-8 shrink-0 font-medium text-muted-foreground/70 text-xs tabular-nums">
                       #{entry.index}

@@ -134,4 +134,21 @@ export const configurePortableMode = (): void => {
   setAppPath('crashDumps', crashDumpsDir)
 }
 
+/**
+ * Keep unpackaged (dev / electron-vite) userData on the historical
+ * `~/…/vidbee` folder so Electron upgrades reuse the existing database,
+ * settings, models, and kernels instead of starting a blank profile.
+ */
+const configureUnpackagedUserData = (): void => {
+  if (isPortableMode || app.isPackaged) {
+    return
+  }
+
+  const userDataDir = path.join(app.getPath('appData'), 'vidbee')
+  ensureDirectoryExists(userDataDir)
+  setAppPath('userData', userDataDir)
+  setAppPath('sessionData', userDataDir)
+}
+
 configurePortableMode()
+configureUnpackagedUserData()

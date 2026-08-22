@@ -19,10 +19,6 @@ import {
   buildAudioFormatPreference,
   buildVideoFormatPreference
 } from '../shared/utils/format-preferences'
-import {
-  buildVideoInfoDownloadMetadata,
-  pickOneClickSelectedFormat
-} from '../shared/utils/video-info-metadata'
 import { configureLogger } from './config/logger-config'
 import { services } from './ipc'
 import { downloadEngine } from './lib/download-facade'
@@ -33,6 +29,9 @@ import {
   captureMainMessage,
   initGlitchTipMain
 } from './lib/glitchtip'
+import { localMediaKind } from './lib/import-local-media'
+import { stopPlayerHost } from './lib/player-host'
+import { deferAppQuitIfNeeded } from './lib/quit-confirmation-host'
 import { initializeOptionalTool } from './lib/startup-dependencies'
 import {
   getDesktopSubscriptions,
@@ -40,7 +39,14 @@ import {
   startDesktopSubscriptions,
   stopDesktopSubscriptions
 } from './lib/subscriptions-host'
+import { startDesktopTaskQueue } from './lib/task-queue-host'
 import { runDesktopTaskQueueMigration } from './lib/task-queue-migrate'
+import {
+  importLocalMediaForTranscription,
+  startAutoTranscription,
+  startIdleMinimalModelFill,
+  subscribeTranscriptBroadcasts
+} from './lib/transcript-host'
 import { applyUpdateChannel } from './lib/update-channel'
 import { initializeYtDlpKernelService, stopYtDlpKernelService } from './lib/ytdlp-kernel-host'
 import { startExtensionApiServer, stopExtensionApiServer } from './local-api'
@@ -90,14 +96,20 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('xdg-portal-required-version', '4')
 }
 
+if (!app.isPackaged) {
+  app.commandLine.appendSwitch('remote-debugging-port', '9229')
+}
+
 const RENDERER_DIST_PATH = join(import.meta.dirname, '../renderer')
 
 protocol.registerSchemesAsPrivileged([
   {
     scheme: APP_PROTOCOL,
     privileges: {
+      corsEnabled: true,
       secure: true,
       standard: true,
+      stream: true,
       supportFetchAPI: true
     }
   }
@@ -113,6 +125,8 @@ interface DeepLinkData {
 }
 const pendingDeepLinkUrls: DeepLinkData[] = []
 const pendingOneClickDownloads: DeepLinkData[] = []
+const pendingMediaPaths: string[] = []
+let isTaskQueueReady = false
 let isRendererReady = false
 let isMainWindowReadyToShow = false
 let shouldKeepMainWindowHiddenAtStartup = false
@@ -164,6 +178,7 @@ ipcMain.on('app:renderer-ready', (event) => {
   isRendererReady = true
   showMainWindowWhenReady()
   flushPendingDeepLinks()
+  void flushPendingMediaImports()
 })
 
 const parseDownloadDeepLink = (rawUrl: string): DeepLinkData | null => {
@@ -257,6 +272,68 @@ const handleDeepLinkArgv = (argv: string[]): void => {
   }
 }
 
+/**
+ * Return whether an argv token looks like a local media file we can import.
+ */
+const isLaunchMediaArg = (arg: string): boolean => {
+  if (!arg || arg.startsWith('-')) {
+    return false
+  }
+  if (arg.startsWith(`${APP_PROTOCOL}://`)) {
+    return false
+  }
+  return localMediaKind(arg) !== null && existsSync(arg)
+}
+
+/**
+ * Queue local media paths dropped on the app icon or passed as launch args.
+ */
+const queueMediaImport = (filePath: string): void => {
+  if (!isLaunchMediaArg(filePath) && localMediaKind(filePath) === null) {
+    return
+  }
+  pendingMediaPaths.push(filePath)
+  void flushPendingMediaImports()
+}
+
+/**
+ * Import queued local media files once the renderer and task queue are ready.
+ */
+const flushPendingMediaImports = async (): Promise<void> => {
+  if (!(isRendererReady && isTaskQueueReady && pendingMediaPaths.length > 0)) {
+    return
+  }
+  const paths = pendingMediaPaths.splice(0, pendingMediaPaths.length)
+  const window = getActiveMainWindow()
+  if (window) {
+    if (window.isMinimized()) {
+      window.restore()
+    }
+    if (!window.isVisible()) {
+      window.show()
+    }
+    window.focus()
+  }
+  try {
+    await startDesktopTaskQueue()
+    const result = await importLocalMediaForTranscription(paths)
+    sendToRenderer('media:imported', result)
+  } catch (error) {
+    log.warn('Failed to import dropped local media:', error)
+  }
+}
+
+/**
+ * Collect media file paths from process arguments.
+ */
+const handleMediaArgv = (argv: string[]): void => {
+  for (const arg of argv) {
+    if (isLaunchMediaArg(arg)) {
+      queueMediaImport(arg)
+    }
+  }
+}
+
 // NEX-132 Phase B: bridge `SubscriptionsApi.on('changed')` → renderer's
 // legacy `subscriptions:updated` IPC event so the existing UI keeps working
 // while it migrates to task-queue-derived subscription item state.
@@ -304,10 +381,20 @@ export function createWindow(): void {
   mainWindow = new BrowserWindow(windowOptions)
 
   mainWindow.on('close', (event) => {
+    if (isQuitting) {
+      return
+    }
+
     const closeToTray = settingsManager.get('closeToTray')
-    if (closeToTray && !isQuitting) {
+    if (closeToTray) {
       event.preventDefault()
       mainWindow?.hide()
+      return
+    }
+
+    // On Windows/Linux, closing the last window quits the app.
+    if (process.platform !== 'darwin' && deferAppQuitIfNeeded()) {
+      event.preventDefault()
     }
   })
 
@@ -333,6 +420,13 @@ export function createWindow(): void {
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('console-message', (event) => {
+    if (event.level !== 'warning' && event.level !== 'error') {
+      return
+    }
+    log.warn(`renderer console: ${event.message} (${event.sourceId}:${event.lineNumber})`)
   })
 
   // HMR for renderer base on electron-vite cli.
@@ -605,42 +699,24 @@ const startOneClickDownload = async (data: DeepLinkData): Promise<void> => {
     }
 
     const downloadId = createDownloadId()
-    let downloadUrl = data.url
-    let metadata = {}
-
-    try {
-      const info = await downloadEngine.getVideoInfo(data.url)
-      downloadUrl = info.webpage_url?.trim() || data.url
-      metadata = {
-        ...buildVideoInfoDownloadMetadata(info),
-        selectedFormat: pickOneClickSelectedFormat(info, {
-          oneClickDownloadType: downloadType,
-          oneClickQuality: settings.oneClickQuality
-        })
-      }
-    } catch (error) {
-      log.warn('Failed to fetch one-click video info before queueing:', error)
-    }
-
     const started = downloadEngine.startDownload(downloadId, {
-      url: downloadUrl,
+      url: data.url,
       type: downloadType,
       format,
-      containerFormat,
-      ...metadata
+      containerFormat
     })
     if (started) {
-      log.info('One-click download queued:', { id: downloadId, url: downloadUrl })
+      log.info('One-click download queued:', { id: downloadId, url: data.url })
       addMainBreadcrumb('download', 'One-click download queued', {
         downloadId,
         type: data.type,
-        url: downloadUrl
+        url: data.url
       })
     } else {
-      log.info('One-click download already queued:', { id: downloadId, url: downloadUrl })
+      log.info('One-click download already queued:', { id: downloadId, url: data.url })
       addMainBreadcrumb('download', 'One-click download was already queued', {
         downloadId,
-        url: downloadUrl
+        url: data.url
       })
     }
   } catch (error) {
@@ -789,6 +865,7 @@ const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (gotSingleInstanceLock) {
   app.on('second-instance', (_event, argv) => {
     handleDeepLinkArgv(argv)
+    handleMediaArgv(argv)
     if (mainWindow) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore()
@@ -806,12 +883,18 @@ app.on('open-url', (event, url) => {
   handleDeepLinkUrl(url)
 })
 
+app.on('open-file', (event, filePath) => {
+  event.preventDefault()
+  queueMediaImport(filePath)
+})
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.vidbee')
+  settingsManager.applyFreshInstallLocale()
 
   registerVidbeeProtocol()
 
@@ -861,6 +944,8 @@ app.whenReady().then(async () => {
 
   // Create the renderer immediately so first-time preparation has visible feedback.
   createWindow()
+  // Transcription models download in the background so yt-dlp can finish first.
+  startIdleMinimalModelFill()
 
   await Promise.all([ffmpegInitialization, kernelPreparation])
 
@@ -871,6 +956,18 @@ app.whenReady().then(async () => {
     runDesktopTaskQueueMigration()
   } catch (err) {
     log.warn('Desktop task-queue migration failed:', err)
+  }
+
+  try {
+    await startDesktopTaskQueue()
+    startAutoTranscription()
+    subscribeTranscriptBroadcasts()
+    startIdleMinimalModelFill()
+    isTaskQueueReady = true
+    handleMediaArgv(process.argv)
+    void flushPendingMediaImports()
+  } catch (err) {
+    log.warn('Desktop task-queue / transcription failed to start:', err)
   }
 
   await startExtensionApiServer()
@@ -894,6 +991,8 @@ app.whenReady().then(async () => {
   }
 
   handleDeepLinkArgv(process.argv)
+  handleMediaArgv(process.argv)
+  void flushPendingMediaImports()
 
   app.on('activate', () => {
     const existingWindow = BrowserWindow.getAllWindows().find((window) => !window.isDestroyed())
@@ -914,10 +1013,16 @@ app.whenReady().then(async () => {
   })
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
+  if (deferAppQuitIfNeeded()) {
+    event.preventDefault()
+    return
+  }
+
   isQuitting = true
   stopYtDlpKernelService()
   downloadEngine.flushDownloadSession()
+  void stopPlayerHost()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common

@@ -22,6 +22,7 @@ import {
   buildVideoInfoArgs,
   formatYtDlpCommand
 } from './yt-dlp-args'
+import { resolveYtDlpWrapCtor } from './yt-dlp-wrap'
 
 interface YtDlpExecProcess {
   ytDlpProcess?: {
@@ -40,7 +41,7 @@ interface YtDlpWrapInstance {
 }
 
 type YtDlpWrapConstructor = new (binaryPath: string) => YtDlpWrapInstance
-const YTDlpWrapCtor = YTDlpWrap as unknown as YtDlpWrapConstructor
+const YTDlpWrapCtor = resolveYtDlpWrapCtor<YtDlpWrapConstructor>(YTDlpWrap)
 
 interface ActiveTask {
   controller: AbortController

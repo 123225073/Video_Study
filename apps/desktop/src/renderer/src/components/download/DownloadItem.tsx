@@ -17,9 +17,10 @@ import {
   SheetHeader,
   SheetTitle
 } from '@renderer/components/ui/sheet'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
+import { TabItem, TabPanel, Tabs, TabsList } from '@renderer/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
-import type { DownloadItem as DownloadItemPayload } from '@shared/types'
+import { useNavigate } from '@tanstack/react-router'
+import { getCookieSetupFailureKind } from '@vidbee/downloader-core/cookie-setup'
 import {
   DOWNLOAD_FEEDBACK_ISSUE_TITLE,
   FeedbackLinkButtons
@@ -27,6 +28,7 @@ import {
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
   AlertCircle,
+  Captions,
   CheckCircle2,
   Copy,
   File,
@@ -34,6 +36,7 @@ import {
   Loader2,
   Play,
   RotateCw,
+  Sparkles,
   Trash2,
   X
 } from 'lucide-react'
@@ -47,6 +50,9 @@ import {
 import { getDownloadErrorGuidance } from '../../lib/download-error-guidance'
 import { sendGlitchTipFeedback } from '../../lib/glitchtip-feedback'
 import { ipcServices } from '../../lib/ipc'
+import { logger } from '../../lib/logger'
+import { isInProgressTranscript } from '../../lib/transcript-library'
+import { cookieSetupRequestAtom } from '../../store/cookie-setup'
 import {
   addDownloadAtom,
   type DownloadRecord,
@@ -54,8 +60,13 @@ import {
   removeHistoryRecordAtom
 } from '../../store/downloads'
 import { settingsAtom } from '../../store/settings'
+import { type TranscriptListState, transcriptMapAtom } from '../../store/transcripts'
 import { useAppInfo } from '../feedback/FeedbackLinks'
-import { shouldOpenHistoryItemOnDoubleClick } from './download-item-utils'
+import {
+  canRetryDownload,
+  canViewTranscriptFromMenu,
+  shouldOpenHistoryItemOnDoubleClick
+} from './download-item-utils'
 
 const tryFileOperation = async (
   paths: string[],
@@ -213,6 +224,10 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
   const { t } = useTranslation()
   const appInfo = useAppInfo()
   const settings = useAtomValue(settingsAtom)
+  const setCookieSetupRequest = useSetAtom(cookieSetupRequestAtom)
+  const navigate = useNavigate()
+  const transcriptMap = useAtomValue(transcriptMapAtom)
+  const transcript = transcriptMap[download.id]
   const addDownload = useSetAtom(addDownloadAtom)
   const removeDownload = useSetAtom(removeDownloadAtom)
   const removeHistory = useSetAtom(removeHistoryRecordAtom)
@@ -220,8 +235,6 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
   const isSubscriptionDownload = download.origin === 'subscription'
   const subscriptionLabel = download.subscriptionId ?? t('subscriptions.labels.unknown')
   const timestamp = download.completedAt ?? download.downloadedAt ?? download.createdAt
-  const actionsContainerClass =
-    'relative z-20 flex shrink-0 flex-wrap items-center justify-end gap-1 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity'
   const resolvedExtension = resolveDownloadExtension(download)
   const normalizedSavedFileName = normalizeSavedFileName(download.savedFileName)
   const selectionEnabled = isHistory && Boolean(onToggleSelect)
@@ -263,7 +276,7 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
         }
         setFileExists(false)
       } catch (error) {
-        console.error('Failed to check file existence:', error)
+        logger.error('Failed to check file existence:', error)
         setFileExists(false)
       }
     }
@@ -279,7 +292,7 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
       await ipcServices.download.cancelDownload(download.id)
       removeDownload(download.id)
     } catch (error) {
-      console.error('Failed to cancel download:', error)
+      logger.error('Failed to cancel download:', error)
     }
   }
 
@@ -288,60 +301,20 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
       toast.error(t('errors.emptyUrl'))
       return
     }
-    const id = `download_${Date.now()}_${Math.random().toString(36).slice(7)}`
-    const customDownloadPath = download.downloadPath?.trim() || undefined
-    const formatId = download.selectedFormat?.format_id
-
-    const downloadItem: DownloadItemPayload = {
-      id,
-      url: download.url,
-      title: download.title || t('download.fetchingVideoInfo'),
-      thumbnail: download.thumbnail,
-      type: download.type,
-      status: 'pending',
-      progress: { percent: 0 },
-      duration: download.duration,
-      description: download.description,
-      channel: download.channel,
-      uploader: download.uploader,
-      viewCount: download.viewCount,
-      tags: download.tags,
-      selectedFormat: download.selectedFormat,
-      playlistId: download.playlistId,
-      playlistTitle: download.playlistTitle,
-      playlistIndex: download.playlistIndex,
-      playlistSize: download.playlistSize,
-      origin: download.origin,
-      subscriptionId: download.subscriptionId,
-      createdAt: Date.now()
-    }
-
     try {
-      const started = await ipcServices.download.startDownload(id, {
-        url: download.url,
-        type: download.type,
-        format: formatId,
-        audioFormat: download.type === 'video' ? 'best' : undefined,
-        customDownloadPath,
-        title: download.title,
-        thumbnail: download.thumbnail,
-        description: download.description,
-        channel: download.channel,
-        uploader: download.uploader,
-        viewCount: download.viewCount,
-        duration: download.duration,
-        selectedFormat: download.selectedFormat,
-        tags: download.tags,
-        origin: download.origin,
-        subscriptionId: download.subscriptionId
-      })
-      if (!started) {
+      const retried = await ipcServices.download.retryDownload(download.id)
+      if (!retried) {
         toast.info(t('notifications.downloadAlreadyQueued'))
         return
       }
-      addDownload(downloadItem)
+      addDownload({
+        ...download,
+        status: 'pending',
+        progress: { percent: 0 },
+        error: undefined
+      })
     } catch (error) {
-      console.error('Failed to retry download:', error)
+      logger.error('Failed to retry download:', error)
       toast.error(t('notifications.downloadFailed'))
     }
   }
@@ -364,7 +337,7 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
         toast.error(t('notifications.openFolderFailed'))
       }
     } catch (error) {
-      console.error('Failed to open file location:', error)
+      logger.error('Failed to open file location:', error)
       toast.error(t('notifications.openFolderFailed'))
     }
   }
@@ -391,7 +364,7 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
         toast.error(t('notifications.openFileFailed'))
       }
     } catch (error) {
-      console.error('Failed to open file:', error)
+      logger.error('Failed to open file:', error)
       toast.error(t('notifications.openFileFailed'))
     }
   }
@@ -411,7 +384,7 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
       await navigator.clipboard.writeText(download.url)
       toast.success(t('notifications.urlCopied'))
     } catch (error) {
-      console.error('Failed to copy link:', error)
+      logger.error('Failed to copy link:', error)
       toast.error(t('notifications.copyFailed'))
     }
   }
@@ -431,7 +404,6 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
     const downloadPath = download.downloadPath
     const format = resolvedExtension
     const title = download.title
-
     if (!(downloadPath && title)) {
       toast.error(t('notifications.copyFailed'))
       return
@@ -440,7 +412,6 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
     try {
       // Generate file path using downloadPath + title + ext
       const filePaths = buildFilePathCandidates(downloadPath, title, format, download.savedFileName)
-
       const success = await tryFileOperation(filePaths, (filePath) =>
         ipcServices.fs.copyFileToClipboard(filePath)
       )
@@ -450,7 +421,7 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
       }
       toast.success(t('notifications.videoCopied'))
     } catch (error) {
-      console.error('Failed to copy file to clipboard:', error)
+      logger.error('Failed to copy file to clipboard:', error)
       toast.error(t('notifications.copyFailed'))
     }
   }
@@ -481,30 +452,48 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
       }
 
       setFileExists(false)
-      if (isHistory) {
+      if (
+        isHistory ||
+        download.status === 'completed' ||
+        download.status === 'error' ||
+        download.status === 'cancelled'
+      ) {
         await ipcServices.history.removeHistoryItem(download.id)
-        removeHistory(download.id)
-      } else {
-        removeDownload(download.id)
       }
+      removeHistory(download.id)
+      removeDownload(download.id)
     } catch (error) {
-      console.error('Failed to delete file:', error)
+      logger.error('Failed to delete file:', error)
       toast.error(t('notifications.removeFailed'))
     }
   }
 
   const handleDeleteRecord = async () => {
     try {
-      if (isHistory) {
+      if (
+        isHistory ||
+        download.status === 'completed' ||
+        download.status === 'error' ||
+        download.status === 'cancelled'
+      ) {
         await ipcServices.history.removeHistoryItem(download.id)
-        removeHistory(download.id)
-      } else {
-        removeDownload(download.id)
       }
+      removeHistory(download.id)
+      removeDownload(download.id)
     } catch (error) {
-      console.error('Failed to remove record:', error)
+      logger.error('Failed to remove record:', error)
       toast.error(t('notifications.removeFailed'))
     }
+  }
+
+  /**
+   * Open the transcript page. Captions vs ASR is decided after the page loads.
+   */
+  const handleOpenTranscript = () => {
+    void navigate({
+      to: '/downloads/$downloadId/transcript',
+      params: { downloadId: download.id }
+    })
   }
 
   const getStatusIcon = () => {
@@ -556,7 +545,10 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
     download.status === 'completed' ||
     download.status === 'error' ||
     download.status === 'cancelled'
-  const canRetry = download.status === 'error'
+  const canRetry = canRetryDownload(download.status)
+  const actionsContainerClass = `relative z-20 flex shrink-0 flex-wrap items-center justify-end gap-1 text-muted-foreground transition-opacity ${
+    canRetry ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+  }`
   const showCopyAction = download.status === 'completed' && fileExists
   const showOpenFolderAction = Boolean(
     download.title && (download.downloadPath || settings.downloadPath)
@@ -567,13 +559,12 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
   const canCopyLink = Boolean(download.url)
   const canOpenFile = isCompletedStatus && fileExists
   const canDeleteFile = isCompletedStatus && fileExists
+  const canViewTranscript = canViewTranscriptFromMenu({ fileExists })
   const sourceDisplay =
     download.uploader && download.channel && download.uploader !== download.channel
       ? `${download.uploader} • ${download.channel}`
       : download.uploader || download.channel || ''
-
   const metadataDetails: MetadataDetail[] = []
-
   if (timestamp) {
     metadataDetails.push({
       label: t('history.date'),
@@ -618,9 +609,8 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
     download.selectedFormat?.filesize || download.selectedFormat?.filesize_approx
   const inlineFileSize = selectedFormatSize ? formatFileSize(selectedFormatSize) : undefined
   const displayErrorMessage = getDownloadErrorGuidance(download.error) ?? download.error
-
+  const cookieFailureKind = getCookieSetupFailureKind(download.error)
   const formatLabelValue = getFormatLabel(download)
-
   if (formatLabelValue) {
     metadataDetails.push({
       label: t('download.metadata.format'),
@@ -629,7 +619,6 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
   }
 
   const qualityLabel = getQualityLabel(download)
-
   if (qualityLabel) {
     metadataDetails.push({
       label: t('download.metadata.quality'),
@@ -816,9 +805,7 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
   const ytDlpCommand = download.ytDlpCommand?.trim()
   const hasYtDlpCommand = Boolean(ytDlpCommand)
   const canShowSheet = hasMetadataDetails || isInProgressStatus || hasLogContent || isTerminalStatus
-
   const isSelectedHistory = selectionEnabled && isSelected
-
   useEffect(() => {
     const wasOpen = lastSheetOpenRef.current
     lastSheetOpenRef.current = sheetOpen
@@ -888,7 +875,8 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
   return (
     <ContextMenu onOpenChange={setIsContextMenuOpen}>
       <ContextMenuTrigger asChild>
-        <button
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: history row is a composite widget with nested controls; double-click opens the file */}
+        <div
           className={`group relative w-full max-w-full overflow-hidden px-6 py-2 text-left transition-colors ${
             isSelectedHistory || isContextMenuOpen ? 'bg-primary/10' : ''
           }`}
@@ -917,7 +905,6 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
               }
             }
           }}
-          type="button"
         >
           <div
             className={`flex w-full flex-col gap-2 sm:flex-row sm:gap-3 ${
@@ -1038,6 +1025,18 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
                   </div>
                 </div>
                 <div className={`${actionsContainerClass} pointer-events-auto`}>
+                  {isCompletedStatus && fileExists ? (
+                    <div className="opacity-100">
+                      <TranscriptEntryButton
+                        listState={transcript?.listState ?? 'none'}
+                        onOpen={handleOpenTranscript}
+                        onRetry={() => {
+                          void ipcServices.transcript.retry(download.id)
+                        }}
+                        sourceKind={transcript?.sourceKind}
+                      />
+                    </div>
+                  ) : null}
                   {canRetry && (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -1196,6 +1195,23 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
                   <p className="line-clamp-2 w-full overflow-hidden text-destructive text-xs">
                     {displayErrorMessage}
                   </p>
+                  {cookieFailureKind ? (
+                    <div className="pointer-events-auto">
+                      <Button
+                        className="h-7 px-2 text-[11px]"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setCookieSetupRequest({
+                            downloadId: download.id,
+                            failureKind: cookieFailureKind
+                          })
+                        }}
+                        size="sm"
+                      >
+                        {t('download.cookiesSetupAction')}
+                      </Button>
+                    </div>
+                  ) : null}
                   <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 text-muted-foreground text-xs">
                     <span className="shrink-0 font-medium text-muted-foreground text-xs">
                       {t('download.feedback.title')}:
@@ -1248,26 +1264,34 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
           {/* Video Details Sheet */}
           {canShowSheet && (
             <Sheet onOpenChange={setSheetOpen} open={sheetOpen}>
-              <SheetContent className="flex w-full flex-col p-0 sm:max-w-lg" side="right">
-                <div className="flex h-full flex-col overflow-hidden">
+              <SheetContent
+                className="flex h-full min-h-0 w-full flex-col p-0 sm:max-w-lg"
+                side="right"
+              >
+                <div className="flex h-full min-h-0 flex-col overflow-hidden">
                   <SheetHeader className="shrink-0 border-b px-6 pt-6 pb-4">
                     <SheetTitle className="line-clamp-2">{download.title}</SheetTitle>
                     <SheetDescription>{t('download.videoInfo')}</SheetDescription>
                   </SheetHeader>
                   <Tabs
-                    className="flex-1 overflow-hidden"
+                    className="flex min-h-0 flex-1 flex-col overflow-hidden"
                     onValueChange={(value) => setActiveTab(value as 'details' | 'logs')}
                     value={activeTab}
                   >
-                    <div className="px-6 pt-4">
+                    <div className="shrink-0 px-6 pt-4">
                       <TabsList>
-                        <TabsTrigger disabled={!hasMetadataDetails} value="details">
-                          {t('download.detailsTab')}
-                        </TabsTrigger>
-                        <TabsTrigger value="logs">{t('download.logsTab')}</TabsTrigger>
+                        <TabItem
+                          disabled={!hasMetadataDetails}
+                          label={t('download.detailsTab')}
+                          value="details"
+                        />
+                        <TabItem label={t('download.logsTab')} value="logs" />
                       </TabsList>
                     </div>
-                    <TabsContent className="flex-1 overflow-y-auto px-6 py-4" value="details">
+                    <TabPanel
+                      className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-6 py-4"
+                      value="details"
+                    >
                       <div className="space-y-4">
                         {metadataDetails.map((item) => (
                           <div className="flex flex-col gap-1" key={item.label}>
@@ -1278,9 +1302,9 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
                           </div>
                         ))}
                       </div>
-                    </TabsContent>
-                    <TabsContent
-                      className="flex flex-1 flex-col gap-3 overflow-hidden px-6 py-4"
+                    </TabPanel>
+                    <TabPanel
+                      className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-6 py-4"
                       value="logs"
                     >
                       <div className="flex items-center justify-between text-muted-foreground text-xs">
@@ -1314,13 +1338,13 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
                           {hasLogContent ? logContent : t('download.logs.empty')}
                         </div>
                       </div>
-                    </TabsContent>
+                    </TabPanel>
                   </Tabs>
                 </div>
               </SheetContent>
             </Sheet>
           )}
-        </button>
+        </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
         {isInProgressStatus ? (
@@ -1369,6 +1393,16 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
               <File className="h-4 w-4" />
               {t('history.openFile')}
             </ContextMenuItem>
+            {isCompletedStatus && canViewTranscript && (
+              <ContextMenuItem onClick={handleOpenTranscript}>
+                {transcript?.sourceKind === 'captions' ? (
+                  <Captions className="h-4 w-4" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {t('transcript.view')}
+              </ContextMenuItem>
+            )}
             <ContextMenuSeparator />
             <ContextMenuItem disabled={!showOpenFolderAction} onClick={handleOpenFolder}>
               <FolderOpen className="h-4 w-4" />
@@ -1397,5 +1431,106 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
         )}
       </ContextMenuContent>
     </ContextMenu>
+  )
+}
+
+interface TranscriptEntryButtonProps {
+  listState: TranscriptListState
+  onOpen: () => void
+  onRetry: () => void
+  sourceKind?: 'asr' | 'captions' | null
+}
+
+const TranscriptEntryButton = ({
+  listState,
+  onOpen,
+  onRetry,
+  sourceKind
+}: TranscriptEntryButtonProps) => {
+  const { t } = useTranslation()
+  if (isInProgressTranscript(listState)) {
+    return (
+      <Button
+        aria-label={t('transcript.transcribing')}
+        className="h-8 gap-1 px-2"
+        onClick={(event) => {
+          event.stopPropagation()
+          onOpen()
+        }}
+        size="sm"
+        variant="ghost"
+      >
+        <Sparkles className="h-4 w-4" />
+        <Loader2 className="h-3 w-3 animate-spin" />
+        <span className="text-xs">{t('transcript.transcribing')}</span>
+      </Button>
+    )
+  }
+  if (listState === 'no-speech') {
+    return (
+      <Button
+        aria-label={t('transcript.noSpeech')}
+        className="h-8 px-2 text-xs"
+        onClick={(event) => {
+          event.stopPropagation()
+          onOpen()
+        }}
+        size="sm"
+        variant="ghost"
+      >
+        {t('transcript.noSpeech')}
+      </Button>
+    )
+  }
+  if (listState === 'failed') {
+    return (
+      <div className="flex items-center gap-1">
+        <AlertCircle aria-hidden="true" className="h-4 w-4 text-destructive" />
+        <Button
+          aria-label={t('transcript.error')}
+          className="h-8 px-2 text-xs"
+          onClick={(event) => {
+            event.stopPropagation()
+            onOpen()
+          }}
+          size="sm"
+          variant="ghost"
+        >
+          {t('transcript.error')}
+        </Button>
+        <Button
+          aria-label={t('transcript.retry')}
+          className="h-8 w-8"
+          onClick={(event) => {
+            event.stopPropagation()
+            onRetry()
+          }}
+          size="icon"
+          variant="ghost"
+        >
+          <RotateCw className="h-4 w-4" />
+        </Button>
+      </div>
+    )
+  }
+  const fromCaptions = sourceKind === 'captions'
+  return (
+    <Button
+      aria-label={t('transcript.view')}
+      className="h-8 gap-1 px-2 text-xs"
+      onClick={(event) => {
+        event.stopPropagation()
+        onOpen()
+      }}
+      size="sm"
+      variant="ghost"
+    >
+      {fromCaptions ? (
+        <Captions aria-hidden="true" className="h-4 w-4" />
+      ) : (
+        <Sparkles aria-hidden="true" className="h-4 w-4" />
+      )}
+      {t('transcript.view')}
+    </Button>
   )
 }

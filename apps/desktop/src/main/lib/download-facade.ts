@@ -17,7 +17,13 @@
 import { EventEmitter } from 'node:events'
 import path from 'node:path'
 
-import { PRIORITY_USER, type Task, type TaskInput, type TaskQueueAPI } from '@vidbee/task-queue'
+import {
+  isDownloadTaskKind,
+  PRIORITY_USER,
+  type Task,
+  type TaskInput,
+  type TaskQueueAPI
+} from '@vidbee/task-queue'
 
 import type {
   DownloadItem,
@@ -29,12 +35,19 @@ import type {
   VideoInfo,
   VideoInfoCommandResult
 } from '../../shared/types'
+import { buildPendingDownloadItem, hasDisplayMetadata } from '../../shared/utils/pending-download'
 import { buildVideoInfoDownloadMetadata } from '../../shared/utils/video-info-metadata'
 import { settingsManager } from '../settings'
 import { scopedLoggers } from '../utils/logger'
 import { toSharedSettings } from './command-utils'
+import { shouldSurfaceQueuedDownload } from './download-queue-events'
+import { applyAutoVideoDownloadPath } from './path-resolver'
 import { projectProgressForRenderer, projectTaskForRenderer } from './projection'
-import { getDesktopTaskQueue, startDesktopTaskQueue } from './task-queue-host'
+import {
+  applyDesktopQueueConcurrency,
+  getDesktopTaskQueue,
+  startDesktopTaskQueue
+} from './task-queue-host'
 import { fetchPlaylistInfo, fetchVideoInfo, fetchVideoInfoWithCommand } from './yt-dlp-info'
 
 const logger = scopedLoggers.download
@@ -62,10 +75,6 @@ const ensureDirectoryExists = (dir?: string): void => {
     logger.warn('download-facade: failed to ensure download directory', err)
   }
 }
-
-/** True when a caller already provided enough video metadata for list rendering. */
-const hasDisplayMetadata = (options: DownloadOptions): boolean =>
-  Boolean(options.title?.trim() && options.thumbnail?.trim())
 
 /** Fill missing title/thumbnail metadata from yt-dlp before a task is queued. */
 const hydrateDownloadMetadata = async (options: DownloadOptions): Promise<DownloadOptions> => {
@@ -142,6 +151,8 @@ class DownloadFacade extends EventEmitter {
   private subscribed = false
   /** Accumulated live yt-dlp output per active task, replayed to the renderer via `download-log`. */
   private readonly logBuffers = new Map<string, string>()
+  /** Starts that have been shown in the list but are still hydrating metadata. */
+  private readonly pendingStarts = new Map<string, { cancelled: boolean }>()
 
   private get queue(): TaskQueueAPI {
     return getDesktopTaskQueue()
@@ -154,18 +165,22 @@ class DownloadFacade extends EventEmitter {
     this.subscribed = true
     const queue = this.queue
     queue.on('snapshot-changed', (event) => {
+      if (!isDownloadTaskKind(event.task.kind)) {
+        return
+      }
       const item = projectTaskForRenderer(event.task)
       this.emit('download-updated', item.id, item)
     })
     queue.on('transition', (event) => {
       const task = queue.get(event.taskId)
-      if (!task) {
+      if (!(task && isDownloadTaskKind(task.kind))) {
         return
       }
       const item = projectTaskForRenderer(task)
       switch (event.to) {
         case 'queued':
-          if (event.from === null) {
+          if (shouldSurfaceQueuedDownload(event.from)) {
+            this.logBuffers.delete(event.taskId)
             this.emit('download-queued', item)
           }
           break
@@ -229,22 +244,45 @@ class DownloadFacade extends EventEmitter {
 
   startDownload(id: string, options: DownloadOptions): boolean {
     this.subscribeOnce()
+    // Show the row immediately. Bilibili (and similar) metadata probes can
+    // take tens of seconds; the list must not wait on that hydration.
+    this.emit('download-queued', buildPendingDownloadItem(id, options))
+    const pending = { cancelled: false }
+    this.pendingStarts.set(id, pending)
     void (async () => {
       try {
         await startDesktopTaskQueue()
-        ensureDirectoryExists(options.customDownloadPath)
+        if (pending.cancelled) {
+          return
+        }
         const hydratedOptions = await hydrateDownloadMetadata(options)
+        if (pending.cancelled) {
+          return
+        }
+        const pathResolvedOptions = applyAutoVideoDownloadPath(
+          hydratedOptions,
+          settingsManager.getAll()
+        )
+        ensureDirectoryExists(pathResolvedOptions.customDownloadPath)
         // Pass the renderer-generated id through so optimistic-UI rows merge
         // with the real task instead of showing as two separate entries.
         await this.queue.add({
           id,
-          input: buildTaskInput(id, hydratedOptions),
+          input: buildTaskInput(id, pathResolvedOptions),
           priority: PRIORITY_USER
         })
+        if (pending.cancelled) {
+          await this.queue.cancel(id, 'user')
+        }
       } catch (err) {
+        if (pending.cancelled) {
+          return
+        }
         logger.error('download-facade: startDownload failed', err)
         const message = err instanceof Error ? err : new Error(String(err))
         this.emit('download-error', id, message)
+      } finally {
+        this.pendingStarts.delete(id)
       }
     })()
     return true
@@ -252,12 +290,34 @@ class DownloadFacade extends EventEmitter {
 
   cancelDownload(id: string): boolean {
     this.subscribeOnce()
+    const pending = this.pendingStarts.get(id)
+    if (pending) {
+      pending.cancelled = true
+      this.pendingStarts.delete(id)
+      this.emit('download-cancelled', id)
+      return true
+    }
     if (!this.queue.get(id)) {
       return false
     }
     void this.queue.cancel(id, 'user').catch((err) => {
       logger.error('download-facade: cancelDownload failed', err)
     })
+    return true
+  }
+
+  /**
+   * Requeue a failed or cancelled task in place. Returns false when the id
+   * is missing or not in a retryable terminal state.
+   */
+  async retryDownload(id: string): Promise<boolean> {
+    this.subscribeOnce()
+    await startDesktopTaskQueue()
+    const task = this.queue.get(id)
+    if (!task || (task.status !== 'failed' && task.status !== 'cancelled')) {
+      return false
+    }
+    await this.queue.retryManual(id)
     return true
   }
 
@@ -365,7 +425,7 @@ class DownloadFacade extends EventEmitter {
     do {
       const page = this.queue.list({ limit: 200, cursor })
       for (const t of page.tasks) {
-        if (NON_TERMINAL.has(t.status)) {
+        if (NON_TERMINAL.has(t.status) && isDownloadTaskKind(t.kind)) {
           active.push(projectTaskForRenderer(t))
         }
       }
@@ -386,13 +446,16 @@ class DownloadFacade extends EventEmitter {
     // SqlitePersistAdapter writes synchronously on transition; nothing to flush.
   }
 
+  /**
+   * Refresh scheduler caps after a download-concurrency setting change.
+   *
+   * @param max Requested download cap; ignored when not a positive number.
+   */
   updateMaxConcurrent(max: number): void {
     if (typeof max !== 'number' || max <= 0) {
       return
     }
-    void this.queue.setMaxConcurrency(max).catch((err) => {
-      logger.warn('download-facade: setMaxConcurrency failed', err)
-    })
+    applyDesktopQueueConcurrency()
   }
 
   /**

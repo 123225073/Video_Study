@@ -10,9 +10,12 @@ export const readOrpcDownloadSettings = (): DownloadRuntimeSettings => {
 		proxy: settings.proxy,
 		configPath: settings.configPath,
 		embedSubs: settings.embedSubs,
+		writeAutoSubs: settings.writeAutoSubs,
 		embedThumbnail: settings.embedThumbnail,
 		embedMetadata: settings.embedMetadata,
 		embedChapters: settings.embedChapters,
+		filenameStyle: settings.filenameStyle,
+		filenameViaVidBee: settings.filenameViaVidBee,
 		shareWatermark: settings.shareWatermark,
 	};
 };

@@ -130,10 +130,7 @@ export function PlaylistDownload({
 								};
 
 								return (
-									<button
-										aria-label={t("playlist.selectEntry", {
-											index: entry.index,
-										})}
+									<div
 										className={cn(
 											"flex w-full cursor-pointer items-center gap-3 rounded px-2.5 py-1.5 text-left transition-colors",
 											isSelected || isInRange
@@ -142,15 +139,11 @@ export function PlaylistDownload({
 										)}
 										key={entry.id}
 										onClick={handleToggle}
-										onKeyDown={(event) => {
-											if (event.key === "Enter" || event.key === " ") {
-												event.preventDefault();
-												handleToggle();
-											}
-										}}
-										type="button"
 									>
 										<Checkbox
+											aria-label={t("playlist.selectEntry", {
+												index: entry.index,
+											})}
 											checked={isSelected || isInRange}
 											className="shrink-0"
 											onCheckedChange={(checked) => {
@@ -178,7 +171,7 @@ export function PlaylistDownload({
 												{entry.title || t("download.fetchingVideoInfo")}
 											</p>
 										</div>
-									</button>
+									</div>
 								);
 							})}
 						</div>

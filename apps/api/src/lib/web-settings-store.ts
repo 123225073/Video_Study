@@ -24,10 +24,16 @@ const defaultWebSettings = WebAppSettingsSchema.parse({
   subscriptionOnlyLatestDefault: true,
   enableAnalytics: true,
   embedSubs: true,
+  writeAutoSubs: true,
   embedThumbnail: false,
   embedMetadata: true,
   embedChapters: true,
-  shareWatermark: false
+  filenameStyle: 'pretty',
+  filenameViaVidBee: true,
+  shareWatermark: false,
+  autoTranscribeAfterDownload: true,
+  maxConcurrentTranscriptions: 1,
+  asrTier: 'minimal'
 })
 
 type WebAppSettings = typeof defaultWebSettings

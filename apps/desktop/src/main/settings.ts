@@ -1,9 +1,15 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { detectSystemProfile } from '@vidbee/i18n/system-locale'
+import { parseAsrTier } from '@vidbee/transcription'
+import { parseDownloadMirror } from '@vidbee/transcription/download-mirrors'
+import { app } from 'electron'
 import type { AppSettings } from '../shared/types'
 import { defaultSettings } from '../shared/types'
+import { shouldShowWhatsNew, WHATS_NEW_ID } from '../shared/whats-new'
 import { resolveStartupDownloadPath } from './lib/download-path-policy'
+import { readElectronLocaleHints } from './lib/system-locale'
 import {
   getPortableDownloadsPath,
   isPortableMode,
@@ -39,12 +45,29 @@ const DEFAULT_DOWNLOAD_PATH = resolveDefaultDownloadPath()
 const REQUIRED_AUTO_UPDATE = !isPortableMode
 const REQUIRED_LAUNCH_AT_LOGIN = false
 
+/**
+ * Resolve the electron-store JSON path used for app settings.
+ *
+ * @returns Absolute path, or null when Electron userData is unavailable.
+ */
+const resolveSettingsStorePath = (): string | null => {
+  try {
+    return path.join(app.getPath('userData'), 'config.json')
+  } catch {
+    return null
+  }
+}
+
 class SettingsManager {
   // biome-ignore lint/suspicious/noExplicitAny: electron-store requires dynamic import
   private readonly store: any
+  private readonly hadExistingStore: boolean
 
   constructor() {
+    const storePath = resolveSettingsStorePath()
+    this.hadExistingStore = Boolean(storePath && fs.existsSync(storePath))
     this.store = new Store({
+      cwd: storePath ? path.dirname(storePath) : undefined,
       defaults: {
         ...defaultSettings,
         downloadPath: DEFAULT_DOWNLOAD_PATH,
@@ -54,6 +77,7 @@ class SettingsManager {
     })
     this.ensureDownloadDirectory()
     this.ensureRequiredSettings()
+    this.acknowledgeFreshInstallWhatsNew()
     rememberPortableRoot()
   }
 
@@ -64,6 +88,14 @@ class SettingsManager {
 
     if (isPortableMode && key === 'launchAtLogin') {
       return REQUIRED_LAUNCH_AT_LOGIN as AppSettings[K]
+    }
+
+    if (key === 'asrTier') {
+      return parseAsrTier(this.store.get(key)) as AppSettings[K]
+    }
+
+    if (key === 'downloadMirror') {
+      return parseDownloadMirror(this.store.get(key)) as AppSettings[K]
     }
 
     return this.store.get(key)
@@ -94,8 +126,27 @@ class SettingsManager {
       autoUpdate: REQUIRED_AUTO_UPDATE,
       launchAtLogin: isPortableMode
         ? REQUIRED_LAUNCH_AT_LOGIN
-        : (this.store.store.launchAtLogin ?? defaultSettings.launchAtLogin)
+        : (this.store.store.launchAtLogin ?? defaultSettings.launchAtLogin),
+      asrTier: parseAsrTier(this.store.store.asrTier),
+      downloadMirror: parseDownloadMirror(this.store.store.downloadMirror)
     }
+  }
+
+  /**
+   * On a first install, persist the UI language from OS language + timezone.
+   * Returning users keep the language they already chose.
+   */
+  applyFreshInstallLocale(): void {
+    if (this.hadExistingStore) {
+      return
+    }
+    const profile = detectSystemProfile(readElectronLocaleHints())
+    if (this.store.get('language') !== profile.language) {
+      this.store.set('language', profile.language)
+    }
+    scopedLoggers.system.info(
+      `Fresh install locale ${profile.language} (china mirrors ${profile.preferChina})`
+    )
   }
 
   setAll(settings: Partial<AppSettings>): void {
@@ -127,6 +178,32 @@ class SettingsManager {
     })
   }
 
+  /**
+   * True when this returning user has not dismissed the current What's New card.
+   */
+  shouldPromptWhatsNew(): boolean {
+    return shouldShowWhatsNew({
+      isReturningUser: this.hadExistingStore,
+      lastSeenWhatsNew: this.get('lastSeenWhatsNew')
+    })
+  }
+
+  /**
+   * Persist that the current What's New card has been shown.
+   */
+  markWhatsNewSeen(): void {
+    this.set('lastSeenWhatsNew', WHATS_NEW_ID)
+  }
+
+  /**
+   * Stamp a fresh install so the first-run user is not treated as an updater later.
+   */
+  private acknowledgeFreshInstallWhatsNew(): void {
+    if (!this.shouldPromptWhatsNew()) {
+      this.markWhatsNewSeen()
+    }
+  }
+
   private ensureDownloadDirectory(): void {
     try {
       const currentPath: string | undefined = this.store.get('downloadPath')
@@ -155,6 +232,11 @@ class SettingsManager {
       }
       if (isPortableMode && this.store.get('launchAtLogin') !== REQUIRED_LAUNCH_AT_LOGIN) {
         this.store.set('launchAtLogin', REQUIRED_LAUNCH_AT_LOGIN)
+      }
+      const storedTier = this.store.get('asrTier')
+      const parsedTier = parseAsrTier(storedTier)
+      if (storedTier !== parsedTier) {
+        this.store.set('asrTier', parsedTier)
       }
     } catch (error) {
       scopedLoggers.system.error('Failed to enforce required settings:', error)

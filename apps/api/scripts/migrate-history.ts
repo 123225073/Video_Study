@@ -26,8 +26,8 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
-
 import { TASK_QUEUE_DDL_V1 } from '@vidbee/db/task-queue'
+import { initVidbeeLogger, log } from '@vidbee/logger'
 import {
   PRIORITY_BACKGROUND,
   type Task,
@@ -226,9 +226,9 @@ function bindTask(task: Task): unknown[] {
 }
 
 async function main(): Promise<void> {
+  initVidbeeLogger({ service: 'vidbee-migrate-history' })
   if (!fs.existsSync(legacyDbPath)) {
-    // eslint-disable-next-line no-console
-    console.log(`[migrate-history] no legacy DB at ${legacyDbPath}; nothing to do.`)
+    log.info('migrate-history', `no legacy DB at ${legacyDbPath}; nothing to do.`)
     return
   }
   // Warn loudly if persistence is disabled — without it, the runtime API uses
@@ -238,12 +238,9 @@ async function main(): Promise<void> {
   const persistFlag = (process.env.VIDBEE_PERSIST_QUEUE ?? '').trim()
   const persistEnabled = persistFlag === '1' || persistFlag.toLowerCase() === 'true'
   if (!persistEnabled) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      '[migrate-history] WARNING: VIDBEE_PERSIST_QUEUE is not enabled. The ' +
-        'migrated rows will not be visible at runtime because the API will use ' +
-        'an in-memory queue. Set VIDBEE_PERSIST_QUEUE=1 (default in the bundled ' +
-        'Dockerfile) to read this database back.'
+    log.warn(
+      'migrate-history',
+      'WARNING: VIDBEE_PERSIST_QUEUE is not enabled. The migrated rows will not be visible at runtime because the API will use an in-memory queue. Set VIDBEE_PERSIST_QUEUE=1 (default in the bundled Dockerfile) to read this database back.'
     )
   }
   fs.mkdirSync(path.dirname(taskQueueDbPath), { recursive: true })
@@ -271,8 +268,7 @@ async function main(): Promise<void> {
     .get() as { name?: string } | undefined
 
   if (!tableCheck?.name) {
-    // eslint-disable-next-line no-console
-    console.log('[migrate-history] legacy download_history table not present; nothing to do.')
+    log.info('migrate-history', 'legacy download_history table not present; nothing to do.')
     queueDb.prepare("DELETE FROM schema_meta WHERE key = 'migration_in_progress'").run()
     legacyDb.close()
     queueDb.close()
@@ -339,21 +335,29 @@ async function main(): Promise<void> {
       fs.copyFileSync(legacyDbPath, migratedPath)
     }
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.warn('[migrate-history] could not stamp legacy DB as migrated:', err)
+    log.warn({
+      event: 'migrate_history_stamp_failed',
+      error: err instanceof Error ? err.message : String(err)
+    })
   }
 
   legacyDb.close()
   queueDb.close()
 
-  // eslint-disable-next-line no-console
-  console.log(
-    `[migrate-history] legacy rows: ${rows.length}, mapped: ${mappedTasks}, skipped: ${skippedRows}, imported: ${imported} (already-present skipped)`
-  )
+  log.info({
+    event: 'migrate_history_complete',
+    legacyRows: rows.length,
+    mapped: mappedTasks,
+    skipped: skippedRows,
+    imported
+  })
 }
 
 main().catch((err) => {
-  // eslint-disable-next-line no-console
-  console.error('[migrate-history] failed:', err)
+  initVidbeeLogger({ service: 'vidbee-migrate-history' })
+  log.error({
+    event: 'migrate_history_failed',
+    error: err instanceof Error ? err.message : String(err)
+  })
   process.exit(1)
 })

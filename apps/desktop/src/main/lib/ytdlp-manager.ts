@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs'
-import type YTDlpWrap from 'yt-dlp-wrap-plus'
+import { resolveYtDlpWrapCtor } from '@vidbee/downloader-core/yt-dlp-wrap'
+import YTDlpWrap from 'yt-dlp-wrap-plus'
 import { scopedLoggers } from '../utils/logger'
 
-const YTDlpWrapModule = require('yt-dlp-wrap-plus')
-const YTDlpWrapCtor: typeof YTDlpWrap = YTDlpWrapModule.default || YTDlpWrapModule
+const YTDlpWrapCtor = resolveYtDlpWrapCtor<typeof YTDlpWrap>(YTDlpWrap)
 type YTDlpWrapInstance = InstanceType<typeof YTDlpWrapCtor>
 
 export interface YtDlpActivation {

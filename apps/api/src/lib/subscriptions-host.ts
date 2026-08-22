@@ -20,7 +20,8 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { SUBSCRIPTIONS_DDL_V1 } from '@vidbee/db/subscriptions'
+import { applySubscriptionsMigrations } from '@vidbee/db/subscriptions'
+import { log } from '@vidbee/logger'
 import {
   createSqliteMetaStore,
   createSqliteSubscriptionsStore,
@@ -67,7 +68,11 @@ export const getApiSubscriptions = (): SubscriptionsApi => {
   const sqlite = new Database(dbPath, { timeout: 5000 })
   sqlite.pragma('journal_mode = WAL')
   sqlite.pragma('foreign_keys = ON')
-  sqlite.exec(SUBSCRIPTIONS_DDL_V1)
+  const subscriptionCols = sqlite.prepare('PRAGMA table_info(subscriptions)').all() as Array<{
+    name?: string
+  }>
+  const subscriptionColNames = subscriptionCols.map((c) => c.name).filter(Boolean) as string[]
+  applySubscriptionsMigrations((sql) => sqlite.exec(sql), subscriptionColNames)
   const db = drizzle(sqlite)
 
   const store = createSqliteSubscriptionsStore({ db })
@@ -107,15 +112,17 @@ export const getApiSubscriptions = (): SubscriptionsApi => {
       return result.id
     },
     log: (level, msg, meta) => {
-      // The API uses fastify's logger via stdout; emit through console here
-      // so the message lands in the same stream without binding to fastify.
-      const line = meta === undefined ? msg : `${msg} ${JSON.stringify(meta)}`
+      const event = {
+        event: 'subscriptions',
+        message: msg,
+        ...(meta === undefined ? {} : { meta })
+      }
       if (level === 'error') {
-        console.error(`subscriptions: ${line}`)
+        log.error(event)
       } else if (level === 'warn') {
-        console.warn(`subscriptions: ${line}`)
+        log.warn(event)
       } else {
-        console.info(`subscriptions: ${line}`)
+        log.info(event)
       }
     }
   })

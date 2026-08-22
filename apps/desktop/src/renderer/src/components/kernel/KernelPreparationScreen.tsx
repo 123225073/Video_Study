@@ -4,6 +4,7 @@ import type { YtDlpKernelStatus } from '@shared/types'
 import { AlertCircle } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { logger } from '../../lib/logger'
 
 interface KernelPreparationScreenProps {
   onRetry: () => Promise<void> | void
@@ -29,7 +30,7 @@ export function KernelPreparationScreen({ onRetry, status }: KernelPreparationSc
     try {
       await onRetry()
     } catch (error) {
-      console.error('Failed to retry yt-dlp kernel preparation:', error)
+      logger.error('Failed to retry yt-dlp kernel preparation:', error)
     } finally {
       setRetrying(false)
     }

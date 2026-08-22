@@ -1,5 +1,8 @@
+import type { FilenameStyle } from '@vidbee/downloader-core/filename-style'
 import type { OneClickContainerOption } from '@vidbee/downloader-core/format-preferences'
 import { defaultLanguageCode, type LanguageCode } from '@vidbee/i18n/languages'
+import type { AsrTierId } from '@vidbee/transcription/asr'
+import type { DownloadMirror } from '@vidbee/transcription/download-mirrors'
 
 export type {
   YtDlpKernelPreparationStep,
@@ -7,7 +10,7 @@ export type {
   YtDlpKernelStatus
 } from './ytdlp-kernel'
 
-export type { OneClickContainerOption }
+export type { DownloadMirror, FilenameStyle, OneClickContainerOption }
 
 // Download related types
 export interface VideoFormat {
@@ -260,6 +263,8 @@ export interface SubscriptionRule {
   keywords: string[]
   tags: string[]
   onlyDownloadLatest: boolean
+  /** When false, feed items are listed but not queued automatically. */
+  autoDownload: boolean
   enabled: boolean
   coverUrl?: string
   latestVideoTitle?: string
@@ -288,6 +293,7 @@ export interface SubscriptionCreatePayload {
   keywords?: string[]
   tags?: string[]
   onlyDownloadLatest?: boolean
+  autoDownload?: boolean
   downloadDirectory?: string
   namingTemplate?: string
   enabled?: boolean
@@ -301,6 +307,7 @@ export interface SubscriptionUpdatePayload {
   keywords?: string[]
   tags?: string[]
   onlyDownloadLatest?: boolean
+  autoDownload?: boolean
   enabled?: boolean
   downloadDirectory?: string
   namingTemplate?: string
@@ -335,10 +342,19 @@ export interface AppSettings {
   rememberLastAudioLanguage: boolean
   preferredAudioLanguage: string
   embedSubs: boolean
+  writeAutoSubs: boolean
   embedThumbnail: boolean
   embedMetadata: boolean
   embedChapters: boolean
+  filenameStyle: FilenameStyle
+  filenameViaVidBee: boolean
   shareWatermark: boolean
+  autoTranscribeAfterDownload: boolean
+  maxConcurrentTranscriptions: number
+  asrTier: AsrTierId
+  /** Prefer ModelScope / GitHub proxies when GitHub is blocked or auto-detected as China. */
+  downloadMirror: DownloadMirror
+  lastSeenWhatsNew: string
 }
 
 export const DEFAULT_SUBSCRIPTION_FILENAME_TEMPLATE = '%(uploader)s/%(title)s.%(ext)s'
@@ -368,8 +384,16 @@ export const defaultSettings: AppSettings = {
   rememberLastAudioLanguage: true,
   preferredAudioLanguage: '',
   embedSubs: true,
+  writeAutoSubs: true,
   embedThumbnail: false,
   embedMetadata: true,
   embedChapters: true,
-  shareWatermark: false
+  filenameStyle: 'pretty',
+  filenameViaVidBee: true,
+  shareWatermark: false,
+  autoTranscribeAfterDownload: true,
+  maxConcurrentTranscriptions: 1,
+  asrTier: 'minimal',
+  downloadMirror: 'auto',
+  lastSeenWhatsNew: ''
 }

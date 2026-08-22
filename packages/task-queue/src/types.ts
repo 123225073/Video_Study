@@ -12,6 +12,18 @@ export type TaskKind =
   | 'playlist'
   | 'subscription-item'
   | 'yt-dlp-forward'
+  | 'transcription'
+
+/** Media download kinds that may receive a transcription child task. */
+export const TRANSCRIBABLE_TASK_KINDS: ReadonlySet<TaskKind> = new Set([
+  'video',
+  'audio',
+  'subscription-item'
+])
+
+export const TRANSCRIPTION_GROUP_KEY = 'transcription'
+
+export const isDownloadTaskKind = (kind: TaskKind): boolean => kind !== 'transcription'
 
 export type TaskStatus =
   | 'queued'
@@ -71,6 +83,13 @@ export interface TaskInput {
   options?: Record<string, unknown>
 }
 
+export type TranscriptResultKind = 'transcript' | 'no-speech'
+
+export interface TranscriptTaskResult {
+  resultKind: TranscriptResultKind
+  transcriptId: string
+}
+
 export interface TaskOutput {
   filePath: string
   size: number
@@ -84,6 +103,12 @@ export interface TaskOutput {
    * one (e.g. fake fixtures, raw `yt-dlp -j` info-fetch).
    */
   formatId?: string | null
+  /**
+   * Set by the transcription executor after the transcript or explicit
+   * no-speech result has been committed to SQLite. Download tasks leave
+   * this unset.
+   */
+  transcript?: TranscriptTaskResult
 }
 
 export interface TaskProgress {
@@ -170,7 +195,7 @@ export interface ProcessJournalRow {
   signal: string | null
 }
 
-export type ProcessKind = 'yt-dlp' | 'ffmpeg' | 'ffprobe'
+export type ProcessKind = 'yt-dlp' | 'ffmpeg' | 'ffprobe' | 'ai-worker'
 
 /**
  * Read-only snapshot returned by TaskStore.snapshot(). Consumers MUST treat

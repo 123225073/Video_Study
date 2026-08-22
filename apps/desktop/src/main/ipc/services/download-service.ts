@@ -42,6 +42,11 @@ class DownloadService extends IpcService {
   }
 
   @IpcMethod()
+  async retryDownload(_context: IpcContext, id: string): Promise<boolean> {
+    return downloadEngine.retryDownload(id)
+  }
+
+  @IpcMethod()
   getQueueStatus(_context: IpcContext) {
     return downloadEngine.getQueueStatus()
   }

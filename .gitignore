@@ -2,6 +2,7 @@ node_modules
 /dist
 apps/desktop/dist
 apps/web/dist
+apps/docs/dist
 apps/api/dist
 apps/api/.data/
 out
@@ -9,8 +10,11 @@ out
 .wxt
 .output
 .DS_Store
+Thumbs.db
+.idea
 .eslintcache
 *.log*
+*.tsbuildinfo
 .cache/
 .pnpm-home/
 .pnpm-store/
@@ -19,5 +23,6 @@ out
 config.json
 labels/
 statuses/
-
 .env
+.env.local
+.env.*.local

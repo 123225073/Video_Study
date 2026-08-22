@@ -2,6 +2,8 @@ import { oc } from '@orpc/contract'
 import {
   CancelDownloadInputSchema,
   CancelDownloadOutputSchema,
+  RetryDownloadInputSchema,
+  RetryDownloadOutputSchema,
   DirectoryListInputSchema,
   CreateDownloadInputSchema,
   CreateDownloadOutputSchema,
@@ -37,7 +39,8 @@ export const downloaderContract = {
   downloads: {
     create: oc.input(CreateDownloadInputSchema).output(CreateDownloadOutputSchema),
     list: oc.output(ListDownloadsOutputSchema),
-    cancel: oc.input(CancelDownloadInputSchema).output(CancelDownloadOutputSchema)
+    cancel: oc.input(CancelDownloadInputSchema).output(CancelDownloadOutputSchema),
+    retry: oc.input(RetryDownloadInputSchema).output(RetryDownloadOutputSchema)
   },
   history: {
     list: oc.output(ListHistoryOutputSchema),

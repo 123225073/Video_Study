@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { createReadStream, createWriteStream } from 'node:fs'
+import { createReadStream, createWriteStream, type Stats } from 'node:fs'
 import {
   chmod,
   copyFile,
@@ -13,13 +13,14 @@ import {
   writeFile
 } from 'node:fs/promises'
 import { basename, join, relative } from 'node:path'
-import { Transform } from 'node:stream'
+import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { YtDlpKernelStatus } from '@shared/types'
 import { z } from 'zod'
 import {
   getDenoReleaseAssetName,
   getRetryDelayMs,
+  getYtDlpReleaseAssetName,
   resolveKernelRelativePath
 } from './ytdlp-kernel-model'
 
@@ -32,6 +33,7 @@ const DENO_LATEST_RELEASE_URL = 'https://api.github.com/repos/denoland/deno/rele
 const kernelComponentSchema = z.object({
   relativePath: z.string().min(1),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  size: z.number().int().nonnegative().optional(),
   version: z.string().min(1)
 })
 
@@ -194,6 +196,29 @@ function parseChecksum(checksumText: string): string {
 }
 
 /**
+ * Return whether a Unix file mode includes any execute bit.
+ */
+function isUnixExecutable(mode: number): boolean {
+  return mode
+    .toString(8)
+    .slice(-3)
+    .split('')
+    .some((digit) => Number(digit) % 2 === 1)
+}
+
+/**
+ * Build a persisted kernel component record from a verified file.
+ */
+function createKernelComponent(
+  relativePath: string,
+  sha256: string,
+  version: string,
+  size: number
+): KernelPersistentState['active']['ytDlp'] {
+  return { relativePath, sha256, size, version }
+}
+
+/**
  * Own the writable yt-dlp and Deno bundle used by Desktop.
  */
 export class YtDlpKernelService extends EventEmitter {
@@ -281,14 +306,16 @@ export class YtDlpKernelService extends EventEmitter {
    * Prepare a managed copy, falling back to packaged binaries when needed.
    */
   private async prepareInternal(): Promise<boolean> {
-    this.setStatus(
-      this.status.ready
-        ? { ...this.status, preparationStep: null, progress: null, state: 'checking' }
-        : createInitialStatus()
-    )
+    const wasReady = this.status.ready
+    if (wasReady) {
+      this.setStatus({ ...this.status, preparationStep: null, progress: null, state: 'checking' })
+    }
     try {
       if (await this.activatePersistedBundle()) {
         return true
+      }
+      if (!wasReady) {
+        this.setStatus(createInitialStatus())
       }
       return await this.prepareManagedBundle()
     } catch (error) {
@@ -306,19 +333,18 @@ export class YtDlpKernelService extends EventEmitter {
       return false
     }
 
-    this.setStatus({ ...this.status, preparationStep: 'validating', progress: 80 })
-    const active = await this.validateBundle(state.active)
+    const active = await this.inspectPersistedBundle(state.active)
     if (active) {
       this.persistentState = state
-      await this.cleanupColdStartArtifacts()
       this.activateManagedPaths(active, state.active)
+      await this.cleanupColdStartArtifacts()
       return true
     }
 
     if (!state.previous) {
       return false
     }
-    const previous = await this.validateBundle(state.previous)
+    const previous = await this.inspectPersistedBundle(state.previous)
     if (!previous) {
       return false
     }
@@ -334,8 +360,8 @@ export class YtDlpKernelService extends EventEmitter {
       this.options.logger?.warn(`Failed to persist previous kernel recovery: ${String(error)}`)
     }
     this.persistentState = recoveredState
-    await this.cleanupColdStartArtifacts()
     this.activateManagedPaths(previous, recoveredState.active)
+    await this.cleanupColdStartArtifacts()
     return true
   }
 
@@ -390,9 +416,9 @@ export class YtDlpKernelService extends EventEmitter {
   }
 
   /**
-   * Verify path boundaries, hashes, and executable versions for a bundle.
+   * Cheap-check a persisted bundle by path, type, execute bit, and recorded size.
    */
-  private async validateBundle(
+  private async inspectPersistedBundle(
     bundle: KernelPersistentState['active']
   ): Promise<KernelActivation | null> {
     try {
@@ -401,18 +427,14 @@ export class YtDlpKernelService extends EventEmitter {
         bundle.ytDlp.relativePath
       )
       const denoPath = resolveKernelRelativePath(this.options.kernelRoot, bundle.deno.relativePath)
-      const [ytDlpSha256, denoSha256] = await Promise.all([hashFile(ytDlpPath), hashFile(denoPath)])
-      if (ytDlpSha256 !== bundle.ytDlp.sha256 || denoSha256 !== bundle.deno.sha256) {
-        throw new Error('Kernel bundle checksum mismatch')
+      const [ytDlpStat, denoStat] = await Promise.all([stat(ytDlpPath), stat(denoPath)])
+      this.assertExecutableStat(ytDlpPath, ytDlpStat)
+      this.assertExecutableStat(denoPath, denoStat)
+      if (bundle.ytDlp.size != null && bundle.ytDlp.size !== ytDlpStat.size) {
+        throw new Error('Kernel bundle size mismatch')
       }
-      await this.assertExecutable(ytDlpPath)
-      await this.assertExecutable(denoPath)
-      const [ytDlpVersion, denoVersion] = await Promise.all([
-        this.probeVersion(ytDlpPath, 'yt-dlp'),
-        this.probeVersion(denoPath, 'deno')
-      ])
-      if (ytDlpVersion !== bundle.ytDlp.version || denoVersion !== bundle.deno.version) {
-        throw new Error('Kernel bundle version mismatch')
+      if (bundle.deno.size != null && bundle.deno.size !== denoStat.size) {
+        throw new Error('Kernel bundle size mismatch')
       }
       return { denoPath, ytDlpPath }
     } catch (error) {
@@ -534,11 +556,19 @@ export class YtDlpKernelService extends EventEmitter {
       await this.makeExecutable(stagingDenoPath)
       this.setStatus({ ...this.status, state: 'installing' })
 
-      await this.options.runCommand(
-        stagingYtDlpPath,
-        ['--ignore-config', '--update-to', 'stable'],
-        { signal, timeoutMs: UPDATE_TIMEOUT_MS }
-      )
+      try {
+        await this.options.runCommand(
+          stagingYtDlpPath,
+          ['--ignore-config', '--update-to', 'stable'],
+          { signal, timeoutMs: UPDATE_TIMEOUT_MS }
+        )
+      } catch (error) {
+        signal.throwIfAborted()
+        this.options.logger?.warn(
+          `yt-dlp --update-to failed, trying mirrored GitHub: ${String(error)}`
+        )
+        await this.downloadMirroredYtDlp(stagingYtDlpPath, signal)
+      }
       signal.throwIfAborted()
       await Promise.all([
         rm(`${stagingYtDlpPath}.new`, { force: true }),
@@ -632,29 +662,34 @@ export class YtDlpKernelService extends EventEmitter {
     const denoName = this.options.platform === 'win32' ? 'deno.exe' : 'deno'
     const stagingYtDlpPath = join(stagingPath, ytDlpName)
     const stagingDenoPath = join(stagingPath, denoName)
-    const [ytDlpVersion, denoVersion, ytDlpSha256, denoSha256] = await Promise.all([
-      this.probeVersion(stagingYtDlpPath, 'yt-dlp', signal),
-      this.probeVersion(stagingDenoPath, 'deno', signal),
-      hashFile(stagingYtDlpPath),
-      hashFile(stagingDenoPath)
-    ])
+    const [ytDlpVersion, denoVersion, ytDlpSha256, denoSha256, ytDlpStat, denoStat] =
+      await Promise.all([
+        this.probeVersion(stagingYtDlpPath, 'yt-dlp', signal),
+        this.probeVersion(stagingDenoPath, 'deno', signal),
+        hashFile(stagingYtDlpPath),
+        hashFile(stagingDenoPath),
+        stat(stagingYtDlpPath),
+        stat(stagingDenoPath)
+      ])
     signal.throwIfAborted()
     await rename(stagingPath, finalBundlePath)
     const finalYtDlpPath = join(finalBundlePath, ytDlpName)
     const finalDenoPath = join(finalBundlePath, denoName)
     const updatedState: KernelPersistentState = {
       active: {
-        deno: {
-          relativePath: relative(this.options.kernelRoot, finalDenoPath),
-          sha256: denoSha256,
-          version: denoVersion
-        },
+        deno: createKernelComponent(
+          relative(this.options.kernelRoot, finalDenoPath),
+          denoSha256,
+          denoVersion,
+          denoStat.size
+        ),
         id: bundleId,
-        ytDlp: {
-          relativePath: relative(this.options.kernelRoot, finalYtDlpPath),
-          sha256: ytDlpSha256,
-          version: ytDlpVersion
-        }
+        ytDlp: createKernelComponent(
+          relative(this.options.kernelRoot, finalYtDlpPath),
+          ytDlpSha256,
+          ytDlpVersion,
+          ytDlpStat.size
+        )
       },
       failureCount: 0,
       nextCheckAt: 0,
@@ -788,17 +823,19 @@ export class YtDlpKernelService extends EventEmitter {
       const finalDenoPath = join(finalBundlePath, denoName)
       const persistentState: KernelPersistentState = {
         active: {
-          deno: {
-            relativePath: relative(this.options.kernelRoot, finalDenoPath),
-            sha256: denoSha256,
-            version: denoVersion
-          },
+          deno: createKernelComponent(
+            relative(this.options.kernelRoot, finalDenoPath),
+            denoSha256,
+            denoVersion,
+            denoStat.size
+          ),
           id: bundleId,
-          ytDlp: {
-            relativePath: relative(this.options.kernelRoot, finalYtDlpPath),
-            sha256: ytDlpSha256,
-            version: ytDlpVersion
-          }
+          ytDlp: createKernelComponent(
+            relative(this.options.kernelRoot, finalYtDlpPath),
+            ytDlpSha256,
+            ytDlpVersion,
+            ytDlpStat.size
+          )
         },
         failureCount: 0,
         nextCheckAt: 0,
@@ -865,6 +902,25 @@ export class YtDlpKernelService extends EventEmitter {
   }
 
   /**
+   * Download the official yt-dlp binary when `--update-to` cannot reach GitHub.
+   */
+  private async downloadMirroredYtDlp(destPath: string, signal: AbortSignal): Promise<void> {
+    const asset = getYtDlpReleaseAssetName(this.options.platform)
+    const url = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${asset}`
+    const response = await this.options.fetch(url, {
+      headers: { 'User-Agent': 'VidBee-Desktop' },
+      signal
+    })
+    if (!(response.ok && response.body)) {
+      throw new Error(`yt-dlp mirror download failed with HTTP ${response.status}`)
+    }
+    const tmpPath = `${destPath}.part`
+    await pipeline(Readable.fromWeb(response.body as never), createWriteStream(tmpPath), { signal })
+    await rename(tmpPath, destPath)
+    await this.makeExecutable(destPath)
+  }
+
+  /**
    * Ensure a copied binary is executable on Unix-like platforms.
    */
   private async makeExecutable(filePath: string): Promise<void> {
@@ -877,16 +933,17 @@ export class YtDlpKernelService extends EventEmitter {
    * Require a regular executable file without mutating packaged resources.
    */
   private async assertExecutable(filePath: string): Promise<void> {
-    const fileStat = await stat(filePath)
+    this.assertExecutableStat(filePath, await stat(filePath))
+  }
+
+  /**
+   * Require a regular executable file from an already-read stat result.
+   */
+  private assertExecutableStat(filePath: string, fileStat: Stats): void {
     if (!fileStat.isFile()) {
       throw new Error(`Kernel path is not a file: ${filePath}`)
     }
-    const executable = fileStat.mode
-      .toString(8)
-      .slice(-3)
-      .split('')
-      .some((digit) => Number(digit) % 2 === 1)
-    if (this.options.platform !== 'win32' && !executable) {
+    if (this.options.platform !== 'win32' && !isUnixExecutable(fileStat.mode)) {
       throw new Error(`Kernel file is not executable: ${filePath}`)
     }
   }

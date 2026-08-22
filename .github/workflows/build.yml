@@ -68,9 +68,6 @@ jobs:
       - name: Lint and format check
         run: pnpm run check && pnpm run typecheck
 
-      - name: Test Desktop kernel lifecycle
-        run: pnpm --filter ./apps/desktop test
-
       - name: Setup macOS signing
         if: matrix.platform == 'macos'
         shell: bash

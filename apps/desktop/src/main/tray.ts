@@ -106,21 +106,7 @@ function createContextMenu(): Menu {
     {
       label: t('quit'),
       click: () => {
-        // Force close all windows before quitting
-        const windows = BrowserWindow.getAllWindows()
-
-        // Close all windows forcefully
-        for (const window of windows) {
-          window.destroy()
-        }
-
-        // Quit the application and exit the process
         app.quit()
-
-        // Force exit if quit doesn't work
-        setTimeout(() => {
-          app.exit(0)
-        }, 1000)
       }
     }
   ])

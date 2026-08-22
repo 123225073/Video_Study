@@ -48,13 +48,15 @@ const resolveBinaryResourcesPath = (appBundle) => {
 }
 
 exports.default = async function afterPack(context) {
+  const { log } = await import('@vidbee/logger/script')
+
   if (context.electronPlatformName !== 'darwin') {
     return
   }
 
   const appBundle = findAppBundle(context.appOutDir)
   if (!appBundle) {
-    console.warn('afterPack: No .app bundle found, skipping tool signing.')
+    log.warn('afterPack: No .app bundle found, skipping tool signing.')
     return
   }
 
@@ -64,10 +66,10 @@ exports.default = async function afterPack(context) {
   for (const binary of BINARIES) {
     const targetPath = path.join(resourcesPath, binary)
     if (!fs.existsSync(targetPath)) {
-      console.warn(`afterPack: Missing ${binary}, skipping.`)
+      log.warn(`afterPack: Missing ${binary}, skipping.`)
       continue
     }
-    console.log(`afterPack: Signing ${binary} with entitlements.`)
+    log.info(`afterPack: Signing ${binary} with entitlements.`)
     signBinary(targetPath, entitlementsPath)
   }
 }

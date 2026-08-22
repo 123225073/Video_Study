@@ -1,7 +1,7 @@
 import { Button } from '@renderer/components/ui/button'
-import { ImageWithPlaceholder } from '@renderer/components/ui/image-with-placeholder'
 import { Label } from '@renderer/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@renderer/components/ui/radio-group'
+import { RemoteImage } from '@renderer/components/ui/remote-image'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import {
   Select,
@@ -22,7 +22,6 @@ import { useAtom } from 'jotai'
 import { AlertCircle, ExternalLink, Loader2, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useCachedThumbnail } from '../../hooks/use-cached-thumbnail'
 import { sendGlitchTipFeedback } from '../../lib/glitchtip-feedback'
 import { settingsAtom } from '../../store/settings'
 import { useAppInfo } from '../feedback/FeedbackLinks'
@@ -397,7 +396,6 @@ export function SingleVideoDownload({
   onStateChange
 }: SingleVideoDownloadProps) {
   const { t } = useTranslation()
-  const cachedThumbnail = useCachedThumbnail(videoInfo?.thumbnail)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const appInfo = useAppInfo()
 
@@ -608,10 +606,10 @@ export function SingleVideoDownload({
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex shrink-0 gap-4 py-4">
             <div className="relative w-32 shrink-0 overflow-hidden rounded-md bg-muted">
-              <ImageWithPlaceholder
+              <RemoteImage
                 alt={displayTitle}
                 className="aspect-video h-full w-full object-cover"
-                src={cachedThumbnail}
+                src={videoInfo.thumbnail}
               />
               <div className="absolute right-1 bottom-1 rounded bg-black/80 px-1 text-[10px] text-white">
                 {formatDuration(videoInfo.duration)}

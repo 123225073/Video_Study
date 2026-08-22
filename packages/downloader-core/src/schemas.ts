@@ -96,9 +96,12 @@ export const DownloadRuntimeSettingsSchema = z.object({
   proxy: z.string().optional(),
   configPath: z.string().optional(),
   embedSubs: z.boolean().optional(),
+  writeAutoSubs: z.boolean().optional(),
   embedThumbnail: z.boolean().optional(),
   embedMetadata: z.boolean().optional(),
   embedChapters: z.boolean().optional(),
+  filenameStyle: z.enum(['classic', 'basic', 'pretty', 'nerdy']).optional(),
+  filenameViaVidBee: z.boolean().optional(),
   shareWatermark: z.boolean().optional()
 })
 
@@ -127,10 +130,32 @@ export const WebAppSettingsSchema = z.object({
   subscriptionOnlyLatestDefault: z.boolean(),
   enableAnalytics: z.boolean(),
   embedSubs: z.boolean(),
+  writeAutoSubs: z.boolean().default(true),
   embedThumbnail: z.boolean(),
   embedMetadata: z.boolean(),
   embedChapters: z.boolean(),
-  shareWatermark: z.boolean()
+  filenameStyle: z.enum(['classic', 'basic', 'pretty', 'nerdy']).default('pretty'),
+  filenameViaVidBee: z.boolean().default(true),
+  shareWatermark: z.boolean(),
+  autoTranscribeAfterDownload: z.boolean().default(true),
+  maxConcurrentTranscriptions: z.number().int().min(1).max(4).default(1),
+  asrTier: z.preprocess(
+    (value) => (value === 'paraformer-zh' ? 'sense-voice' : value),
+    z
+      .enum([
+        'minimal',
+        'whisper-base',
+        'balanced',
+        'whisper-medium',
+        'whisper-turbo',
+        'sense-voice',
+        'sense-voice-2025',
+        'parakeet-v2',
+        'parakeet-v3',
+        'quality'
+      ])
+      .default('minimal')
+  )
 })
 
 export const CreateDownloadInputSchema = z.object({
@@ -273,6 +298,12 @@ export const CancelDownloadInputSchema = z.object({
 
 export const CancelDownloadOutputSchema = z.object({
   cancelled: z.boolean()
+})
+
+export const RetryDownloadInputSchema = CancelDownloadInputSchema
+
+export const RetryDownloadOutputSchema = z.object({
+  retried: z.boolean()
 })
 
 export const ListHistoryOutputSchema = z.object({

@@ -18,8 +18,7 @@ import type {
   ExecutorEvents,
   ExecutorRun,
   TaskInput,
-  TaskOutput,
-  TaskProgress
+  TaskOutput
 } from '@vidbee/task-queue'
 import { virtualError } from '@vidbee/task-queue'
 import { killProcessTree } from '@vidbee/task-queue/process'
@@ -27,6 +26,8 @@ import YTDlpWrap from 'yt-dlp-wrap-plus'
 import type { OneClickContainerOption } from './format-preferences'
 import type { DownloadRuntimeSettings } from './types'
 import { buildDownloadArgs, formatYtDlpCommand, VIDBEE_OUTPUT_PATH_PREFIX } from './yt-dlp-args'
+import { DownloadProgressAggregator, type YtDlpProgressPayload } from './yt-dlp-progress'
+import { resolveYtDlpWrapCtor } from './yt-dlp-wrap'
 
 interface YtDlpExecProcess {
   ytDlpProcess?: {
@@ -35,7 +36,7 @@ interface YtDlpExecProcess {
     stderr?: NodeJS.ReadableStream
     kill: (signal?: NodeJS.Signals | number) => boolean
   }
-  on(event: 'progress', listener: (payload: ProgressPayload) => void): this
+  on(event: 'progress', listener: (payload: YtDlpProgressPayload) => void): this
   on(event: 'close', listener: (code: number | null) => void): this
   on(event: 'error', listener: (error: Error) => void): this
   once(event: 'close', listener: (code: number | null) => void): this
@@ -47,15 +48,7 @@ interface YtDlpWrapInstance {
 }
 
 type YtDlpWrapConstructor = new (binaryPath: string) => YtDlpWrapInstance
-const YTDlpWrapCtor = YTDlpWrap as unknown as YtDlpWrapConstructor
-
-interface ProgressPayload {
-  percent?: number
-  currentSpeed?: string
-  eta?: string
-  downloaded?: string
-  total?: string
-}
+const YTDlpWrapCtor = resolveYtDlpWrapCtor<YtDlpWrapConstructor>(YTDlpWrap)
 
 /**
  * Per-task data hosts pack into `Task.input.options` when calling
@@ -176,6 +169,7 @@ export class YtDlpExecutor implements Executor {
     let formatIdSeen: string | undefined
     let filePathSeen: string | undefined
     let outputPathProbe = ''
+    const progressAggregator = new DownloadProgressAggregator()
 
     /** Preserve complete path signals even after the persisted log tail rolls over. */
     const captureOutputPath = (text: string): void => {
@@ -324,8 +318,11 @@ export class YtDlpExecutor implements Executor {
 
     proc.ytDlpProcess?.stderr?.on('data', pumpStderrPostprocess)
 
-    proc.on('progress', (payload: ProgressPayload) => {
-      const progress = mapProgress(payload)
+    proc.on('progress', (payload: YtDlpProgressPayload) => {
+      const progress = progressAggregator.apply(payload)
+      if (!progress) {
+        return
+      }
       events.onProgress({
         taskId: ctx.taskId,
         attemptId: ctx.attemptId,
@@ -533,74 +530,6 @@ function insertFfmpegLocation(args: string[], ffmpegLocation: string): void {
   if (urlArg !== undefined) {
     args.push(urlArg)
   }
-}
-
-function mapProgress(payload: ProgressPayload): TaskProgress {
-  const percent =
-    typeof payload.percent === 'number' && !Number.isNaN(payload.percent)
-      ? Math.max(0, Math.min(1, payload.percent / 100))
-      : null
-  return {
-    percent,
-    bytesDownloaded: parseSize(payload.downloaded),
-    bytesTotal: parseSize(payload.total),
-    speedBps: parseSpeed(payload.currentSpeed),
-    etaMs: parseEtaMs(payload.eta),
-    ticks: 0
-  }
-}
-
-function parseSize(value: string | undefined): number | null {
-  if (!value) {
-    return null
-  }
-  const m = /([0-9]+(?:\.[0-9]+)?)\s*(B|KB|KiB|MB|MiB|GB|GiB|TB|TiB)/i.exec(value)
-  if (!m) {
-    return null
-  }
-  const n = Number.parseFloat(m[1] ?? '')
-  if (!Number.isFinite(n)) {
-    return null
-  }
-  const unit = (m[2] ?? 'B').toLowerCase()
-  const factor =
-    unit === 'kb' || unit === 'kib'
-      ? 1024
-      : unit === 'mb' || unit === 'mib'
-        ? 1024 ** 2
-        : unit === 'gb' || unit === 'gib'
-          ? 1024 ** 3
-          : unit === 'tb' || unit === 'tib'
-            ? 1024 ** 4
-            : 1
-  return Math.round(n * factor)
-}
-
-function parseSpeed(value: string | undefined): number | null {
-  if (!value) {
-    return null
-  }
-  const cleaned = value.replace(/\/s$/i, '').trim()
-  return parseSize(cleaned)
-}
-
-function parseEtaMs(value: string | undefined): number | null {
-  if (!value) {
-    return null
-  }
-  const trimmed = value.trim()
-  if (!trimmed || trimmed === 'Unknown') {
-    return null
-  }
-  const parts = trimmed.split(':').map((p) => Number.parseInt(p, 10))
-  if (parts.some((n) => !Number.isFinite(n))) {
-    return null
-  }
-  let seconds = 0
-  for (const p of parts) {
-    seconds = seconds * 60 + p
-  }
-  return seconds * 1000
 }
 
 function hasPostprocessSignal(text: string): boolean {

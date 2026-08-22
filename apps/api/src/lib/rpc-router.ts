@@ -8,8 +8,9 @@ import { implement, ORPCError } from '@orpc/server'
 import type { DownloadTask } from '@vidbee/downloader-core'
 import { downloaderContract } from '@vidbee/downloader-core'
 import type { Task, TaskStatus } from '@vidbee/task-queue'
-import { taskQueue, taskQueueExecutor } from './downloader'
+import { taskQueue } from './downloader'
 import { projectTaskForApi } from './projection'
+import { applyApiTranscriptionConcurrency, setApiAutoTranscribe } from './task-queue-host'
 import { webSettingsStore } from './web-settings-store'
 import { fetchPlaylistInfo, fetchVideoInfo } from './yt-dlp-info'
 
@@ -455,6 +456,20 @@ export const rpcRouter = os.router({
           message: toErrorMessage(error, 'Failed to cancel download.')
         })
       }
+    }),
+    retry: os.downloads.retry.handler(async ({ input }) => {
+      try {
+        const task = taskQueue.get(input.id)
+        if (!task || (task.status !== 'failed' && task.status !== 'cancelled')) {
+          return { retried: false }
+        }
+        await taskQueue.retryManual(input.id)
+        return { retried: true }
+      } catch (error) {
+        throw new ORPCError('INTERNAL_SERVER_ERROR', {
+          message: toErrorMessage(error, 'Failed to retry download.')
+        })
+      }
     })
   },
 
@@ -623,6 +638,8 @@ export const rpcRouter = os.router({
     set: os.settings.set.handler(async ({ input }) => {
       try {
         const settings = await webSettingsStore.set(input.settings)
+        setApiAutoTranscribe(settings.autoTranscribeAfterDownload === true)
+        applyApiTranscriptionConcurrency(settings.maxConcurrentTranscriptions)
         return { settings }
       } catch (error) {
         throw new ORPCError('INTERNAL_SERVER_ERROR', {
@@ -632,8 +649,3 @@ export const rpcRouter = os.router({
     })
   }
 })
-
-// `taskQueueExecutor` is intentionally re-exported from this module so the
-// integration test (packages/task-queue/__integration__/three-host-equivalence)
-// can introspect host wiring without reaching into apps/api directly.
-export { taskQueueExecutor }
