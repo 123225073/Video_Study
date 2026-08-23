@@ -63,14 +63,14 @@ const binaries = [
     }
   },
   {
-    label: 'deno',
+    label: 'Node.js',
     paths: {
-      win: ['deno.exe'],
-      mac: ['deno'],
-      linux: ['deno']
+      win: ['node/node.exe'],
+      mac: ['node/node'],
+      linux: ['node/node']
     },
     help: {
-      default: 'https://github.com/denoland/deno/releases/latest'
+      default: 'https://nodejs.org/en/download'
     }
   }
 ]
