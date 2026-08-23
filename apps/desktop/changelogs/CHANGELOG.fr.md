@@ -3,6 +3,20 @@
 Cette page ne présente que les évolutions visibles par les utilisateurs, sans détails techniques.
 Pour les notes de version complètes, consultez [GitHub Releases](https://github.com/nexmoe/VidBee/releases).
 
+## [v2.0.1](https://github.com/nexmoe/VidBee/releases/tag/v2.0.1) - 2026-08-23
+
+### Nouveautés
+- Choisissez jusqu'à cinq langues de sous-titres dans les réglages, ou laissez VidBee suivre la langue de l'interface.
+- Mettez en pause et reprenez un téléchargement en cours sans repartir de zéro. (by @Gani-SMA)
+
+### Améliorations
+- Si les sous-titres sont indisponibles, VidBee poursuit la vidéo au lieu de faire échouer tout le téléchargement.
+- Les téléchargements annulés le restent après un redémarrage et ne disparaissent qu'une fois l'annulation enregistrée.
+- Les liens de téléchargement sont mieux reconnus, avec des conseils plus clairs quand un site exige les cookies du navigateur.
+- Téléchargez depuis davantage de sites sans installer d'outil supplémentaire.
+- Sous Windows, la lecture vidéo et la fenêtre de l'application se rétablissent mieux après un problème graphique ou de page.
+- L'icône de la zone de notification ouvre l'application plus sûrement.
+
 ## [v2.0.0](https://github.com/nexmoe/VidBee/releases/tag/v2.0.0) - 2026-08-22
 
 En 1.x, VidBee enregistrait le fichier et s'arrêtait là. 2.0 continue : transcription sur cet ordinateur, noms des locuteurs, recherche d'une citation, puis résumé avec l'IA.

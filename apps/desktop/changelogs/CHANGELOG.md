@@ -3,6 +3,20 @@
 This page only includes user-visible updates and avoids implementation details.
 For full release notes, see [GitHub Releases](https://github.com/nexmoe/VidBee/releases).
 
+## [v2.0.1](https://github.com/nexmoe/VidBee/releases/tag/v2.0.1) - 2026-08-23
+
+### What's New
+- Choose up to five subtitle languages in Settings, or have VidBee follow the interface language.
+- Pause and resume active downloads without starting over. (by @Gani-SMA)
+
+### Improvements
+- When subtitles are unavailable, VidBee continues with the video instead of failing the whole download.
+- Cancelled downloads stay cancelled after a restart and disappear only after the cancellation is safely saved.
+- Download links are recognized more reliably, with clearer guidance when a site needs browser cookies.
+- Download from more sites without installing an extra helper.
+- On Windows, video playback and the app window recover more reliably after graphics or page failures.
+- The tray icon opens the app more reliably.
+
 ## [v2.0.0](https://github.com/nexmoe/VidBee/releases/tag/v2.0.0) - 2026-08-22
 
 In 1.x, VidBee saved the file and stopped there. 2.0 keeps going: transcribe on this computer, label who is speaking, search a quote, then ask AI for a summary.
