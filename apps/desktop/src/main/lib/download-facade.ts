@@ -288,7 +288,13 @@ class DownloadFacade extends EventEmitter {
     return true
   }
 
-  cancelDownload(id: string): boolean {
+  /**
+   * Cancel a download and acknowledge it only after the terminal state is durable.
+   *
+   * @param id Download / task id.
+   * @returns Whether the task existed and its cancellation was persisted.
+   */
+  async cancelDownload(id: string): Promise<boolean> {
     this.subscribeOnce()
     const pending = this.pendingStarts.get(id)
     if (pending) {
@@ -300,10 +306,13 @@ class DownloadFacade extends EventEmitter {
     if (!this.queue.get(id)) {
       return false
     }
-    void this.queue.cancel(id, 'user').catch((err) => {
+    try {
+      await this.queue.cancel(id, 'user')
+      return true
+    } catch (err) {
       logger.error('download-facade: cancelDownload failed', err)
-    })
-    return true
+      return false
+    }
   }
 
   /**

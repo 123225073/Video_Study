@@ -36,8 +36,15 @@ class DownloadService extends IpcService {
     return downloadEngine.startDownload(id, options)
   }
 
+  /**
+   * Cancel a download after its terminal state has been persisted.
+   *
+   * @param _context IPC call context.
+   * @param id Download id.
+   * @returns A promise resolving to whether cancellation succeeded.
+   */
   @IpcMethod()
-  cancelDownload(_context: IpcContext, id: string): boolean {
+  cancelDownload(_context: IpcContext, id: string): Promise<boolean> {
     return downloadEngine.cancelDownload(id)
   }
 

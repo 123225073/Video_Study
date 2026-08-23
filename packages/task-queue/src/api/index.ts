@@ -488,9 +488,17 @@ export class TaskQueueAPI {
     return combined.length > 0 ? combined : null
   }
 
+  /**
+   * Persist cancellation before stopping an active executor so a restart cannot resume it.
+   *
+   * @param id Task id.
+   * @param reason Cancellation reason stored on the FSM transition.
+   */
   async cancel(id: string, reason = 'user'): Promise<void> {
     const t = this.store.get(id)
-    if (!t) return
+    if (!t) {
+      return
+    }
     this.pendingCancel.add(id)
     this.pendingPause.delete(id)
     if (TERMINAL_STATUSES.has(t.status)) {
@@ -516,27 +524,28 @@ export class TaskQueueAPI {
       })
       return
     }
-    // running/processing — issue cancel through the executor; the finish
-    // event will drive the FSM transition. ProcessRegistry handles the
-    // SIGTERM→SIGKILL grace period.
+    // Record user intent before signalling the child. If the app exits before
+    // onFinish arrives, startup must still see a terminal task instead of
+    // treating it as crash-recovery work and resuming the download.
+    await this.applyTransition(id, 'cancelled', {
+      trigger: 'cancel',
+      reason
+    })
+
     const active = this.active.get(id)
-    if (active) {
-      try {
-        await active.run.cancel()
-      } catch (err) {
-        logCaughtError('task_queue_cancel_threw', err)
-      }
-    }
-    const latest = this.store.get(id)
-    if (latest?.status === 'paused') {
+    if (!active) {
       this.pendingCancel.delete(id)
-      await this.applyTransition(id, 'cancelled', {
-        trigger: 'cancel',
-        reason
-      })
+      await this.scheduler.releaseSlot(id)
+      return
     }
-    // Otherwise the orchestrator transitions from the onFinish callback
-    // (executor reports `result.type === 'cancelled'`).
+
+    try {
+      await active.run.cancel()
+    } catch (err) {
+      logCaughtError('task_queue_cancel_threw', err)
+    } finally {
+      this.pendingCancel.delete(id)
+    }
   }
 
   /**
@@ -714,6 +723,10 @@ export class TaskQueueAPI {
             this.watchdog.arm(id, 'running')
           },
           onProgress: (e) => {
+            const current = this.store.get(id)
+            if (!current || TERMINAL_STATUSES.has(current.status)) {
+              return
+            }
             this.applyProgress(id, e.progress)
             this.watchdog.bump(id)
             if (e.enteredProcessing) {
@@ -801,6 +814,19 @@ export class TaskQueueAPI {
     if (e.result.type === 'success') {
       const out = e.result.output
       const current = this.store.get(id)
+      if (current?.status === 'cancelled') {
+        await this.persist.closeAttempt({
+          taskId: id,
+          attemptId,
+          endedAt: e.closedAt,
+          exitCode: 0,
+          errorCategory: null,
+          stdoutTail: e.stdoutTail,
+          stderrTail: e.stderrTail
+        })
+        await this.processes.recordClose(id, attemptId, 0, null)
+        return
+      }
       const guardOk = isOutputComplete(current?.kind ?? 'video', out, {
         filePresent: this.filePresent
       })
@@ -815,6 +841,9 @@ export class TaskQueueAPI {
           stderrTail: e.stderrTail
         })
         await this.processes.recordClose(id, attemptId, 0, null)
+        if (this.store.get(id)?.status === 'cancelled') {
+          return
+        }
         await this.applyTransition(id, 'completed', {
           trigger: 'finalize-success',
           reason: null,
@@ -835,6 +864,9 @@ export class TaskQueueAPI {
           stderrTail: e.stderrTail
         })
         await this.processes.recordClose(id, attemptId, null, null)
+        if (this.store.get(id)?.status === 'cancelled') {
+          return
+        }
         await this.applyTransition(id, 'failed', {
           trigger: 'finalize-error',
           reason: 'output-missing',
@@ -859,10 +891,10 @@ export class TaskQueueAPI {
         stderrTail: e.stderrTail
       })
       await this.processes.recordClose(id, attemptId, null, 'SIGTERM')
+      const cancelRequested = this.pendingCancel.has(id)
+      this.pendingCancel.delete(id)
       const t = this.store.get(id)
       if (t && (t.status === 'running' || t.status === 'processing')) {
-        const cancelRequested = this.pendingCancel.has(id)
-        this.pendingCancel.delete(id)
         if (!cancelRequested && pauseReason !== undefined) {
           await this.applyTransition(id, 'paused', {
             trigger: 'pause',
@@ -891,6 +923,9 @@ export class TaskQueueAPI {
       stderrTail: e.stderrTail
     })
     await this.processes.recordClose(id, attemptId, exitCode, null)
+    if (this.store.get(id)?.status === 'cancelled') {
+      return
+    }
     this.bus.emit({
       type: 'error-classified',
       taskId: id,

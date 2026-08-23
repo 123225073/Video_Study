@@ -285,13 +285,16 @@ export function DownloadItem({ download, isSelected = false, onToggleSelect }: D
     checkFileExists()
   }, [download.title, download.downloadPath, download.savedFileName, resolvedExtension])
 
-  const handleCancel = async () => {
+  /** Cancel the task and remove its row only after the main process confirms persistence. */
+  const handleCancel = async (): Promise<void> => {
     if (isHistory) {
       return
     }
     try {
-      await ipcServices.download.cancelDownload(download.id)
-      removeDownload(download.id)
+      const cancelled = await ipcServices.download.cancelDownload(download.id)
+      if (cancelled) {
+        removeDownload(download.id)
+      }
     } catch (error) {
       logger.error('Failed to cancel download:', error)
     }
