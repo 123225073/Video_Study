@@ -14,7 +14,8 @@ const WEBM_VIDEO_CODECS = new Set(['av1', 'vp8', 'vp9'])
 const WEBM_AUDIO_CODECS = new Set(['opus', 'vorbis'])
 const COPY_CONTAINERS = new Set(['.m4a', '.mp3', '.mp4', '.webm'])
 const IMAGE_VIDEO_CODECS = new Set(['bmp', 'gif', 'jpeg', 'jpg', 'mjpeg', 'png', 'webp'])
-const PREVIEW_CACHE_VERSION = 'preview-v2'
+const WINDOWS_UNSAFE_VIDEO_CODECS = new Set(['h265', 'hevc'])
+const PREVIEW_CACHE_VERSION = 'preview-v3'
 const STDERR_CAP_BYTES = 64 * 1024
 
 export interface MediaCodecProbe {
@@ -99,9 +100,18 @@ const outputFormat = (outputPath: string): string | null => {
  * True when this codec can sit in a Chromium MP4.
  *
  * Chromium only paints 8-bit 4:2:0 H.264. High 4:4:4 and 10-bit streams
- * must be transcoded even though ffprobe still reports `h264`.
+ * must be transcoded even though ffprobe still reports `h264`. Windows HEVC
+ * is also transcoded so playback does not depend on an optional OS codec or
+ * unstable hardware decoder.
  */
-const isMp4Video = (codec: string | null, pixFmt: string | null = null): boolean => {
+const isMp4Video = (
+  codec: string | null,
+  pixFmt: string | null = null,
+  platform: NodeJS.Platform = process.platform
+): boolean => {
+  if (platform === 'win32' && codec && WINDOWS_UNSAFE_VIDEO_CODECS.has(codec)) {
+    return false
+  }
   if (codec === 'h264' && pixFmt && pixFmt !== 'yuv420p') {
     return false
   }
@@ -164,18 +174,20 @@ export const probeMediaCodecs = async (
  * Decide whether the file can play in Chromium as-is, remux, or must be transcoded.
  *
  * Chromium cannot open MKV. Compatible streams are remuxed (or audio-only
- * re-encoded) into MP4/WebM; everything else is transcoded to H.264/AAC.
+ * re-encoded) into MP4/WebM; everything else is transcoded to H.264/AAC. The
+ * platform parameter keeps platform-specific decoder decisions testable.
  */
 export const planPlayableMedia = (
   filePath: string,
   probe: MediaCodecProbe,
-  outputPath: string
+  outputPath: string,
+  platform: NodeJS.Platform = process.platform
 ): PlayablePreparePlan => {
   const ext = path.extname(filePath).toLowerCase()
   if (isNativelyPlayableAudio(filePath)) {
     return { mode: 'original', outputPath: filePath }
   }
-  const mp4Video = isMp4Video(probe.video, probe.videoPixFmt)
+  const mp4Video = isMp4Video(probe.video, probe.videoPixFmt, platform)
   const mp4Audio = isMp4Audio(probe.audio)
   const webmVideo = isWebmVideo(probe.video)
   const webmAudio = isWebmAudio(probe.audio)
@@ -386,7 +398,8 @@ const preparePlayableMediaOnce = async (
   const plan = planPlayableMedia(
     filePath,
     probe,
-    playableCachePath(filePath, 'mp4', options?.cacheDir)
+    playableCachePath(filePath, 'mp4', options?.cacheDir),
+    process.platform
   )
   if (plan.mode === 'original') {
     return { mode: 'original', playablePath: filePath }

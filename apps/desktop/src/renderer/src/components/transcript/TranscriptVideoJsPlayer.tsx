@@ -533,7 +533,7 @@ export function TranscriptVideoJsPlayer({
               title={title}
             />
             <AudioSkin className="transcript-audio-skin w-full shrink-0">
-              <Audio aria-label={title} src={src}>
+              <Audio aria-label={title} preload="metadata">
                 {mediaSource}
                 {captions}
               </Audio>
@@ -553,7 +553,7 @@ export function TranscriptVideoJsPlayer({
     <TranscriptPlayerFrame aspectRatio={videoAspect} chrome={chrome} relative>
       <VideoPlayer key={playbackAttempt}>
         <VideoSkin className="h-full min-h-0 w-full">
-          <Video aria-label={title} src={src}>
+          <Video aria-label={title} playsInline preload="metadata">
             {mediaSource}
             {captions}
           </Video>
