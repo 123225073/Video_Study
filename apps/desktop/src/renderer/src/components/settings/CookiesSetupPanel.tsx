@@ -110,6 +110,9 @@ const healthDescription = (health: CookieHealth, t: TranslateFn): string => {
     if (health.source === 'file') {
       return t('settings.cookiesSetup.healthInvalidFile')
     }
+    if (health.reason === 'macos-files-permission') {
+      return t('settings.cookiesSetup.healthMacosFilesPermission')
+    }
     if (health.reason === 'missing-cookie-db') {
       return t('settings.cookiesSetup.profileMissingDb')
     }
@@ -423,6 +426,21 @@ export function CookiesSetupPanel({
   }
 
   /**
+   * Open macOS Privacy → Files & Folders for browser cookie access.
+   */
+  const handleOpenFilesSettings = async (): Promise<void> => {
+    try {
+      const opened = await ipcServices.fs.openMacFilesAndFoldersSettings()
+      if (!opened) {
+        toast.error(t('settings.openLinkError'))
+      }
+    } catch (error) {
+      logger.error('[CookiesSetup] Failed to open Files & Folders settings:', error)
+      toast.error(t('settings.openLinkError'))
+    }
+  }
+
+  /**
    * Warning copy for an invalid profile path.
    *
    * @param reason Validation reason from the main process.
@@ -476,6 +494,11 @@ export function CookiesSetupPanel({
           </ItemContent>
           <ItemActions>
             <div className="flex flex-wrap gap-2">
+              {health.reason === 'macos-files-permission' ? (
+                <Button onClick={() => void handleOpenFilesSettings()} size="sm" variant="outline">
+                  {t('download.cookiesSetupOpenFilesSettings')}
+                </Button>
+              ) : null}
               {hasCookieConfig ? (
                 <Button onClick={() => void refreshHealth()} size="sm" variant="secondary">
                   {t('settings.cookiesSetup.checkStatus')}

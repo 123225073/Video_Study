@@ -36,6 +36,8 @@ const failureDescription = (
   t: (key: string, options?: Record<string, string>) => string
 ): string => {
   switch (kind) {
+    case 'macos-files-permission':
+      return t('download.cookiesSetupMacFiles')
     case 'browser-locked':
       return t('download.cookiesSetupLocked')
     case 'browser-decrypt':
@@ -112,6 +114,21 @@ export function CookiesSetupDialog() {
     }
   }
 
+  /**
+   * Open macOS Privacy → Files & Folders for browser cookie access.
+   */
+  const handleOpenFilesSettings = async (): Promise<void> => {
+    try {
+      const opened = await ipcServices.fs.openMacFilesAndFoldersSettings()
+      if (!opened) {
+        toast.error(t('settings.openLinkError'))
+      }
+    } catch (error) {
+      logger.error('[CookiesSetupDialog] Failed to open Files & Folders settings:', error)
+      toast.error(t('settings.openLinkError'))
+    }
+  }
+
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
@@ -123,6 +140,11 @@ export function CookiesSetupDialog() {
         </DialogHeader>
         <CookiesSetupPanel onHealthChange={setHealth} />
         <DialogFooter>
+          {request?.failureKind === 'macos-files-permission' ? (
+            <Button onClick={() => void handleOpenFilesSettings()} variant="outline">
+              {t('download.cookiesSetupOpenFilesSettings')}
+            </Button>
+          ) : null}
           <Button onClick={() => handleOpenChange(false)} variant="secondary">
             {t('download.cookiesSetupDone')}
           </Button>

@@ -508,7 +508,12 @@ const TabPanel = forwardRef<HTMLDivElement, TabPanelProps>(
     return (
       <TabsPrimitive.Panel
         ref={ref}
-        className={cn("min-h-0 outline-none", className)}
+        className={cn(
+          // `flex` on consumers must not override the HTML `hidden` attribute
+          // or both tab panels stay in layout and the active one looks empty.
+          "min-h-0 outline-none [&[hidden]]:hidden",
+          className
+        )}
         {...props}
       />
     );

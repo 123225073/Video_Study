@@ -74,6 +74,6 @@ ffmpeg is required for merging audio/video streams and audio extraction. ffprobe
 
 yt-dlp EJS uses an external JavaScript runtime. VidBee reuses the bundled official Node LTS at `resources/node/` (also used by the transcription worker). Do not bundle a separate Deno binary.
 
-At runtime, Desktop copies and verifies yt-dlp under the Electron `userData` directory and silently checks the official Stable channel for newer yt-dlp versions. Node stays on the packaged LTS lock.
+At runtime, Desktop copies yt-dlp into a writable `userData` kernel so the signed app bundle is not mutated, then silently checks the official Stable channel. Only the active managed copy is kept; older kernels are deleted after a newer one is activated. Node stays on the packaged LTS lock.
 
 You can override the EJS runtime path via `YTDLP_JS_RUNTIME_PATH` if needed.

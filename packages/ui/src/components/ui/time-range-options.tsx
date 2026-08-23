@@ -10,7 +10,7 @@ interface TimeRangeOptionsProps {
   startTime: string
 }
 
-/** Render accessible start/end timecode controls shared by Desktop and Web. */
+/** Render a compact start/end clip row shared by Desktop and Web. */
 export function TimeRangeOptions({
   endTime,
   onEndTimeChange,
@@ -23,18 +23,16 @@ export function TimeRangeOptions({
   const endId = `${fieldId}-end`
 
   return (
-    <fieldset className="w-full space-y-1.5">
-      <legend className="px-0.5 font-medium text-muted-foreground text-xs">
-        {t('advancedOptions.timeRange')}
-      </legend>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground" htmlFor={startId}>
+    <fieldset className="min-w-0">
+      <legend className="sr-only">{t('advancedOptions.timeRange')}</legend>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="min-w-0 space-y-1">
+          <Label className="font-medium text-muted-foreground text-xs" htmlFor={startId}>
             {t('advancedOptions.start')}
           </Label>
           <Input
             autoComplete="off"
-            className="h-8 text-xs tabular-nums"
+            className="h-7 min-w-0 text-xs tabular-nums"
             id={startId}
             onChange={(event) => onStartTimeChange(event.target.value)}
             placeholder={t('advancedOptions.startPlaceholder')}
@@ -42,13 +40,13 @@ export function TimeRangeOptions({
             value={startTime}
           />
         </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground" htmlFor={endId}>
+        <div className="min-w-0 space-y-1">
+          <Label className="font-medium text-muted-foreground text-xs" htmlFor={endId}>
             {t('advancedOptions.end')}
           </Label>
           <Input
             autoComplete="off"
-            className="h-8 text-xs tabular-nums"
+            className="h-7 min-w-0 text-xs tabular-nums"
             id={endId}
             onChange={(event) => onEndTimeChange(event.target.value)}
             placeholder={t('advancedOptions.endPlaceholder')}

@@ -2,7 +2,6 @@ import { AddUrlPopover } from '@renderer/components/ui/add-url-popover'
 import { Button } from '@renderer/components/ui/button'
 import { Checkbox } from '@renderer/components/ui/checkbox'
 import { DownloadDialogLayout } from '@renderer/components/ui/download-dialog-layout'
-import { Input } from '@renderer/components/ui/input'
 import { Label } from '@renderer/components/ui/label'
 import type { PlaylistInfo, VideoFormat } from '@shared/types'
 import {
@@ -16,7 +15,7 @@ import { useAddUrlInteraction } from '@vidbee/ui/lib/use-add-url-interaction'
 import { useHomeIngest } from '@vidbee/ui/lib/use-home-ingest'
 import { useAtom, useSetAtom } from 'jotai'
 import { FolderOpen, Loader2 } from 'lucide-react'
-import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useImportLocalMedia } from '../../hooks/use-import-local-media'
@@ -135,8 +134,7 @@ export function DownloadDialog({
   const playlistBusy = playlistPreviewLoading || playlistDownloadLoading
   const [advancedOptionsOpen, setAdvancedOptionsOpen] = useState(false)
   const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set())
-  const lockDialogHeight =
-    activeTab === 'playlist' && (playlistPreviewLoading || playlistInfo !== null)
+  const lockDialogHeight = activeTab === 'playlist' && playlistPreviewLoading
 
   const computePlaylistRange = useCallback(
     (info: PlaylistInfo) => {
@@ -331,6 +329,7 @@ export function DownloadDialog({
       // #379: drop any stale single-video info when switching to a playlist.
       clearVideoInfo()
       setOpen(true)
+      setActiveTab('playlist')
       setPlaylistUrl(trimmedUrl)
       setPlaylistInfo(null)
       setPlaylistPreviewError(null)
@@ -391,6 +390,7 @@ export function DownloadDialog({
       // #379: reset stale info and invalidate in-flight fetches before re-fetch.
       clearVideoInfo()
       setOpen(true)
+      setActiveTab('single')
       setUrl(trimmedUrl)
       setSingleVideoState((prev) => ({
         ...prev,
@@ -727,35 +727,41 @@ export function DownloadDialog({
     }
   }, [videoInfo, videoInfoSourceUrl, singleVideoState, addDownload, t, url])
 
-  // Reset form when dialog closes
-  useEffect(() => {
-    if (!open) {
-      // Reset single video states
-      clearVideoInfo()
-      setUrl('')
-      setActiveTab('single')
-      setSingleVideoState({
-        title: '',
-        activeTab: 'video',
-        selectedVideoFormat: '',
-        selectedAudioFormat: '',
-        customDownloadPath: '',
-        startTime: '',
-        endTime: '',
-        selectedContainer: undefined,
-        selectedCodec: undefined,
-        selectedFps: undefined
-      })
+  const wasDialogOpenRef = useRef(open)
 
-      // Reset playlist states
-      setPlaylistUrl('')
-      setPlaylistInfo(null)
-      setPlaylistPreviewError(null)
-      setPlaylistCustomDownloadPath('')
-      setStartIndex('1')
-      setEndIndex('')
-      setSelectedEntryIds(new Set())
+  // Reset form only when the dialog actually closes. `if (!open)` also ran
+  // on the closed idle state and invalidated in-flight fetches started in
+  // the same click as setOpen(true).
+  useEffect(() => {
+    const wasOpen = wasDialogOpenRef.current
+    wasDialogOpenRef.current = open
+    if (!(wasOpen && !open)) {
+      return
     }
+
+    clearVideoInfo()
+    setUrl('')
+    setActiveTab('single')
+    setSingleVideoState({
+      title: '',
+      activeTab: 'video',
+      selectedVideoFormat: '',
+      selectedAudioFormat: '',
+      customDownloadPath: '',
+      startTime: '',
+      endTime: '',
+      selectedContainer: undefined,
+      selectedCodec: undefined,
+      selectedFps: undefined
+    })
+
+    setPlaylistUrl('')
+    setPlaylistInfo(null)
+    setPlaylistPreviewError(null)
+    setPlaylistCustomDownloadPath('')
+    setStartIndex('1')
+    setEndIndex('')
+    setSelectedEntryIds(new Set())
   }, [open, clearVideoInfo])
 
   const handleSingleVideoStateChange = useCallback(
@@ -822,46 +828,44 @@ export function DownloadDialog({
             value={addUrlValue}
           />
         }
+        dialogSubtitle={t('download.dialogSubtitle')}
+        dialogTitle={t('download.dialogTitle')}
         footer={
           <div className="flex w-full items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               {/* Download Location - Single Video */}
               {activeTab === 'single' && videoInfo && !loading && (
-                <div className="flex items-center gap-2">
-                  <div className="relative w-[240px]">
-                    <Input
-                      className="pr-7"
-                      placeholder={t('download.autoFolderPlaceholder')}
-                      readOnly
-                      value={singleVideoState.customDownloadPath || settings.downloadPath}
-                    />
-                    <div className="absolute top-1/2 right-0 -translate-y-1/2">
-                      <Button
-                        onClick={async () => {
-                          try {
-                            const path = await ipcServices.fs.selectDirectory()
-                            if (path) {
-                              setSingleVideoState((prev) => ({
-                                ...prev,
-                                customDownloadPath: path
-                              }))
-                            }
-                          } catch (error) {
-                            logger.error('Failed to select directory:', error)
-                            toast.error(t('settings.directorySelectError'))
-                          }
-                        }}
-                        size="icon"
-                        variant="ghost"
-                      >
-                        <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                    </div>
-                  </div>
+                <div className="flex min-w-0 items-center gap-2">
+                  <Button
+                    className="h-9 max-w-[240px] justify-start gap-2 px-0 font-normal text-muted-foreground text-sm hover:bg-transparent hover:text-foreground"
+                    onClick={async () => {
+                      try {
+                        const path = await ipcServices.fs.selectDirectory()
+                        if (path) {
+                          setSingleVideoState((prev) => ({
+                            ...prev,
+                            customDownloadPath: path
+                          }))
+                        }
+                      } catch (error) {
+                        logger.error('Failed to select directory:', error)
+                        toast.error(t('settings.directorySelectError'))
+                      }
+                    }}
+                    title={singleVideoState.customDownloadPath || settings.downloadPath}
+                    variant="ghost"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">
+                      {singleVideoState.customDownloadPath ||
+                        settings.downloadPath ||
+                        t('download.autoFolderPlaceholder')}
+                    </span>
+                  </Button>
 
                   {singleVideoState.customDownloadPath && (
                     <Button
-                      className="h-8 text-xs"
+                      className="h-8 shrink-0 text-xs"
                       onClick={() =>
                         setSingleVideoState((prev) => ({
                           ...prev,
@@ -877,32 +881,27 @@ export function DownloadDialog({
                 </div>
               )}
 
-              {/* Download Location - Playlist */}
               {activeTab === 'playlist' && playlistInfo && !playlistPreviewLoading && (
-                <div className="flex items-center gap-2">
-                  <div className="relative w-[200px]">
-                    <Input
-                      className="h-8 bg-muted/30 pr-7 text-xs"
-                      placeholder={t('download.autoFolderPlaceholder')}
-                      readOnly
-                      value={playlistCustomDownloadPath || settings.downloadPath}
-                    />
-                    <div className="absolute top-1/2 right-2 -translate-y-1/2">
-                      <FolderOpen className="h-3 w-3 text-muted-foreground" />
-                    </div>
-                  </div>
+                <div className="flex min-w-0 items-center gap-2">
                   <Button
-                    className="h-8"
+                    className="h-9 min-w-0 max-w-[220px] justify-start gap-2 px-0 font-normal text-muted-foreground text-sm hover:bg-transparent hover:text-foreground"
                     disabled={playlistBusy}
-                    onClick={handleSelectPlaylistDirectory}
-                    size="sm"
-                    variant="outline"
+                    onClick={() => {
+                      void handleSelectPlaylistDirectory()
+                    }}
+                    title={playlistCustomDownloadPath || settings.downloadPath}
+                    variant="ghost"
                   >
-                    {t('settings.selectPath')}
+                    <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">
+                      {playlistCustomDownloadPath ||
+                        settings.downloadPath ||
+                        t('download.autoFolderPlaceholder')}
+                    </span>
                   </Button>
                   {playlistCustomDownloadPath && (
                     <Button
-                      className="h-8 text-xs"
+                      className="h-8 shrink-0 text-xs"
                       disabled={playlistBusy}
                       onClick={() => setPlaylistCustomDownloadPath('')}
                       size="sm"
@@ -955,6 +954,7 @@ export function DownloadDialog({
                 )
               ) : playlistInfo && !playlistPreviewLoading ? (
                 <Button
+                  className="shrink-0 whitespace-nowrap"
                   disabled={playlistDownloadLoading || selectedPlaylistEntries.length === 0}
                   onClick={handleDownloadPlaylist}
                 >
@@ -994,6 +994,7 @@ export function DownloadDialog({
             downloadType={downloadType}
             downloadTypeId={downloadTypeId}
             endIndex={endIndex}
+            onAdvancedOpenChange={setAdvancedOptionsOpen}
             playlistBusy={playlistBusy}
             playlistInfo={playlistInfo}
             playlistPreviewError={playlistPreviewError}

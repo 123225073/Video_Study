@@ -20,7 +20,8 @@ import {
   buildDownloadArgs,
   buildPlaylistInfoArgs,
   buildVideoInfoArgs,
-  formatYtDlpCommand
+  formatYtDlpCommand,
+  retryTransientYtDlpNetworkError
 } from './yt-dlp-args'
 import { resolveYtDlpWrapCtor } from './yt-dlp-wrap'
 
@@ -600,8 +601,10 @@ export class DownloaderCore extends EventEmitter {
       throw new Error('URL is required.')
     }
 
-    const raw = await this.runJsonCommand<RawVideoInfo>(
-      buildVideoInfoArgs(target, this.resolveRuntimeSettings(runtimeSettings), this.jsRuntimeArgs)
+    const raw = await retryTransientYtDlpNetworkError(() =>
+      this.runJsonCommand<RawVideoInfo>(
+        buildVideoInfoArgs(target, this.resolveRuntimeSettings(runtimeSettings), this.jsRuntimeArgs)
+      )
     )
     const formats: VideoFormat[] = (raw.formats ?? []).map((format) => ({
       formatId: format.format_id ?? 'unknown',
@@ -647,11 +650,13 @@ export class DownloaderCore extends EventEmitter {
       throw new Error('URL is required.')
     }
 
-    const raw = await this.runJsonCommand<RawPlaylistInfo>(
-      buildPlaylistInfoArgs(
-        target,
-        this.resolveRuntimeSettings(runtimeSettings),
-        this.jsRuntimeArgs
+    const raw = await retryTransientYtDlpNetworkError(() =>
+      this.runJsonCommand<RawPlaylistInfo>(
+        buildPlaylistInfoArgs(
+          target,
+          this.resolveRuntimeSettings(runtimeSettings),
+          this.jsRuntimeArgs
+        )
       )
     )
 

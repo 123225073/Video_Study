@@ -7,6 +7,7 @@ export {
 export { downloaderContract } from './contract'
 export {
   getBrowserCookieDatabaseName,
+  getBrowserCookieDatabaseRelativeSegments,
   getBrowserProfileBaseDirs,
   getBrowserProfileCandidates
 } from './cookie-browser-paths'
@@ -37,6 +38,7 @@ export {
   isWindowsBlockedCookieBrowser,
   listSelectableCookieBrowsers,
   looksLikeNetscapeCookies,
+  MACOS_BROWSER_COOKIE_PERMISSION_MESSAGE,
   recommendCookieSetup,
   unconfiguredCookieHealth
 } from './cookie-setup'
@@ -99,11 +101,14 @@ export {
   buildVideoInfoArgs,
   formatYtDlpCommand,
   isDirectMediaSegmentUrl,
+  isTransientYtDlpNetworkError,
+  METADATA_NETWORK_ATTEMPTS,
   parseDownloadTimecode,
   resolveAudioFormatSelector,
   resolveFfmpegLocationFromPath,
   resolvePathWithHome,
   resolveVideoFormatSelector,
+  retryTransientYtDlpNetworkError,
   sanitizeFilenameTemplate,
   VIDBEE_OUTPUT_PATH_PREFIX,
   validateDownloadTimeRange

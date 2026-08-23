@@ -20,6 +20,28 @@ export function getYtDlpReleaseAssetName(platform: string): string {
 }
 
 /**
+ * Compare yt-dlp versions such as `2026.06.09` and `2026.08.19.020253`.
+ * Returns negative when `left` is older, zero when equal, and positive when newer.
+ */
+export function compareYtDlpVersions(left: string, right: string): number {
+  const parseParts = (version: string): number[] =>
+    version.split('.').map((part) => {
+      const value = Number.parseInt(part, 10)
+      return Number.isFinite(value) ? value : 0
+    })
+  const leftParts = parseParts(left)
+  const rightParts = parseParts(right)
+  const length = Math.max(leftParts.length, rightParts.length)
+  for (let index = 0; index < length; index += 1) {
+    const diff = (leftParts[index] ?? 0) - (rightParts[index] ?? 0)
+    if (diff !== 0) {
+      return diff
+    }
+  }
+  return 0
+}
+
+/**
  * Return the persisted exponential retry delay for a one-based failure count.
  */
 export function getRetryDelayMs(failureCount: number): number {

@@ -54,21 +54,87 @@ const DIRECT_MEDIA_SEGMENT_EXTENSION = /\.(?:cmfa|cmfv|m4s)(?:$|[?#])/i
 // single transient failure does not abort the whole download.
 const DEFAULT_RETRIES = '30'
 const DEFAULT_FRAGMENT_RETRIES = '30'
+const DEFAULT_EXTRACTOR_RETRIES = '10'
 const DEFAULT_RETRY_SLEEP = '2'
 const DEFAULT_SOCKET_TIMEOUT = '30'
 
 const appendNetworkResilienceArgs = (args: string[]): void => {
   args.push('--retries', DEFAULT_RETRIES)
   args.push('--fragment-retries', DEFAULT_FRAGMENT_RETRIES)
+  args.push('--extractor-retries', DEFAULT_EXTRACTOR_RETRIES)
   args.push('--retry-sleep', DEFAULT_RETRY_SLEEP)
+  args.push('--retry-sleep', `extractor:${DEFAULT_RETRY_SLEEP}`)
   args.push('--socket-timeout', DEFAULT_SOCKET_TIMEOUT)
 }
 
 /** Add bounded retries to metadata probes without fragment-only flags. */
 const appendMetadataNetworkResilienceArgs = (args: string[]): void => {
   args.push('--retries', DEFAULT_RETRIES)
+  args.push('--extractor-retries', DEFAULT_EXTRACTOR_RETRIES)
   args.push('--retry-sleep', DEFAULT_RETRY_SLEEP)
+  args.push('--retry-sleep', `extractor:${DEFAULT_RETRY_SLEEP}`)
   args.push('--socket-timeout', DEFAULT_SOCKET_TIMEOUT)
+}
+
+export const METADATA_NETWORK_ATTEMPTS = 3
+export const METADATA_NETWORK_RETRY_DELAY_MS = 1000
+
+/**
+ * Return whether a yt-dlp failure is a truncated or timed-out HTTP read.
+ *
+ * Extractor webpage/JSON reads do not honor `--retries`. IncompleteRead and
+ * read timeouts therefore fail a `-j` probe unless the whole process is retried.
+ */
+export const isTransientYtDlpNetworkError = (error: string): boolean => {
+  const normalized = error.toLowerCase()
+  return (
+    normalized.includes('incompleteread') ||
+    normalized.includes('error reading response') ||
+    normalized.includes('read timed out') ||
+    normalized.includes('connection reset') ||
+    normalized.includes('connection aborted') ||
+    normalized.includes('econnreset') ||
+    normalized.includes('econnaborted')
+  )
+}
+
+/**
+ * Return a string message from an unknown thrown value.
+ */
+const networkErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error)
+
+/**
+ * Sleep for the metadata retry backoff.
+ */
+const delayMetadataRetry = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+
+/**
+ * Retry a yt-dlp metadata probe when the site truncates or times out the HTTP body.
+ */
+export const retryTransientYtDlpNetworkError = async <T>(
+  run: () => Promise<T>,
+  sleep: (ms: number) => Promise<void> = delayMetadataRetry
+): Promise<T> => {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= METADATA_NETWORK_ATTEMPTS; attempt += 1) {
+    try {
+      return await run()
+    } catch (error) {
+      lastError = error
+      const canRetry =
+        attempt < METADATA_NETWORK_ATTEMPTS &&
+        isTransientYtDlpNetworkError(networkErrorMessage(error))
+      if (!canRetry) {
+        throw error
+      }
+      await sleep(METADATA_NETWORK_RETRY_DELAY_MS)
+    }
+  }
+  throw lastError
 }
 
 const hasYouTubeHost = (host: string): boolean =>

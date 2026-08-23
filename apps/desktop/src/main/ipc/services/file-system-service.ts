@@ -409,6 +409,28 @@ class FileSystemService extends IpcService {
   }
 
   /**
+   * Open macOS System Settings to Privacy → Files & Folders.
+   */
+  @IpcMethod()
+  async openMacFilesAndFoldersSettings(_context: IpcContext): Promise<boolean> {
+    if (process.platform !== 'darwin') {
+      return false
+    }
+    const urls = [
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders',
+      'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_FilesAndFolders'
+    ]
+    for (const url of urls) {
+      try {
+        await shell.openExternal(url)
+        return true
+      } catch {}
+    }
+    scopedLoggers.system.error('Failed to open Files & Folders settings')
+    return false
+  }
+
+  /**
    * Show a system notification for a completed download and open the result on click for issue #118.
    */
   @IpcMethod()

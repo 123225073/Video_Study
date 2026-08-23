@@ -161,3 +161,19 @@ export const getBrowserCookieDatabaseName = (browser: string): string => {
   }
   return 'Cookies'
 }
+
+/**
+ * Relative path segments for cookie databases inside a browser profile.
+ * Chromium 96+ may keep cookies at `Network/Cookies` instead of `Cookies`.
+ *
+ * @param browser Browser id.
+ */
+export const getBrowserCookieDatabaseRelativeSegments = (browser: string): string[][] => {
+  if (browser === 'firefox') {
+    return [['cookies.sqlite']]
+  }
+  if (browser === 'safari') {
+    return [['Cookies.binarycookies']]
+  }
+  return [['Cookies'], ['Network', 'Cookies']]
+}

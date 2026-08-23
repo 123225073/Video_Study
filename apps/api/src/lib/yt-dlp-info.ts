@@ -11,7 +11,11 @@ import type {
   VideoFormat,
   VideoInfo
 } from '@vidbee/downloader-core'
-import { buildPlaylistInfoArgs, buildVideoInfoArgs } from '@vidbee/downloader-core'
+import {
+  buildPlaylistInfoArgs,
+  buildVideoInfoArgs,
+  retryTransientYtDlpNetworkError
+} from '@vidbee/downloader-core'
 
 interface RawVideoInfo {
   id?: string
@@ -191,7 +195,7 @@ export async function fetchVideoInfo(
     throw new Error('URL is required.')
   }
   const args = buildVideoInfoArgs(target, settings)
-  const stdout = await runYtDlp(args)
+  const stdout = await retryTransientYtDlpNetworkError(() => runYtDlp(args))
   const raw = parseVideoInfoPayload(stdout)
   const formats: VideoFormat[] = (raw.formats ?? []).map((f) => ({
     formatId: f.format_id ?? 'unknown',
@@ -235,7 +239,7 @@ export async function fetchPlaylistInfo(
     throw new Error('URL is required.')
   }
   const args = buildPlaylistInfoArgs(target, settings)
-  const stdout = await runYtDlp(args)
+  const stdout = await retryTransientYtDlpNetworkError(() => runYtDlp(args))
   const raw = JSON.parse(stdout) as RawPlaylistInfo
   const rawEntries = Array.isArray(raw.entries) ? raw.entries : []
   const entries = rawEntries

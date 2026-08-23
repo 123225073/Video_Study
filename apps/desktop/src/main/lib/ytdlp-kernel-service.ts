@@ -18,6 +18,7 @@ import { pipeline } from 'node:stream/promises'
 import type { YtDlpKernelStatus } from '@shared/types'
 import { z } from 'zod'
 import {
+  compareYtDlpVersions,
   getRetryDelayMs,
   getYtDlpReleaseAssetName,
   resolveKernelRelativePath
@@ -300,7 +301,7 @@ export class YtDlpKernelService extends EventEmitter {
   }
 
   /**
-   * Read, validate, and activate the current or previous persisted bundle.
+   * Activate a still-current persisted bundle, or yield when the package is newer.
    */
   private async activatePersistedBundle(): Promise<boolean> {
     const state = await this.readState()
@@ -310,8 +311,22 @@ export class YtDlpKernelService extends EventEmitter {
 
     const active = await this.inspectPersistedBundle(state.active)
     if (active) {
-      this.persistentState = state
-      this.activateManagedPaths(active, state.active, await this.probeNodeVersion())
+      if (await this.shouldReplaceWithBundled(state.active.ytDlp.version)) {
+        this.persistentState = state
+        return false
+      }
+      const normalizedState: KernelPersistentState = state.previous
+        ? { ...state, previous: null }
+        : state
+      if (normalizedState.previous !== state.previous) {
+        try {
+          await this.writeState(normalizedState)
+        } catch (error) {
+          this.options.logger?.warn(`Failed to drop superseded kernel pointer: ${String(error)}`)
+        }
+      }
+      this.persistentState = normalizedState
+      this.activateManagedPaths(active, normalizedState.active, await this.probeNodeVersion())
       await this.cleanupColdStartArtifacts()
       return true
     }
@@ -321,6 +336,15 @@ export class YtDlpKernelService extends EventEmitter {
     }
     const previous = await this.inspectPersistedBundle(state.previous)
     if (!previous) {
+      return false
+    }
+
+    if (await this.shouldReplaceWithBundled(state.previous.ytDlp.version)) {
+      this.persistentState = {
+        ...state,
+        active: state.previous,
+        previous: null
+      }
       return false
     }
 
@@ -341,17 +365,14 @@ export class YtDlpKernelService extends EventEmitter {
   }
 
   /**
-   * Remove crash remnants and immutable bundles no longer referenced at cold start.
+   * Remove crash remnants and every managed bundle that is not the active kernel.
    */
   private async cleanupColdStartArtifacts(): Promise<void> {
     if (!this.persistentState) {
       return
     }
     const bundlesRoot = join(this.options.kernelRoot, 'bundles')
-    const retainedBundleIds = new Set([
-      this.persistentState.active.id,
-      ...(this.persistentState.previous ? [this.persistentState.previous.id] : [])
-    ])
+    const retainedBundleIds = new Set([this.persistentState.active.id])
     try {
       const [rootEntries, bundleEntries] = await Promise.all([
         readdir(this.options.kernelRoot, { withFileTypes: true }),
@@ -411,6 +432,30 @@ export class YtDlpKernelService extends EventEmitter {
     } catch (error) {
       this.options.logger?.warn(`Kernel bundle ${bundle.id} failed validation: ${String(error)}`)
       return null
+    }
+  }
+
+  /**
+   * Return true when the packaged yt-dlp is newer than a still-valid managed copy.
+   */
+  private async shouldReplaceWithBundled(persistedVersion: string): Promise<boolean> {
+    try {
+      await this.assertExecutable(this.options.bundledYtDlpPath)
+    } catch {
+      return false
+    }
+    try {
+      const bundledVersion = await this.probeVersion(this.options.bundledYtDlpPath, 'yt-dlp')
+      if (compareYtDlpVersions(bundledVersion, persistedVersion) <= 0) {
+        return false
+      }
+      this.options.logger?.info(
+        `Packaged yt-dlp ${bundledVersion} is newer than managed ${persistedVersion}; copying the bundled kernel`
+      )
+      return true
+    } catch (error) {
+      this.options.logger?.warn(`Failed to probe bundled yt-dlp version: ${String(error)}`)
+      return false
     }
   }
 
@@ -587,7 +632,7 @@ export class YtDlpKernelService extends EventEmitter {
       },
       failureCount: 0,
       nextCheckAt: 0,
-      previous: persistentState.active,
+      previous: null,
       schemaVersion: 2
     }
     signal.throwIfAborted()
@@ -599,6 +644,7 @@ export class YtDlpKernelService extends EventEmitter {
       updatedState.active,
       nodeVersion
     )
+    await this.cleanupColdStartArtifacts()
   }
 
   /**

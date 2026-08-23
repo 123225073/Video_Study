@@ -17,6 +17,7 @@ import {
   unconfiguredCookieHealth
 } from '@vidbee/downloader-core/cookie-setup'
 import { type IpcContext, IpcMethod, IpcService } from 'electron-ipc-decorator'
+import { inspectBrowserCookieAccess } from '../../lib/browser-cookie-access'
 import { resolvePathWithHome } from '../../utils/path-helpers'
 
 class BrowserCookiesService extends IpcService {
@@ -43,19 +44,6 @@ class BrowserCookiesService extends IpcService {
   private isDirectory(target: string): boolean {
     try {
       return fs.statSync(target).isDirectory()
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * True when the path exists as a file.
-   *
-   * @param target Path to test.
-   */
-  private isFile(target: string): boolean {
-    try {
-      return fs.statSync(target).isFile()
     } catch {
       return false
     }
@@ -152,7 +140,7 @@ class BrowserCookiesService extends IpcService {
       return unconfiguredCookieHealth()
     }
 
-    return this.inspectBrowserHealth(browser, input.profile ?? '')
+    return inspectBrowserCookieAccess(browser, input.profile ?? '')
   }
 
   /**
@@ -320,82 +308,6 @@ class BrowserCookiesService extends IpcService {
         sites: []
       }
     }
-  }
-
-  /**
-   * Inspect a browser profile used with `--cookies-from-browser`.
-   *
-   * @param browser Browser id.
-   * @param profile Profile name or path.
-   */
-  private inspectBrowserHealth(browser: string, profile: string): CookieHealth {
-    const platform = os.platform()
-    if (!isBrowserCookieReadSupported(platform, browser)) {
-      return {
-        browser,
-        reason: 'unsupported-browser',
-        source: 'browser',
-        status: 'invalid',
-        sites: []
-      }
-    }
-
-    const validation = this.validateProfile(browser, profile)
-    if (!validation.valid) {
-      return {
-        browser,
-        reason:
-          validation.reason === 'cookiesFileNotFound' ? 'missing-cookie-db' : 'missing-profile',
-        source: 'browser',
-        status: 'invalid',
-        sites: []
-      }
-    }
-
-    const resolvedProfile = this.resolveProfileDirectory(browser, profile)
-    const cookieDbName = getBrowserCookieDatabaseName(browser)
-    const cookieDbPath = resolvedProfile ? path.join(resolvedProfile, cookieDbName) : ''
-    if (!(cookieDbPath && (this.isFile(cookieDbPath) || fs.existsSync(cookieDbPath)))) {
-      return {
-        browser,
-        reason: 'missing-cookie-db',
-        source: 'browser',
-        status: 'invalid',
-        sites: []
-      }
-    }
-
-    return {
-      browser,
-      source: 'browser',
-      status: 'ok',
-      sites: []
-    }
-  }
-
-  /**
-   * Resolve a stored profile name or path to a directory, if it exists.
-   *
-   * @param browser Browser id.
-   * @param profile Profile name or path.
-   */
-  private resolveProfileDirectory(browser: string, profile: string): string {
-    const normalizedInput = this.normalizeProfileInput(profile)
-    const resolvedInput = resolvePathWithHome(normalizedInput)
-    if (resolvedInput && this.isDirectory(resolvedInput)) {
-      return resolvedInput
-    }
-
-    const platform = os.platform()
-    const homeDir = os.homedir()
-    const baseDirs = getBrowserProfileBaseDirs(platform, homeDir, browser)
-    for (const baseDir of baseDirs) {
-      const candidate = path.join(baseDir, normalizedInput)
-      if (this.isDirectory(candidate)) {
-        return candidate
-      }
-    }
-    return ''
   }
 }
 

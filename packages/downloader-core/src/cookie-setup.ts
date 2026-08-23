@@ -31,6 +31,7 @@ export type CookieHealthReason =
   | 'no-session'
   | 'missing-profile'
   | 'missing-cookie-db'
+  | 'macos-files-permission'
   | 'unsupported-browser'
 
 export type CookieSetupFailureKind =
@@ -39,7 +40,12 @@ export type CookieSetupFailureKind =
   | 'browser-decrypt'
   | 'file-invalid'
   | 'linux-keyring'
+  | 'macos-files-permission'
   | 'stale'
+
+/** Canonical yt-dlp-adjacent error used when macOS TCC blocks cookie reads. */
+export const MACOS_BROWSER_COOKIE_PERMISSION_MESSAGE =
+  'macOS Files & Folders permission is required to read browser cookies'
 
 export interface InstalledCookieBrowser {
   id: CookieBrowserId
@@ -169,10 +175,20 @@ const STALE_PATTERNS = ['cookies are no longer valid', 'http error 403: forbidde
 const BROWSER_LOCKED_PATTERNS = [
   'could not copy chrome cookie database',
   'could not copy chromium cookie database',
-  'could not copy edge cookie database',
+  'could not copy edge cookie database'
+]
+const COOKIE_DB_MISSING_PATTERN = /could not find [a-z]+ cookies database/
+const COOKIE_DB_MISSING_PATTERNS = [
+  'custom safari cookies database not found',
   'could not find chrome cookies database',
   'could not find chromium cookies database',
-  'could not find firefox cookies database'
+  'could not find firefox cookies database',
+  'could not find edge cookies database',
+  'could not find safari cookies database',
+  'could not find brave cookies database',
+  'could not find opera cookies database',
+  'could not find vivaldi cookies database',
+  'could not find whale cookies database'
 ]
 const BROWSER_DECRYPT_PATTERNS = ['failed to decrypt with dpapi']
 const FILE_INVALID_PATTERNS = [
@@ -374,6 +390,26 @@ export const looksLikeNetscapeCookies = (text: string): boolean => {
 export const getMaxCookiesFileBytes = (): number => MAX_COOKIES_FILE_BYTES
 
 /**
+ * True when the error text points at a macOS browser-cookie path.
+ *
+ * @param normalized Lowercased error text.
+ */
+const looksLikeMacosCookiePath = (normalized: string): boolean =>
+  normalized.includes('/library/application support/') ||
+  normalized.includes('/library/containers/') ||
+  normalized.includes('/library/safari') ||
+  normalized.includes('/library/cookies')
+
+/**
+ * True when yt-dlp could not locate a browser cookies database.
+ *
+ * @param normalized Lowercased error text.
+ */
+const isCookieDatabaseMissingError = (normalized: string): boolean =>
+  COOKIE_DB_MISSING_PATTERN.test(normalized) ||
+  COOKIE_DB_MISSING_PATTERNS.some((pattern) => normalized.includes(pattern))
+
+/**
  * Map a yt-dlp error to a cookie-setup recovery kind, or null when unrelated.
  *
  * @param rawError Raw stderr or stored download error.
@@ -391,7 +427,16 @@ export const getCookieSetupFailureKind = (
   if (BROWSER_DECRYPT_PATTERNS.some((pattern) => normalized.includes(pattern))) {
     return 'browser-decrypt'
   }
-  if (BROWSER_LOCKED_PATTERNS.some((pattern) => normalized.includes(pattern))) {
+  if (
+    normalized.includes('files & folders permission is required') ||
+    (isCookieDatabaseMissingError(normalized) && looksLikeMacosCookiePath(normalized))
+  ) {
+    return 'macos-files-permission'
+  }
+  if (
+    BROWSER_LOCKED_PATTERNS.some((pattern) => normalized.includes(pattern)) ||
+    isCookieDatabaseMissingError(normalized)
+  ) {
     return 'browser-locked'
   }
   if (FILE_INVALID_PATTERNS.some((pattern) => normalized.includes(pattern))) {

@@ -13,7 +13,14 @@ import { Label } from "@vidbee/ui/components/ui/label";
 import { useAddUrlInteraction } from "@vidbee/ui/lib/use-add-url-interaction";
 import { useHomeIngest } from "@vidbee/ui/lib/use-home-ingest";
 import { FolderOpen, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useWebDownloadSettings } from "../../hooks/use-web-download-settings";
@@ -116,9 +123,7 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 	const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(
 		new Set(),
 	);
-	const lockDialogHeight =
-		activeTab === "playlist" &&
-		(playlistPreviewLoading || playlistInfo !== null);
+	const lockDialogHeight = activeTab === "playlist" && playlistPreviewLoading;
 
 	const notifyDownloadsChanged = useCallback(async () => {
 		if (!onDownloadsChanged) {
@@ -264,6 +269,7 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 	const handleParsePlaylistUrl = useCallback(
 		async (trimmedUrl: string) => {
 			setOpen(true);
+			setActiveTab("playlist");
 			setPlaylistUrl(trimmedUrl);
 			setPlaylistInfo(null);
 			setPlaylistPreviewError(null);
@@ -303,6 +309,7 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 	const handleParseSingleUrl = useCallback(
 		async (trimmedUrl: string) => {
 			setOpen(true);
+			setActiveTab("single");
 			setUrl(trimmedUrl);
 			setSingleVideoState((prev) => ({
 				...prev,
@@ -579,32 +586,38 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 		}
 	}, [notifyDownloadsChanged, singleVideoState, t, url, videoInfo]);
 
-	useEffect(() => {
-		if (!open) {
-			setUrl("");
-			setError(null);
-			setLoading(false);
-			setVideoInfo(null);
-			setActiveTab("single");
-			setSingleVideoState({
-				title: "",
-				activeTab: "video",
-				selectedVideoFormat: "",
-				selectedAudioFormat: "",
-				startTime: "",
-				endTime: "",
-				selectedContainer: undefined,
-				selectedCodec: undefined,
-				selectedFps: undefined,
-			});
+	const wasDialogOpenRef = useRef(open);
 
-			setPlaylistUrl("");
-			setPlaylistInfo(null);
-			setPlaylistPreviewError(null);
-			setStartIndex("1");
-			setEndIndex("");
-			setSelectedEntryIds(new Set());
+	useEffect(() => {
+		const wasOpen = wasDialogOpenRef.current;
+		wasDialogOpenRef.current = open;
+		if (!(wasOpen && !open)) {
+			return;
 		}
+
+		setUrl("");
+		setError(null);
+		setLoading(false);
+		setVideoInfo(null);
+		setActiveTab("single");
+		setSingleVideoState({
+			title: "",
+			activeTab: "video",
+			selectedVideoFormat: "",
+			selectedAudioFormat: "",
+			startTime: "",
+			endTime: "",
+			selectedContainer: undefined,
+			selectedCodec: undefined,
+			selectedFps: undefined,
+		});
+
+		setPlaylistUrl("");
+		setPlaylistInfo(null);
+		setPlaylistPreviewError(null);
+		setStartIndex("1");
+		setEndIndex("");
+		setSelectedEntryIds(new Set());
 	}, [open]);
 
 	const handleSingleVideoStateChange = useCallback(
@@ -623,6 +636,8 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 		<>
 			<DownloadDialogLayout
 				activeTab={activeTab}
+				dialogSubtitle={t("download.dialogSubtitle")}
+				dialogTitle={t("download.dialogTitle")}
 				addUrlPopover={
 					<AddUrlPopover
 						cancelLabel={t("download.cancel")}
@@ -781,6 +796,7 @@ export function DownloadDialog({ onDownloadsChanged }: DownloadDialogProps) {
 						downloadType={downloadType}
 						downloadTypeId={downloadTypeId}
 						endIndex={endIndex}
+						onAdvancedOpenChange={setAdvancedOptionsOpen}
 						playlistBusy={playlistBusy}
 						playlistInfo={playlistInfo}
 						playlistPreviewError={playlistPreviewError}
