@@ -27,7 +27,7 @@
         "up-to-date": "Terbaru"
       },
       "title": "Mesin unduhan",
-      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+      "versions": "yt-dlp {{ytDlpVersion}} · Node {{nodeVersion}}"
     },
     "followAuthorActions": {
       "follow": "Ikuti @nexmoe"
@@ -550,7 +550,7 @@
     "proxyDescription": "Server proxy untuk permintaan jaringan",
     "proxyPlaceholder": "http://proxy:port",
     "downloadMirror": "Sumber unduhan",
-    "downloadMirrorDescription": "Gunakan mirror Tiongkok (ModelScope, proksi GitHub) untuk yt-dlp, ffmpeg, Deno, dan model transkrip saat GitHub lambat atau diblokir",
+    "downloadMirrorDescription": "Gunakan mirror Tiongkok (ModelScope, proksi GitHub) untuk yt-dlp, ffmpeg, Node, dan model transkrip saat GitHub lambat atau diblokir",
     "downloadMirrorAuto": "Otomatis",
     "downloadMirrorChina": "Tiongkok (ModelScope)",
     "downloadMirrorGlobal": "Resmi",

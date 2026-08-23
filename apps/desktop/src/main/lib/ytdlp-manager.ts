@@ -7,7 +7,7 @@ const YTDlpWrapCtor = resolveYtDlpWrapCtor<typeof YTDlpWrap>(YTDlpWrap)
 type YTDlpWrapInstance = InstanceType<typeof YTDlpWrapCtor>
 
 export interface YtDlpActivation {
-  denoPath: string
+  jsRuntimePath: string
   ytDlpPath: string
 }
 
@@ -37,11 +37,13 @@ export class YtDlpManager {
    */
   activate(paths: YtDlpActivation): void {
     const ytdlpInstance = new YTDlpWrapCtor(paths.ytDlpPath)
-    const jsRuntimeArgs = this.buildJsRuntimeArgs(paths.denoPath)
+    const jsRuntimeArgs = this.buildJsRuntimeArgs(paths.jsRuntimePath)
     this.ytdlpPath = paths.ytDlpPath
     this.ytdlpInstance = ytdlpInstance
     this.jsRuntimeArgs = jsRuntimeArgs
-    this.logger.info(`yt-dlp kernel activated: yt-dlp=${paths.ytDlpPath} deno=${paths.denoPath}`)
+    this.logger.info(
+      `yt-dlp kernel activated: yt-dlp=${paths.ytDlpPath} node=${paths.jsRuntimePath}`
+    )
   }
 
   /**
@@ -79,10 +81,11 @@ export class YtDlpManager {
   }
 
   /**
-   * Build managed Deno arguments while preserving explicit developer overrides.
+   * Build `--js-runtimes` for EJS. yt-dlp defaults to Deno; VidBee uses the
+   * bundled Node LTS so the installer does not also ship a Deno binary.
    */
-  private buildJsRuntimeArgs(managedDenoPath: string): string[] {
-    const runtime = (process.env.YTDLP_JS_RUNTIME || 'deno').trim()
+  private buildJsRuntimeArgs(managedNodePath: string): string[] {
+    const runtime = (process.env.YTDLP_JS_RUNTIME || 'node').trim()
     if (!runtime || runtime === 'none') {
       return []
     }
@@ -96,8 +99,8 @@ export class YtDlpManager {
         `YTDLP_JS_RUNTIME_PATH does not exist; using the managed runtime: ${overridePath}`
       )
     }
-    if (runtime === 'deno') {
-      return ['--js-runtimes', `deno:${managedDenoPath}`]
+    if (runtime === 'node' || runtime === 'deno') {
+      return ['--js-runtimes', `${runtime}:${managedNodePath}`]
     }
     return ['--js-runtimes', runtime]
   }

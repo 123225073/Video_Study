@@ -8,7 +8,7 @@ interface DownloadEngineRowProps {
 }
 
 /**
- * Display the active yt-dlp and Deno bundle without exposing update controls.
+ * Display the active yt-dlp and Node bundle without exposing update controls.
  */
 export function DownloadEngineRow({ status }: DownloadEngineRowProps) {
   const { t } = useTranslation()
@@ -26,7 +26,7 @@ export function DownloadEngineRow({ status }: DownloadEngineRowProps) {
         <p className="font-medium leading-none">{t('about.downloadEngine.title')}</p>
         <p className="text-muted-foreground text-sm">
           {t('about.downloadEngine.versions', {
-            denoVersion: status.denoVersion ?? '—',
+            nodeVersion: status.nodeVersion ?? '—',
             ytDlpVersion: status.ytDlpVersion ?? '—'
           })}
         </p>

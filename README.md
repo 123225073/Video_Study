@@ -23,10 +23,6 @@
 
 VidBee is a free, open-source desktop app that turns video and audio into an organized, searchable library. Download media from 1000+ supported sites or import local files. Create transcripts on your computer with speaker labels and timestamped playback, then summarize, translate, or ask questions with the AI provider and prompts you choose. Download queues, RSS subscriptions, flexible exports, and metadata controls keep the whole workflow in one place.
 
-> [!NOTE]
->
-> **VidBee 2.0 preview:** Transcript and AI are the core of VidBee 2.0 and are available in the current source tree. Until the Latest Release badge above shows 2.x, the public installer does not include them.
-
 ## 👋🏻 Getting Started
 
 VidBee is currently under active development, and feedback is welcome for any [issue](https://github.com/nexmoe/VidBee/issues) encountered.
@@ -44,6 +40,7 @@ If VidBee is useful to you, sharing it is one of the best ways to support the pr
 > When you post about VidBee on **X** or **Threads**, please mention **@nexmoe** so I can see it and help amplify it:
 > - X: [@nexmoe](https://x.com/nexmoe)
 > - Threads: [@nexmoe](https://www.threads.com/@nexmoe)
+> - GitHub: [@nexmoe](https://github.com/nexmoe)
 
 ## ✨ Features
 

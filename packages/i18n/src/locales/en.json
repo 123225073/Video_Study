@@ -30,7 +30,7 @@
         "up-to-date": "Up to date"
       },
       "title": "Download engine",
-      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+      "versions": "yt-dlp {{ytDlpVersion}} · Node {{nodeVersion}}"
     },
     "followAuthorActions": {
       "follow": "Follow @nexmoe"
@@ -135,6 +135,9 @@
     "back": "Back",
     "cancel": "Cancel",
     "cancelled": "Cancelled",
+    "pause": "Pause",
+    "paused": "Paused",
+    "resume": "Resume",
     "clearCompleted": "Clear Completed",
     "clearDownloads": "Clear Downloads",
     "completed": "Completed",
@@ -601,7 +604,7 @@
     "proxyDescription": "Proxy server for network requests",
     "proxyPlaceholder": "http://proxy:port",
     "downloadMirror": "Download source",
-    "downloadMirrorDescription": "Use China mirrors (ModelScope, GitHub proxies) for yt-dlp, ffmpeg, Deno, and transcript models when GitHub is slow or blocked",
+    "downloadMirrorDescription": "Use China mirrors (ModelScope, GitHub proxies) for yt-dlp, ffmpeg, Node, and transcript models when GitHub is slow or blocked",
     "downloadMirrorAuto": "Auto",
     "downloadMirrorChina": "China (ModelScope)",
     "downloadMirrorGlobal": "Official",

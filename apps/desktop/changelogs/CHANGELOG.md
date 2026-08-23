@@ -4,10 +4,40 @@ This page only includes user-visible updates and avoids implementation details.
 For full release notes, see [GitHub Releases](https://github.com/nexmoe/VidBee/releases).
 
 ## [v2.0.0](https://github.com/nexmoe/VidBee/releases/tag/v2.0.0) - 2026-08-22
-### Features
-- Transcribe downloads on your computer, with labels for who is speaking.
-- Turn a transcript into AI summaries, translations, and other write-ups.
-- Import local audio or video files to transcribe them in the app.
+
+In 1.x, VidBee saved the file and stopped there. 2.0 keeps going: transcribe on this computer, label who is speaking, search a quote, then ask AI for a summary.
+
+![Before v1.x and after v2.0](https://github.com/nexmoe/VidBee/releases/download/v2.0.0/v2-before-after.webp)
+
+![Download, transcribe locally, search keywords, ask AI](https://github.com/nexmoe/VidBee/releases/download/v2.0.0/v2-workflow-grid.webp)
+
+### What's New
+- New workflow: download → transcribe locally → search keywords → ask AI for a summary, all in one app.
+
+### Local transcription
+- Choose Whisper, SenseVoice, Parakeet, or Qwen3-ASR. VidBee can recommend a model for your computer and language.
+- Speech recognition runs on this computer and can work offline after the model is downloaded. Audio is never uploaded to a transcription service.
+- Import a local audio or video file, or drag it onto Transcripts, and transcribe it in the app.
+
+### Speaker labels
+- Automatically detect who is speaking and show speaking-time bars under the player.
+- Set a fixed speaker count and re-label the conversation without changing the recognized words.
+- Click a speaker to jump to their next line.
+
+### Search and timestamps
+- Search spoken text or a speaker name. Matches are highlighted in the transcript.
+- Every line has a timestamp. Click a line (or a word) to play from that exact moment.
+- Copy a passage, or export plain text, Markdown, or subtitles.
+
+### Ask AI
+- Built-in prompts for bullet summaries, translations, FAQs, mind maps, grammar cleanup, and more. You can also write your own.
+- Connect OpenAI, Anthropic, Google, DeepSeek, xAI, Ollama, LM Studio, or another provider you choose. API keys stay on this computer.
+
+### Privacy
+- Privacy first: speech and files stay on this computer.
+- When you run Ask AI, only the transcript text goes to the provider you selected. Use Ollama or LM Studio to keep that step on this computer too.
+
+### Also in this release
 - The mini player stays available while you move between screens.
 - The download engine can update itself in the background so more sites keep working.
 

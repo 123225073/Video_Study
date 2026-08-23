@@ -27,7 +27,7 @@
         "up-to-date": "已是最新版本"
       },
       "title": "下载引擎",
-      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+      "versions": "yt-dlp {{ytDlpVersion}} · Node {{nodeVersion}}"
     },
     "followAuthorActions": {
       "follow": "关注 @nexmoe"
@@ -601,7 +601,7 @@
     "proxyDescription": "网络请求的代理服务器",
     "proxyPlaceholder": "http://proxy:port",
     "downloadMirror": "下载源",
-    "downloadMirrorDescription": "GitHub 较慢或无法访问时，使用国内镜像（ModelScope、GitHub 代理）下载 yt-dlp、ffmpeg、Deno 和转写模型",
+    "downloadMirrorDescription": "GitHub 较慢或无法访问时，使用国内镜像（ModelScope、GitHub 代理）下载 yt-dlp、ffmpeg、Node 和转写模型",
     "downloadMirrorAuto": "自动",
     "downloadMirrorChina": "中国（ModelScope）",
     "downloadMirrorGlobal": "官方源",

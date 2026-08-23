@@ -27,7 +27,7 @@
         "up-to-date": "Актуально"
       },
       "title": "Модуль загрузки",
-      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+      "versions": "yt-dlp {{ytDlpVersion}} · Node {{nodeVersion}}"
     },
     "followAuthorActions": {
       "follow": "Подписаться на @nexmoe"
@@ -550,7 +550,7 @@
     "proxyDescription": "Прокси-сервер для сетевых запросов",
     "proxyPlaceholder": "http://proxy:port",
     "downloadMirror": "Источник загрузок",
-    "downloadMirrorDescription": "Использует китайские зеркала (ModelScope, прокси GitHub) для yt-dlp, ffmpeg, Deno и моделей транскрипции, если GitHub медленный или недоступен",
+    "downloadMirrorDescription": "Использует китайские зеркала (ModelScope, прокси GitHub) для yt-dlp, ffmpeg, Node и моделей транскрипции, если GitHub медленный или недоступен",
     "downloadMirrorAuto": "Авто",
     "downloadMirrorChina": "Китай (ModelScope)",
     "downloadMirrorGlobal": "Официальный",

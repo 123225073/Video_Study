@@ -27,7 +27,7 @@
         "up-to-date": "À jour"
       },
       "title": "Moteur de téléchargement",
-      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+      "versions": "yt-dlp {{ytDlpVersion}} · Node {{nodeVersion}}"
     },
     "followAuthorActions": {
       "follow": "Suivre @nexmoe"
@@ -550,7 +550,7 @@
     "proxyDescription": "Serveur proxy pour les requêtes réseau",
     "proxyPlaceholder": "http://proxy:port",
     "downloadMirror": "Source de téléchargement",
-    "downloadMirrorDescription": "Utilise des miroirs chinois (ModelScope, proxys GitHub) pour yt-dlp, ffmpeg, Deno et les modèles de transcription lorsque GitHub est lent ou bloqué",
+    "downloadMirrorDescription": "Utilise des miroirs chinois (ModelScope, proxys GitHub) pour yt-dlp, ffmpeg, Node et les modèles de transcription lorsque GitHub est lent ou bloqué",
     "downloadMirrorAuto": "Auto",
     "downloadMirrorChina": "Chine (ModelScope)",
     "downloadMirrorGlobal": "Officiel",

@@ -262,9 +262,6 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.16
         version: 1.2.16(@types/react-dom@19.2.4(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@sentry/cli':
-        specifier: ^3.6.2
-        version: 3.6.2
       '@sentry/electron':
         specifier: ^7.17.0
         version: 7.17.0(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))
@@ -422,6 +419,9 @@ importers:
       '@iconify/json':
         specifier: ^2.2.394
         version: 2.2.487
+      '@sentry/cli':
+        specifier: ^3.6.2
+        version: 3.6.2
       '@types/better-sqlite3':
         specifier: ^9.6.0
         version: 9.6.0

@@ -27,7 +27,7 @@
         "up-to-date": "محدّث"
       },
       "title": "محرك التنزيل",
-      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+      "versions": "yt-dlp {{ytDlpVersion}} · Node {{nodeVersion}}"
     },
     "followAuthorActions": {
       "follow": "متابعة @nexmoe"
@@ -550,7 +550,7 @@
     "proxyDescription": "خادم الوكيل لطلبات الشبكة",
     "proxyPlaceholder": "http://proxy:port",
     "downloadMirror": "مصدر التنزيل",
-    "downloadMirrorDescription": "استخدم مرايا الصين (ModelScope ووكلاء GitHub) لتنزيل yt-dlp وffmpeg وDeno ونماذج النسخ عندما يكون GitHub بطيئًا أو محظورًا",
+    "downloadMirrorDescription": "استخدم مرايا الصين (ModelScope ووكلاء GitHub) لتنزيل yt-dlp وffmpeg وNode ونماذج النسخ عندما يكون GitHub بطيئًا أو محظورًا",
     "downloadMirrorAuto": "تلقائي",
     "downloadMirrorChina": "الصين (ModelScope)",
     "downloadMirrorGlobal": "رسمي",

@@ -5,7 +5,7 @@ import { ipcEvents, ipcServices } from '../lib/ipc'
 import { logger } from '../lib/logger'
 
 export const initialYtDlpKernelStatus: YtDlpKernelStatus = {
-  denoVersion: null,
+  nodeVersion: null,
   preparationStep: 'copying',
   progress: 0,
   ready: false,

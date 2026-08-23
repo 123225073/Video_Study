@@ -27,7 +27,7 @@
         "up-to-date": "최신 상태"
       },
       "title": "다운로드 엔진",
-      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+      "versions": "yt-dlp {{ytDlpVersion}} · Node {{nodeVersion}}"
     },
     "followAuthorActions": {
       "follow": "@nexmoe 팔로우"
@@ -550,7 +550,7 @@
     "proxyDescription": "네트워크 요청용 프록시 서버",
     "proxyPlaceholder": "http://proxy:port",
     "downloadMirror": "다운로드 소스",
-    "downloadMirrorDescription": "GitHub이 느리거나 차단되면 yt-dlp, ffmpeg, Deno, 받아쓰기 모델을 중국 미러(ModelScope, GitHub 프록시)에서 받습니다",
+    "downloadMirrorDescription": "GitHub이 느리거나 차단되면 yt-dlp, ffmpeg, Node, 받아쓰기 모델을 중국 미러(ModelScope, GitHub 프록시)에서 받습니다",
     "downloadMirrorAuto": "자동",
     "downloadMirrorChina": "중국(ModelScope)",
     "downloadMirrorGlobal": "공식",

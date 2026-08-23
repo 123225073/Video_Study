@@ -20,27 +20,6 @@ export function getYtDlpReleaseAssetName(platform: string): string {
 }
 
 /**
- * Return the official Deno release archive name for a supported target.
- */
-export function getDenoReleaseAssetName(platform: string, arch: string): string {
-  if (!['win32', 'darwin', 'linux'].includes(platform)) {
-    throw new Error(`Unsupported platform: ${platform}`)
-  }
-  if (!['x64', 'arm64'].includes(arch)) {
-    throw new Error(`Unsupported architecture: ${arch}`)
-  }
-
-  const targetArch = arch === 'arm64' ? 'aarch64' : 'x86_64'
-  const targetPlatform =
-    platform === 'win32'
-      ? 'pc-windows-msvc'
-      : platform === 'darwin'
-        ? 'apple-darwin'
-        : 'unknown-linux-gnu'
-  return `deno-${targetArch}-${targetPlatform}.zip`
-}
-
-/**
  * Return the persisted exponential retry delay for a one-based failure count.
  */
 export function getRetryDelayMs(failureCount: number): number {

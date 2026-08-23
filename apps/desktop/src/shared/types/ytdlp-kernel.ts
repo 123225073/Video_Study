@@ -14,7 +14,7 @@ export interface YtDlpKernelStatus {
   state: YtDlpKernelState
   source: 'managed' | 'bundled' | null
   ytDlpVersion: string | null
-  denoVersion: string | null
+  nodeVersion: string | null
   progress: number | null
   preparationStep: YtDlpKernelPreparationStep
 }

@@ -22,10 +22,10 @@ function getBundledYtDlpName(): string {
 }
 
 /**
- * Return the packaged Deno filename for the current platform.
+ * Return the packaged Node filename for the current platform.
  */
-function getBundledDenoName(): string {
-  return process.platform === 'win32' ? 'deno.exe' : 'deno'
+function getBundledNodeName(): string {
+  return process.platform === 'win32' ? 'node.exe' : 'node'
 }
 
 /**
@@ -36,12 +36,11 @@ export function initializeYtDlpKernelService(): YtDlpKernelService {
     return kernelService
   }
   const ytDlpName = getBundledYtDlpName()
-  const denoName = getBundledDenoName()
-  const resourcesPath = resolveBundledResourcesPath([ytDlpName, denoName])
+  const nodeName = getBundledNodeName()
+  const resourcesPath = resolveBundledResourcesPath([ytDlpName, join('node', nodeName)])
   kernelService = new YtDlpKernelService({
     activate: (paths) => ytdlpManager.activate(paths),
-    arch: process.arch,
-    bundledDenoPath: join(resourcesPath, denoName),
+    bundledNodePath: join(resourcesPath, 'node', nodeName),
     bundledYtDlpPath: join(resourcesPath, ytDlpName),
     fetch: createGithubMirrorFetch(fetch, () =>
       preferChinaMirrors({

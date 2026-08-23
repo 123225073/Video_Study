@@ -27,7 +27,7 @@
         "up-to-date": "Güncel"
       },
       "title": "İndirme motoru",
-      "versions": "yt-dlp {{ytDlpVersion}} · Deno {{denoVersion}}"
+      "versions": "yt-dlp {{ytDlpVersion}} · Node {{nodeVersion}}"
     },
     "followAuthorActions": {
       "follow": "@nexmoe'i takip edin"
@@ -550,7 +550,7 @@
     "proxyDescription": "Ağ istekleri için vekil sunucusu",
     "proxyPlaceholder": "http://proxy:port",
     "downloadMirror": "İndirme kaynağı",
-    "downloadMirrorDescription": "GitHub yavaş veya engelli olduğunda yt-dlp, ffmpeg, Deno ve transkript modelleri için Çin yansımalarını (ModelScope, GitHub vekilleri) kullanır",
+    "downloadMirrorDescription": "GitHub yavaş veya engelli olduğunda yt-dlp, ffmpeg, Node ve transkript modelleri için Çin yansımalarını (ModelScope, GitHub vekilleri) kullanır",
     "downloadMirrorAuto": "Otomatik",
     "downloadMirrorChina": "Çin (ModelScope)",
     "downloadMirrorGlobal": "Resmi",

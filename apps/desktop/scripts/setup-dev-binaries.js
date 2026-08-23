@@ -23,9 +23,7 @@ const currentDirPath = path.dirname(currentFilePath)
 const RESOURCES_DIR = path.join(currentDirPath, '..', 'resources')
 const FFMPEG_DIR = path.join(RESOURCES_DIR, 'ffmpeg')
 const YTDLP_BASE_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download'
-const DENO_BASE_URL = 'https://github.com/denoland/deno/releases/latest/download'
 const MAC_FFMPEG_MODE = (process.env.VIDBEE_MAC_FFMPEG_MODE || 'native').trim().toLowerCase()
-const MAC_DENO_MODE = (process.env.VIDBEE_MAC_DENO_MODE || MAC_FFMPEG_MODE).trim().toLowerCase()
 const GITHUB_TOKEN =
   process.env.GITHUB_TOKEN || process.env.GH_TOKEN || process.env.GITHUB_API_TOKEN
 const YTDLP_VERSION_CHECK_TIMEOUT_MS = 30_000
@@ -459,32 +457,6 @@ function logBinaryVersion(label, validation) {
   log(`${label} version: ${validation.message}`, 'info')
 }
 
-function getDenoAssetName(platform, arch) {
-  if (platform === 'win32') {
-    if (arch === 'arm64') {
-      return 'deno-aarch64-pc-windows-msvc.zip'
-    }
-    return 'deno-x86_64-pc-windows-msvc.zip'
-  }
-  if (platform === 'darwin') {
-    if (arch === 'arm64') {
-      return 'deno-aarch64-apple-darwin.zip'
-    }
-    return 'deno-x86_64-apple-darwin.zip'
-  }
-  if (platform === 'linux') {
-    if (arch === 'arm64') {
-      return 'deno-aarch64-unknown-linux-gnu.zip'
-    }
-    return 'deno-x86_64-unknown-linux-gnu.zip'
-  }
-  return null
-}
-
-function getDenoOutputName(platform) {
-  return platform === 'win32' ? 'deno.exe' : 'deno'
-}
-
 function getMacFfmpegMode() {
   if (MAC_FFMPEG_MODE === 'native' || MAC_FFMPEG_MODE === 'universal') {
     return MAC_FFMPEG_MODE
@@ -492,19 +464,6 @@ function getMacFfmpegMode() {
 
   throw new Error(
     `Unsupported VIDBEE_MAC_FFMPEG_MODE value "${MAC_FFMPEG_MODE}". Expected "native" or "universal".`
-  )
-}
-
-/**
- * Return the validated macOS Deno packaging mode.
- */
-function getMacDenoMode() {
-  if (MAC_DENO_MODE === 'native' || MAC_DENO_MODE === 'universal') {
-    return MAC_DENO_MODE
-  }
-
-  throw new Error(
-    `Unsupported VIDBEE_MAC_DENO_MODE value "${MAC_DENO_MODE}". Expected "native" or "universal".`
   )
 }
 
@@ -1005,99 +964,6 @@ async function downloadFfmpegLinux(config) {
   }
 }
 
-/**
- * Download the Deno runtime required by the current build target.
- */
-async function downloadDenoRuntime() {
-  const platform = os.platform()
-  const arch = os.arch()
-  const mode = platform === 'darwin' ? getMacDenoMode() : 'native'
-  const targetArchitectures = mode === 'universal' ? ['arm64', 'x64'] : [arch]
-  const targetAssets = targetArchitectures.map((targetArchitecture) => ({
-    arch: targetArchitecture,
-    assetName: getDenoAssetName(platform, targetArchitecture),
-    extractDir: path.join(RESOURCES_DIR, `deno-${targetArchitecture}`),
-    tempZip: path.join(RESOURCES_DIR, `deno-${targetArchitecture}.zip`)
-  }))
-
-  if (targetAssets.some((target) => !target.assetName)) {
-    log(`Skipping Deno runtime: unsupported platform/arch ${platform}/${arch}`, 'warn')
-    return
-  }
-
-  const outputName = getDenoOutputName(platform)
-  const outputPath = path.join(RESOURCES_DIR, outputName)
-
-  if (fileExists(outputPath)) {
-    const validation = checkBinary(outputPath, ['--version'], 'deno')
-    let hasExpectedArchitectures = true
-    if (mode === 'universal') {
-      try {
-        hasExpectedArchitectures = hasRequiredMacArchitectures(outputPath, ['arm64', 'x86_64'])
-      } catch (error) {
-        hasExpectedArchitectures = false
-        log(`Failed to validate existing universal Deno binary: ${error.message}`, 'warn')
-      }
-    }
-    if (validation.ok && hasExpectedArchitectures) {
-      logBinaryVersion('deno', validation)
-      log(`${outputName} already exists, skipping download`, 'info')
-      return
-    }
-    log(`Existing ${outputName} does not match the ${mode} build target`, 'warn')
-  }
-
-  const targetLabel = mode === 'universal' ? 'universal' : arch
-  log(`Downloading Deno runtime (${platform}/${targetLabel})...`, 'download')
-
-  try {
-    const sourcePaths = []
-    for (const target of targetAssets) {
-      await downloadFileWithRetry(`${DENO_BASE_URL}/${target.assetName}`, target.tempZip)
-      log(`Extracting Deno runtime (${target.arch})...`, 'info')
-      extractZip(target.tempZip, target.extractDir)
-
-      const sourcePath = path.join(target.extractDir, outputName)
-      if (!fileExists(sourcePath)) {
-        throw new Error(`Deno binary not found at ${sourcePath}`)
-      }
-      sourcePaths.push(sourcePath)
-    }
-
-    if (mode === 'universal') {
-      runCommandOrThrow(
-        'lipo',
-        ['-create', ...sourcePaths, '-output', outputPath],
-        'Creating universal Deno binary'
-      )
-    } else {
-      fs.copyFileSync(sourcePaths[0], outputPath)
-    }
-    setExecutable(outputPath)
-    const validation = checkBinary(outputPath, ['--version'], 'deno')
-    if (!validation.ok) {
-      safeUnlink(outputPath)
-      throw new Error(`Downloaded ${outputName} failed version check: ${validation.message}`)
-    }
-    if (mode === 'universal' && !hasRequiredMacArchitectures(outputPath, ['arm64', 'x86_64'])) {
-      safeUnlink(outputPath)
-      throw new Error('Created macOS Deno binary is missing required universal architectures.')
-    }
-    logBinaryVersion('deno', validation)
-    log(`Downloaded ${outputName} successfully`, 'success')
-  } catch (error) {
-    safeUnlink(outputPath)
-    throw error
-  } finally {
-    for (const target of targetAssets) {
-      safeUnlink(target.tempZip)
-      if (fs.existsSync(target.extractDir)) {
-        fs.rmSync(target.extractDir, { recursive: true, force: true })
-      }
-    }
-  }
-}
-
 // Main setup function
 async function setup() {
   const platform = os.platform()
@@ -1115,10 +981,7 @@ async function setup() {
     // Download yt-dlp
     await downloadYtDlp(config)
 
-    // Download JS runtime (Deno)
-    await downloadDenoRuntime()
-
-    // Bundled Node for transcription worker (§11.1)
+    // Bundled Node for transcription worker and yt-dlp EJS (§11.1)
     await downloadNodeRuntime()
 
     // Download ffmpeg

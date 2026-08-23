@@ -70,24 +70,10 @@ ffmpeg is required for merging audio/video streams and audio extraction. ffprobe
 - You can override the lookup path via `FFMPEG_PATH`. It must point to a directory containing both `ffmpeg` and `ffprobe`.
 - File sizes: ~40-80 MB per ffmpeg build (ffmpeg + ffprobe)
 
-## JS Runtime (Deno)
+## JS Runtime (Node)
 
-yt-dlp uses an external JS runtime (Deno by default) for some extractors. Bundle a Deno binary so the app can run without system dependencies.
+yt-dlp EJS uses an external JavaScript runtime. VidBee reuses the bundled official Node LTS at `resources/node/` (also used by the transcription worker). Do not bundle a separate Deno binary.
 
-The packaged yt-dlp and Deno files form the offline recovery bundle. At runtime, Desktop copies and verifies both files as one immutable bundle under the Electron `userData` directory, then silently checks the official Stable channels for newer versions. Runtime kernel updates do not change the Desktop version, changelog, or Git tags.
+At runtime, Desktop copies and verifies yt-dlp under the Electron `userData` directory and silently checks the official Stable channel for newer yt-dlp versions. Node stays on the packaged LTS lock.
 
-### Required Files
-
-1. **Windows**: `deno.exe`
-2. **macOS**: `deno`
-3. **Linux**: `deno`
-
-### How to Download
-
-- Visit: <https://github.com/denoland/deno/releases/latest>
-- Download the matching platform archive and extract the `deno` (or `deno.exe`) binary into `resources/`.
-- On macOS/Linux ensure the file is executable: `chmod +x resources/deno`
-
-### Note
-
-- You can override the runtime path via `YTDLP_JS_RUNTIME_PATH` if needed.
+You can override the EJS runtime path via `YTDLP_JS_RUNTIME_PATH` if needed.
