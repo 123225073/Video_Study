@@ -3,6 +3,11 @@
 This page only includes user-visible updates and avoids implementation details.
 For full release notes, see [GitHub Releases](https://github.com/nexmoe/VidBee/releases).
 
+## [v2.0.2](https://github.com/nexmoe/VidBee/releases/tag/v2.0.2) - 2026-08-23
+
+### Improvements
+- On Windows, completed transcripts now open with working video playback instead of showing a blank page. (by @Autsunset)
+
 ## [v2.0.1](https://github.com/nexmoe/VidBee/releases/tag/v2.0.1) - 2026-08-23
 
 ### What's New

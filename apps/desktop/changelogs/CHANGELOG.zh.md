@@ -3,6 +3,11 @@
 本页只记录你能直接感知到的更新，不展开技术实现细节。
 完整发布记录请查看 [GitHub Releases](https://github.com/nexmoe/VidBee/releases)。
 
+## [v2.0.2](https://github.com/nexmoe/VidBee/releases/tag/v2.0.2) - 2026-08-23
+
+### 改进与修复
+- 修复 Windows 下打开已完成文稿时可能白屏的问题，视频与文稿现在可以正常显示和播放。(by @Autsunset)
+
 ## [v2.0.1](https://github.com/nexmoe/VidBee/releases/tag/v2.0.1) - 2026-08-23
 
 ### 新增功能

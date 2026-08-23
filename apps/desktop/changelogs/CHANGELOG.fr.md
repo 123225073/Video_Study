@@ -3,6 +3,11 @@
 Cette page ne présente que les évolutions visibles par les utilisateurs, sans détails techniques.
 Pour les notes de version complètes, consultez [GitHub Releases](https://github.com/nexmoe/VidBee/releases).
 
+## [v2.0.2](https://github.com/nexmoe/VidBee/releases/tag/v2.0.2) - 2026-08-23
+
+### Améliorations
+- Sous Windows, l’ouverture d’une transcription terminée n’affiche plus une page blanche : la vidéo et le texte s’ouvrent et se lisent normalement. (by @Autsunset)
+
 ## [v2.0.1](https://github.com/nexmoe/VidBee/releases/tag/v2.0.1) - 2026-08-23
 
 ### Nouveautés
