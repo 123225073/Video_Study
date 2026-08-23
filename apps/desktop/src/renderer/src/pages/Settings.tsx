@@ -42,8 +42,13 @@ import {
   FILENAME_STYLES,
   isFilenameStyle
 } from '@vidbee/downloader-core/filename-style'
+import {
+  FOLLOW_INTERFACE_SUBTITLE_LANGUAGE,
+  MAX_SUBTITLE_LANGUAGES
+} from '@vidbee/downloader-core/subtitle-languages'
 import { type LanguageCode, languageList, normalizeLanguageCode } from '@vidbee/i18n/languages'
 import { DragRegion } from '@vidbee/ui/components/ui/drag-region'
+import { SubtitleLanguagePicker } from '@vidbee/ui/components/ui/subtitle-language-picker'
 import { useAtom, useSetAtom } from 'jotai'
 import { Film, Music } from 'lucide-react'
 import { useTheme } from 'next-themes'
@@ -140,6 +145,18 @@ export function Settings() {
   const activeLanguageCode = normalizeLanguageCode(i18nInstance.language)
   const currentLanguage =
     languageOptions.find((option) => option.value === activeLanguageCode) ?? languageOptions[0]
+  const subtitleLanguageOptions = [
+    {
+      label: t('settings.followInterfaceLanguage', { language: currentLanguage.name }),
+      languageTag: currentLanguage.hreflang,
+      value: FOLLOW_INTERFACE_SUBTITLE_LANGUAGE
+    },
+    ...languageOptions.map((option) => ({
+      label: option.name,
+      languageTag: option.hreflang,
+      value: option.value
+    }))
+  ]
 
   useEffect(() => {
     if (tabFromSearch) {
@@ -490,45 +507,105 @@ export function Settings() {
                 <ItemGroup>
                   <Item variant="muted">
                     <ItemContent>
-                      <ItemTitle>{t('settings.embedSubs')}</ItemTitle>
-                      <ItemDescription>{t('settings.embedSubsDescription')}</ItemDescription>
+                      <ItemTitle>{t('settings.downloadSubtitles')}</ItemTitle>
+                      <ItemDescription>
+                        {t('settings.downloadSubtitlesDescription')}
+                      </ItemDescription>
                     </ItemContent>
                     <ItemActions>
                       <Switch
-                        checked={settings.embedSubs ?? false}
+                        checked={settings.downloadSubtitles}
                         label=""
                         onToggle={() => {
                           try {
-                            handleSettingChange('embedSubs', !(settings.embedSubs ?? false))
+                            handleSettingChange('downloadSubtitles', !settings.downloadSubtitles)
                           } catch (error) {
-                            logger.error('[Settings] Error toggling embedSubs:', error)
+                            logger.error('[Settings] Error toggling downloadSubtitles:', error)
                           }
                         }}
                       />
                     </ItemActions>
                   </Item>
 
-                  <ItemSeparator />
+                  {settings.downloadSubtitles && (
+                    <>
+                      <ItemSeparator />
 
-                  <Item variant="muted">
-                    <ItemContent>
-                      <ItemTitle>{t('settings.writeAutoSubs')}</ItemTitle>
-                      <ItemDescription>{t('settings.writeAutoSubsDescription')}</ItemDescription>
-                    </ItemContent>
-                    <ItemActions>
-                      <Switch
-                        checked={settings.writeAutoSubs ?? true}
-                        label=""
-                        onToggle={() => {
-                          try {
-                            handleSettingChange('writeAutoSubs', !(settings.writeAutoSubs ?? true))
-                          } catch (error) {
-                            logger.error('[Settings] Error toggling writeAutoSubs:', error)
-                          }
-                        }}
-                      />
-                    </ItemActions>
-                  </Item>
+                      <Item variant="muted">
+                        <ItemContent>
+                          <ItemTitle>{t('settings.subtitleLanguages')}</ItemTitle>
+                          <ItemDescription>
+                            {t('settings.subtitleLanguagesDescription')}
+                          </ItemDescription>
+                        </ItemContent>
+                        <ItemActions>
+                          <SubtitleLanguagePicker
+                            ariaLabel={t('settings.subtitleLanguages')}
+                            emptyLabel={t('settings.subtitleLanguageEmpty')}
+                            limitLabel={t('settings.subtitleLanguageLimit', {
+                              count: MAX_SUBTITLE_LANGUAGES
+                            })}
+                            maxSelections={MAX_SUBTITLE_LANGUAGES}
+                            onValueChange={(values) =>
+                              void handleSettingChange('subtitleLanguages', values)
+                            }
+                            options={subtitleLanguageOptions}
+                            searchPlaceholder={t('settings.subtitleLanguageSearch')}
+                            values={settings.subtitleLanguages}
+                          />
+                        </ItemActions>
+                      </Item>
+
+                      <ItemSeparator />
+
+                      <Item variant="muted">
+                        <ItemContent>
+                          <ItemTitle>{t('settings.writeAutoSubs')}</ItemTitle>
+                          <ItemDescription>
+                            {t('settings.writeAutoSubsDescription')}
+                          </ItemDescription>
+                        </ItemContent>
+                        <ItemActions>
+                          <Switch
+                            checked={settings.writeAutoSubs ?? true}
+                            label=""
+                            onToggle={() => {
+                              try {
+                                handleSettingChange(
+                                  'writeAutoSubs',
+                                  !(settings.writeAutoSubs ?? true)
+                                )
+                              } catch (error) {
+                                logger.error('[Settings] Error toggling writeAutoSubs:', error)
+                              }
+                            }}
+                          />
+                        </ItemActions>
+                      </Item>
+
+                      <ItemSeparator />
+
+                      <Item variant="muted">
+                        <ItemContent>
+                          <ItemTitle>{t('settings.embedSubs')}</ItemTitle>
+                          <ItemDescription>{t('settings.embedSubsDescription')}</ItemDescription>
+                        </ItemContent>
+                        <ItemActions>
+                          <Switch
+                            checked={settings.embedSubs ?? false}
+                            label=""
+                            onToggle={() => {
+                              try {
+                                handleSettingChange('embedSubs', !(settings.embedSubs ?? false))
+                              } catch (error) {
+                                logger.error('[Settings] Error toggling embedSubs:', error)
+                              }
+                            }}
+                          />
+                        </ItemActions>
+                      </Item>
+                    </>
+                  )}
 
                   <ItemSeparator />
 

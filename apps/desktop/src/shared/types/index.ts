@@ -1,5 +1,6 @@
 import type { FilenameStyle } from '@vidbee/downloader-core/filename-style'
 import type { OneClickContainerOption } from '@vidbee/downloader-core/format-preferences'
+import { DEFAULT_SUBTITLE_LANGUAGES } from '@vidbee/downloader-core/subtitle-languages'
 import { defaultLanguageCode, type LanguageCode } from '@vidbee/i18n/languages'
 import type { AsrTierId } from '@vidbee/transcription/asr'
 import type { DownloadMirror } from '@vidbee/transcription/download-mirrors'
@@ -341,6 +342,8 @@ export interface AppSettings {
   enableDownloadNotifications: boolean
   rememberLastAudioLanguage: boolean
   preferredAudioLanguage: string
+  downloadSubtitles: boolean
+  subtitleLanguages: string[]
   embedSubs: boolean
   writeAutoSubs: boolean
   embedThumbnail: boolean
@@ -383,6 +386,8 @@ export const defaultSettings: AppSettings = {
   enableDownloadNotifications: true,
   rememberLastAudioLanguage: true,
   preferredAudioLanguage: '',
+  downloadSubtitles: true,
+  subtitleLanguages: [...DEFAULT_SUBTITLE_LANGUAGES],
   embedSubs: true,
   writeAutoSubs: true,
   embedThumbnail: false,

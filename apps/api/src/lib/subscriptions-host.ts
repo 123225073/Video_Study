@@ -31,6 +31,7 @@ import {
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 
 import { apiDefaultDownloadDir, taskQueue } from './task-queue-host'
+import { toWebDownloadRuntimeSettings, webSettingsStore } from './web-settings-store'
 
 const require = createRequire(import.meta.url)
 
@@ -86,6 +87,7 @@ export const getApiSubscriptions = (): SubscriptionsApi => {
     fetcher: new RssParserFeedFetcher(),
     enqueueItem: async ({ subscription, item }) => {
       const tags = Array.from(new Set([subscription.platform, ...subscription.tags]))
+      const settings = toWebDownloadRuntimeSettings(await webSettingsStore.get())
       const result = await taskQueue.add({
         input: {
           url: item.url,
@@ -103,6 +105,7 @@ export const getApiSubscriptions = (): SubscriptionsApi => {
             ...(subscription.namingTemplate
               ? { customFilenameTemplate: subscription.namingTemplate }
               : {}),
+            settings,
             tags
           }
         },

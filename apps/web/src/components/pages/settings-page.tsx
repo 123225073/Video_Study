@@ -7,6 +7,10 @@ import {
 	isFilenameStyle,
 } from "@vidbee/downloader-core/filename-style";
 import {
+	FOLLOW_INTERFACE_SUBTITLE_LANGUAGE,
+	MAX_SUBTITLE_LANGUAGES,
+} from "@vidbee/downloader-core/subtitle-languages";
+import {
 	type LanguageCode,
 	languageList,
 	normalizeLanguageCode,
@@ -38,6 +42,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@vidbee/ui/components/ui/select";
+import { SubtitleLanguagePicker } from "@vidbee/ui/components/ui/subtitle-language-picker";
 import { Switch } from "@vidbee/ui/components/ui/switch";
 import {
 	TabItem,
@@ -138,6 +143,20 @@ export const SettingsPage = () => {
 	const currentLanguage =
 		languageOptions.find((option) => option.value === activeLanguageCode) ??
 		languageOptions[0];
+	const subtitleLanguageOptions = [
+		{
+			label: t("settings.followInterfaceLanguage", {
+				language: currentLanguage.name,
+			}),
+			languageTag: currentLanguage.hreflang,
+			value: FOLLOW_INTERFACE_SUBTITLE_LANGUAGE,
+		},
+		...languageOptions.map((option) => ({
+			label: option.name,
+			languageTag: option.hreflang,
+			value: option.value,
+		})),
+	];
 
 	const handleThemeChange = (value: ThemeValue) => {
 		if (settings.theme === value) {
@@ -582,19 +601,19 @@ export const SettingsPage = () => {
 							<ItemGroup>
 								<Item variant="muted">
 									<ItemContent>
-										<ItemTitle>{t("settings.embedSubs")}</ItemTitle>
+										<ItemTitle>{t("settings.downloadSubtitles")}</ItemTitle>
 										<ItemDescription>
-											{t("settings.embedSubsDescription")}
+											{t("settings.downloadSubtitlesDescription")}
 										</ItemDescription>
 									</ItemContent>
 									<ItemActions>
 										<Switch
-											checked={settings.embedSubs}
+											checked={settings.downloadSubtitles}
 											label=""
 											onToggle={() =>
 												updateSingleSetting(
-													"embedSubs",
-													!settings.embedSubs,
+													"downloadSubtitles",
+													!settings.downloadSubtitles,
 													updateSettings,
 												)
 											}
@@ -602,29 +621,90 @@ export const SettingsPage = () => {
 									</ItemActions>
 								</Item>
 
-								<ItemSeparator />
+								{settings.downloadSubtitles && (
+									<>
+										<ItemSeparator />
 
-								<Item variant="muted">
-									<ItemContent>
-										<ItemTitle>{t("settings.writeAutoSubs")}</ItemTitle>
-										<ItemDescription>
-											{t("settings.writeAutoSubsDescription")}
-										</ItemDescription>
-									</ItemContent>
-									<ItemActions>
-										<Switch
-											checked={settings.writeAutoSubs}
-											label=""
-											onToggle={() =>
-												updateSingleSetting(
-													"writeAutoSubs",
-													!settings.writeAutoSubs,
-													updateSettings,
-												)
-											}
-										/>
-									</ItemActions>
-								</Item>
+										<Item variant="muted">
+											<ItemContent>
+												<ItemTitle>{t("settings.subtitleLanguages")}</ItemTitle>
+												<ItemDescription>
+													{t("settings.subtitleLanguagesDescription")}
+												</ItemDescription>
+											</ItemContent>
+											<ItemActions>
+												<SubtitleLanguagePicker
+													ariaLabel={t("settings.subtitleLanguages")}
+													emptyLabel={t("settings.subtitleLanguageEmpty")}
+													limitLabel={t("settings.subtitleLanguageLimit", {
+														count: MAX_SUBTITLE_LANGUAGES,
+													})}
+													maxSelections={MAX_SUBTITLE_LANGUAGES}
+													onValueChange={(values) =>
+														updateSingleSetting(
+															"subtitleLanguages",
+															values,
+															updateSettings,
+														)
+													}
+													options={subtitleLanguageOptions}
+													searchPlaceholder={t(
+														"settings.subtitleLanguageSearch",
+													)}
+													values={settings.subtitleLanguages}
+												/>
+											</ItemActions>
+										</Item>
+
+										<ItemSeparator />
+
+										<Item variant="muted">
+											<ItemContent>
+												<ItemTitle>{t("settings.writeAutoSubs")}</ItemTitle>
+												<ItemDescription>
+													{t("settings.writeAutoSubsDescription")}
+												</ItemDescription>
+											</ItemContent>
+											<ItemActions>
+												<Switch
+													checked={settings.writeAutoSubs}
+													label=""
+													onToggle={() =>
+														updateSingleSetting(
+															"writeAutoSubs",
+															!settings.writeAutoSubs,
+															updateSettings,
+														)
+													}
+												/>
+											</ItemActions>
+										</Item>
+
+										<ItemSeparator />
+
+										<Item variant="muted">
+											<ItemContent>
+												<ItemTitle>{t("settings.embedSubs")}</ItemTitle>
+												<ItemDescription>
+													{t("settings.embedSubsDescription")}
+												</ItemDescription>
+											</ItemContent>
+											<ItemActions>
+												<Switch
+													checked={settings.embedSubs}
+													label=""
+													onToggle={() =>
+														updateSingleSetting(
+															"embedSubs",
+															!settings.embedSubs,
+															updateSettings,
+														)
+													}
+												/>
+											</ItemActions>
+										</Item>
+									</>
+								)}
 
 								<ItemSeparator />
 

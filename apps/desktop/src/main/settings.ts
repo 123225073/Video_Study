@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { normalizeSubtitleLanguages } from '@vidbee/downloader-core/subtitle-languages'
 import { detectSystemProfile } from '@vidbee/i18n/system-locale'
 import { parseAsrTier } from '@vidbee/transcription'
 import { parseDownloadMirror } from '@vidbee/transcription/download-mirrors'
@@ -237,6 +238,23 @@ class SettingsManager {
       const parsedTier = parseAsrTier(storedTier)
       if (storedTier !== parsedTier) {
         this.store.set('asrTier', parsedTier)
+      }
+      const storedSubtitleLanguages = this.store.get('subtitleLanguages')
+      const parsedSubtitleLanguages = normalizeSubtitleLanguages(
+        Array.isArray(storedSubtitleLanguages)
+          ? storedSubtitleLanguages.filter(
+              (language): language is string => typeof language === 'string'
+            )
+          : undefined
+      )
+      if (
+        !Array.isArray(storedSubtitleLanguages) ||
+        storedSubtitleLanguages.length !== parsedSubtitleLanguages.length ||
+        storedSubtitleLanguages.some(
+          (language, index) => language !== parsedSubtitleLanguages[index]
+        )
+      ) {
+        this.store.set('subtitleLanguages', parsedSubtitleLanguages)
       }
     } catch (error) {
       scopedLoggers.system.error('Failed to enforce required settings:', error)

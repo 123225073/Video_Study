@@ -8,6 +8,7 @@ import {
   resolveFilenameTemplate
 } from './filename-style'
 import type { OneClickContainerOption } from './format-preferences'
+import { resolveSubtitleLanguages } from './subtitle-languages'
 
 export interface YtDlpDownloadSettings {
   downloadPath?: string
@@ -15,6 +16,9 @@ export interface YtDlpDownloadSettings {
   cookiesPath?: string
   proxy?: string
   configPath?: string
+  downloadSubtitles?: boolean
+  subtitleLanguages?: string[]
+  interfaceLanguage?: string
   embedSubs?: boolean
   writeAutoSubs?: boolean
   embedThumbnail?: boolean
@@ -43,7 +47,6 @@ const YOUTUBE_HOST_SUFFIXES = ['youtube.com', 'youtu.be', 'youtube-nocookie.com'
 // token and frequently 403s) but keep `web_safari` and the other defaults so
 // extraction has more fallbacks before failing.
 const YOUTUBE_SAFE_PLAYER_CLIENTS = 'default,-web'
-const SUBTITLE_LANGUAGE_SELECTOR = 'all,-live_chat,-rechat'
 export const VIDBEE_OUTPUT_PATH_PREFIX = '__VIDBEE_OUTPUT_PATH__:'
 const WINDOWS_FILENAME_TRIM_LENGTH = '120'
 const DIRECT_MEDIA_SEGMENT_EXTENSION = /\.(?:cmfa|cmfv|m4s)(?:$|[?#])/i
@@ -463,6 +466,11 @@ export const buildDownloadArgs = (
     args.push('--download-sections', `*${start}-${end}`)
   }
 
+  const downloadSubtitles = settings.downloadSubtitles ?? true
+  const subtitleLanguages = resolveSubtitleLanguages(
+    settings.subtitleLanguages,
+    settings.interfaceLanguage
+  )
   const embedSubs = settings.embedSubs ?? true
   const writeAutoSubs = settings.writeAutoSubs ?? true
   const embedThumbnail = settings.embedThumbnail ?? false
@@ -476,7 +484,10 @@ export const buildDownloadArgs = (
   // GitHub issue #370: Twitch `rechat` 404s abort the VOD. GitHub issue #196:
   // Bilibili subtitle fetch without cookies can fail and abort the video.
   // Skip forced subtitle downloads on those sites unless cookies are present.
-  const shouldAttemptSubtitles = !(isBilibili || isTwitchUrl(options.url)) || hasSubtitleAuth
+  const shouldAttemptSubtitles =
+    options.type === 'video' &&
+    downloadSubtitles &&
+    (!(isBilibili || isTwitchUrl(options.url)) || hasSubtitleAuth)
   // GitHub issues #129, #196, #199, #291, #347: Bilibili lists danmaku as a
   // subtitle track (`danmaku.xml`). ffmpeg cannot mux XML into MP4/MKV and
   // aborts with `Invalid data found when processing input` after the video
@@ -484,13 +495,16 @@ export const buildDownloadArgs = (
   const shouldEmbedSubs = embedSubs && shouldAttemptSubtitles && !isBilibili
 
   if (shouldAttemptSubtitles) {
-    args.push('--sub-langs', SUBTITLE_LANGUAGE_SELECTOR)
+    args.push('--sub-langs', subtitleLanguages.join(','))
+    args.push('--sleep-subtitles', '1')
     // `--embed-subs` only writes official / creator-uploaded captions.
     // YouTube videos often have automatic captions and no official track, so
     // also request those when the setting is on; otherwise the embed step
     // has nothing to mux.
     if (writeAutoSubs) {
       args.push('--write-auto-subs')
+    } else {
+      args.push('--no-write-auto-subs')
     }
     if (shouldEmbedSubs) {
       args.push('--embed-subs')
@@ -499,7 +513,7 @@ export const buildDownloadArgs = (
       args.push('--no-embed-subs')
     }
   } else {
-    args.push('--no-embed-subs')
+    args.push('--no-write-subs', '--no-write-auto-subs', '--no-embed-subs')
   }
 
   args.push(embedThumbnail ? '--embed-thumbnail' : '--no-embed-thumbnail')

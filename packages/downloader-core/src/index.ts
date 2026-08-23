@@ -113,5 +113,13 @@ export {
   VIDBEE_OUTPUT_PATH_PREFIX,
   validateDownloadTimeRange
 } from './yt-dlp-args'
+export {
+  DEFAULT_SUBTITLE_LANGUAGES,
+  FOLLOW_INTERFACE_SUBTITLE_LANGUAGE,
+  interfaceSubtitleLanguage,
+  MAX_SUBTITLE_LANGUAGES,
+  normalizeSubtitleLanguages,
+  resolveSubtitleLanguages
+} from './subtitle-languages'
 export type { YtDlpExecutorOptions, YtDlpTaskOptions } from './yt-dlp-executor'
 export { YtDlpExecutor } from './yt-dlp-executor'

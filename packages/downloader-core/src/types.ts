@@ -98,6 +98,9 @@ export interface DownloadRuntimeSettings {
   cookiesPath?: string
   proxy?: string
   configPath?: string
+  downloadSubtitles?: boolean
+  subtitleLanguages?: string[]
+  interfaceLanguage?: string
   embedSubs?: boolean
   writeAutoSubs?: boolean
   embedThumbnail?: boolean

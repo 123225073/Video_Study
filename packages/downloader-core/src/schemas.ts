@@ -1,4 +1,9 @@
 import { z } from 'zod'
+import {
+  DEFAULT_SUBTITLE_LANGUAGES,
+  MAX_SUBTITLE_LANGUAGES,
+  normalizeSubtitleLanguages
+} from './subtitle-languages'
 
 export const DownloadTypeSchema = z.enum(['video', 'audio'])
 export const DownloadStatusSchema = z.enum([
@@ -95,6 +100,9 @@ export const DownloadRuntimeSettingsSchema = z.object({
   cookiesPath: z.string().optional(),
   proxy: z.string().optional(),
   configPath: z.string().optional(),
+  downloadSubtitles: z.boolean().optional(),
+  subtitleLanguages: z.array(z.string()).max(MAX_SUBTITLE_LANGUAGES).optional(),
+  interfaceLanguage: z.string().optional(),
   embedSubs: z.boolean().optional(),
   writeAutoSubs: z.boolean().optional(),
   embedThumbnail: z.boolean().optional(),
@@ -129,6 +137,16 @@ export const WebAppSettingsSchema = z.object({
   autoUpdate: z.boolean(),
   subscriptionOnlyLatestDefault: z.boolean(),
   enableAnalytics: z.boolean(),
+  downloadSubtitles: z.boolean().default(true),
+  subtitleLanguages: z.preprocess(
+    (value) =>
+      normalizeSubtitleLanguages(
+        Array.isArray(value)
+          ? value.filter((language): language is string => typeof language === 'string')
+          : DEFAULT_SUBTITLE_LANGUAGES
+      ),
+    z.array(z.string()).max(MAX_SUBTITLE_LANGUAGES)
+  ),
   embedSubs: z.boolean(),
   writeAutoSubs: z.boolean().default(true),
   embedThumbnail: z.boolean(),
