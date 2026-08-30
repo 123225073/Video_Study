@@ -100,7 +100,7 @@ export function DownloadDialog({
   const addDownload = useSetAtom(addDownloadAtom)
   const removeDownload = useSetAtom(removeDownloadAtom)
   const saveSetting = useSetAtom(saveSettingAtom)
-  const { importMediaPaths } = useImportLocalMedia()
+  const { importMediaPaths, pickAndImportMedia } = useImportLocalMedia()
 
   const [url, setUrl] = useState('')
   const [activeTab, setActiveTab] = useState<'single' | 'playlist'>('single')
@@ -802,20 +802,31 @@ export function DownloadDialog({
         activeTab={activeTab}
         addUrlPopover={
           <AddUrlPopover
+            addLocalMediaLabel={t('transcript.library.addMedia')}
             cancelLabel={t('download.cancel')}
             confirmDisabled={!canConfirmAddUrl}
             confirmLabel={t('download.fetch')}
             invalidMessage={
               hasAddUrlValue && !canConfirmAddUrl ? t('errors.invalidUrl') : undefined
             }
+            moreActionsLabel={t('download.moreAddActions')}
+            onAddLocalMedia={() => {
+              void pickAndImportMedia()
+            }}
             onCancel={() => {
               setAddUrlPopoverOpen(false)
             }}
             onConfirm={() => {
               void handleConfirmAddUrl()
             }}
+            oneClickDownloadDescription={t('download.oneClickDownloadTooltip')}
+            oneClickDownloadEnabled={settings.oneClickDownload}
+            oneClickDownloadLabel={t('download.oneClickDownload')}
             onOpenChange={setAddUrlPopoverOpen}
             onOpenSupportedSites={onOpenSupportedSites}
+            onToggleOneClickDownload={() => {
+              saveSetting({ key: 'oneClickDownload', value: !settings.oneClickDownload })
+            }}
             onTriggerClick={() => {
               void handleOpenAddUrlPopover()
             }}
@@ -981,12 +992,7 @@ export function DownloadDialog({
         }
         lockDialogHeight={lockDialogHeight}
         onActiveTabChange={setActiveTab}
-        oneClickDownloadEnabled={settings.oneClickDownload}
-        oneClickTooltip={t('download.oneClickDownloadTooltip')}
         onOpenChange={setOpen}
-        onToggleOneClickDownload={() => {
-          saveSetting({ key: 'oneClickDownload', value: !settings.oneClickDownload })
-        }}
         open={open}
         playlistTabContent={
           <PlaylistDownload
