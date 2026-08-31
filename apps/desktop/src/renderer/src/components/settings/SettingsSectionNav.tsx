@@ -11,8 +11,10 @@ import {
   FileText,
   KeyRound,
   MessageSquareText,
+  Puzzle,
   Settings2,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Workflow
 } from 'lucide-react'
 import { type KeyboardEvent, type RefObject, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,7 +26,9 @@ export const SETTINGS_NAV_ITEMS = [
   { icon: Cookie, labelKey: 'settings.cookiesTab', value: 'cookies' },
   { icon: KeyRound, labelKey: 'settings.providersTab', value: 'providers' },
   { icon: MessageSquareText, labelKey: 'settings.promptsTab', value: 'prompts' },
+  { icon: Workflow, labelKey: 'settings.learningAutomationTab', value: 'learning-automation' },
   { icon: Captions, labelKey: 'settings.transcriptionTab', value: 'transcribe' },
+  { icon: Puzzle, labelKey: 'settings.companionTab', value: 'companion' },
   { icon: SlidersHorizontal, labelKey: 'settings.advanced', value: 'advanced' }
 ] as const
 
@@ -35,7 +39,11 @@ type SettingsNavItem = (typeof SETTINGS_NAV_ITEMS)[number]
 const SETTINGS_NAV_GROUPS = [
   { id: 'app', labelKey: 'settings.navGroup.app', values: ['general'] },
   { id: 'download', labelKey: 'settings.navGroup.download', values: ['metadata', 'cookies'] },
-  { id: 'ai', labelKey: 'settings.navGroup.ai', values: ['providers', 'prompts', 'transcribe'] },
+  {
+    id: 'ai',
+    labelKey: 'settings.navGroup.ai',
+    values: ['providers', 'prompts', 'learning-automation', 'transcribe', 'companion']
+  },
   { id: 'system', labelKey: 'settings.navGroup.system', values: ['advanced'] }
 ] as const
 

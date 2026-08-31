@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import type { CompanionCapturePayload } from '@shared/companion-types'
 import { APP_PROTOCOL, APP_PROTOCOL_SCHEME } from '@shared/constants'
 import type { YtDlpKernelStatus } from '@shared/types'
 import {
@@ -22,6 +23,7 @@ import {
 import { configureLogger } from './config/logger-config'
 import { services } from './ipc'
 import { downloadEngine } from './lib/download-facade'
+import { isSafeExternalUrl, isTrustedRendererNavigation } from './lib/external-navigation'
 import { ffmpegManager } from './lib/ffmpeg-manager'
 import {
   addMainBreadcrumb,
@@ -31,7 +33,7 @@ import {
 } from './lib/glitchtip'
 import { localMediaKind } from './lib/import-local-media'
 import { stopPlayerHost } from './lib/player-host'
-import { deferAppQuitIfNeeded } from './lib/quit-confirmation-host'
+import { deferAppQuitIfNeeded, stopActiveAiRunsForQuit } from './lib/quit-confirmation-host'
 import { initializeOptionalTool } from './lib/startup-dependencies'
 import {
   getDesktopSubscriptions,
@@ -48,8 +50,13 @@ import {
   subscribeTranscriptBroadcasts
 } from './lib/transcript-host'
 import { applyUpdateChannel } from './lib/update-channel'
+import { secureWindowWebPreferences } from './lib/window-security'
 import { initializeYtDlpKernelService, stopYtDlpKernelService } from './lib/ytdlp-kernel-host'
-import { startExtensionApiServer, stopExtensionApiServer } from './local-api'
+import {
+  setCompanionCaptureHandler,
+  startExtensionApiServer,
+  stopExtensionApiServer
+} from './local-api'
 import { isPortableMode } from './portable'
 import { settingsManager } from './settings'
 import { createTray, destroyTray } from './tray'
@@ -203,6 +210,26 @@ const sendToRenderer = (channel: string, ...args: unknown[]): void => {
     window.webContents.send(channel, ...args)
   } catch (error) {
     log.warn('Failed to send message to renderer:', channel, error)
+  }
+}
+
+const deliverCompanionCapture = (payload: CompanionCapturePayload): void => {
+  const window = getActiveMainWindow()
+  if (!window) {
+    throw new Error('The desktop window is not ready')
+  }
+  if (window.isMinimized()) {
+    window.restore()
+  }
+  if (!window.isVisible()) {
+    window.show()
+  }
+  window.focus()
+  sendToRenderer('companion:capture', payload)
+  if (payload.action === 'open') {
+    setTimeout(() => {
+      sendToRenderer('download:deeplink', { type: 'single', url: payload.pageUrl })
+    }, 350)
   }
 }
 
@@ -410,17 +437,13 @@ export function createWindow(): void {
   const windowOptions: BrowserWindowConstructorOptions = {
     width: 1200,
     height: 800,
+    minWidth: 900,
+    minHeight: 650,
     show: false,
     autoHideMenuBar: true,
     icon: appIcon, // Set application icon
     frame: false,
-    webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.js'),
-      sandbox: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      webSecurity: false // Allow drag regions to work
-    }
+    webPreferences: secureWindowWebPreferences(join(import.meta.dirname, '../preload/index.js'))
   }
 
   if (isMac) {
@@ -481,8 +504,28 @@ export function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    if (isSafeExternalUrl(details.url)) {
+      void shell
+        .openExternal(details.url)
+        .catch((error) => log.warn('Failed to open safe external URL:', error))
+    } else {
+      log.warn('Blocked unsafe external URL from renderer')
+    }
     return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
+    if (isTrustedRendererNavigation(targetUrl, mainWindow?.webContents.getURL() ?? '')) {
+      return
+    }
+    event.preventDefault()
+    if (isSafeExternalUrl(targetUrl)) {
+      void shell
+        .openExternal(targetUrl)
+        .catch((error) => log.warn('Failed to open navigated external URL:', error))
+    } else {
+      log.warn('Blocked renderer navigation outside the application document')
+    }
   })
 
   mainWindow.webContents.on('console-message', (event) => {
@@ -905,6 +948,10 @@ function registerVidbeeProtocol(): void {
 }
 
 function initAutoUpdater(): void {
+  if (!settingsManager.get('autoUpdate')) {
+    log.info('Auto-updater is disabled for the Fengsha local distribution')
+    return
+  }
   if (isPortableMode) {
     log.info('Portable mode is active, skipping auto-updater initialization')
     return
@@ -972,7 +1019,7 @@ function initAutoUpdater(): void {
   }
 }
 
-const gotSingleInstanceLock = app.requestSingleInstanceLock()
+const gotSingleInstanceLock = process.env.VIDBEE_E2E === '1' || app.requestSingleInstanceLock()
 
 if (gotSingleInstanceLock) {
   app.on('second-instance', (_event, argv) => {
@@ -1128,6 +1175,7 @@ app.whenReady().then(async () => {
     log.warn('Desktop task-queue / transcription failed to start:', err)
   }
 
+  setCompanionCaptureHandler(deliverCompanionCapture)
   await startExtensionApiServer()
 
   if (BACKGROUND_MODE) {
@@ -1184,6 +1232,10 @@ app.on('before-quit', (event) => {
   }
 
   isQuitting = true
+  const stoppedAiRuns = stopActiveAiRunsForQuit()
+  if (stoppedAiRuns > 0) {
+    log.info('Stopped active AI runs before quit:', stoppedAiRuns)
+  }
   stopYtDlpKernelService()
   downloadEngine.flushDownloadSession()
   void stopPlayerHost()
@@ -1211,6 +1263,7 @@ app.on('window-all-closed', () => {
 // Cleanup tray on quit
 app.on('will-quit', () => {
   destroyTray()
+  setCompanionCaptureHandler(null)
   void stopExtensionApiServer()
   void stopDesktopSubscriptions().catch((err) =>
     log.warn('Failed to stop desktop subscriptions on quit:', err)

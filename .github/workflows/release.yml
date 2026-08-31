@@ -50,7 +50,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           body: |
-            View the full changelog at [vidbee.org/changelog](https://vidbee.org/changelog/).
+            This release is built from the Fengsha Video Learning source tree.
           generate_release_notes: true
           prerelease: ${{ steps.release_meta.outputs.is_preview == 'true' }}
           files: |
@@ -65,11 +65,4 @@ jobs:
             dist/*.yml
             dist/*.blockmap
         env:
-          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-
-      - name: Notify Cloudflare Pages
-        if: steps.release_meta.outputs.is_preview != 'true'
-        env:
-          CLOUDFLARE_WEBHOOK_URL: ${{ secrets.CLOUDFLARE_WEBHOOK_URL }}
-        run: |
-          curl -X POST "$CLOUDFLARE_WEBHOOK_URL"
+          GITHUB_TOKEN: ${{ github.token }}

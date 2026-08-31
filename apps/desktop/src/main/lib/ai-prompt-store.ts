@@ -95,6 +95,7 @@ const snapshotFromRow = (row: PromptRunDbRow): AiPromptRunSnapshot | null => {
   return {
     downloadId: row.download_id,
     promptId: row.prompt_id,
+    startedAt: row.created_at,
     status,
     text: row.text ?? '',
     thinking: row.thinking ?? '',
@@ -171,6 +172,7 @@ export class AiPromptRunStore {
            download_id, prompt_id, status, text, thinking, thinking_ms, error, error_code, created_at, updated_at
          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(download_id, prompt_id) DO UPDATE SET
+           created_at = excluded.created_at,
            status = excluded.status,
            text = excluded.text,
            thinking = excluded.thinking,
@@ -188,7 +190,7 @@ export class AiPromptRunStore {
         snapshot.thinkingMs ?? 0,
         snapshot.error,
         snapshot.errorCode,
-        snapshot.updatedAt,
+        snapshot.startedAt,
         snapshot.updatedAt
       )
   }

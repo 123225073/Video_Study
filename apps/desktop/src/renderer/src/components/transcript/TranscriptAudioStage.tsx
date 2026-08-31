@@ -36,7 +36,7 @@ export function TranscriptAudioStage({
             src={thumbnail}
           />
         ) : (
-          <div className="h-full w-full bg-gradient-to-br from-primary/25 via-muted to-sky-500/15" />
+          <div className="h-full w-full bg-gradient-to-br from-amber-500/20 via-muted to-orange-950/10 dark:to-amber-200/8" />
         )}
       </div>
       <div className="relative flex w-full items-center gap-4 px-4 py-4">

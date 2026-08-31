@@ -49,7 +49,7 @@ export function TranscriptPlaybackHost(): ReactNode {
   const { t } = useTranslation()
   const parkingRef = useRef<HTMLDivElement>(null)
   const playerWrapRef = useRef<HTMLDivElement>(null)
-  const seekRef = useRef<(seconds: number) => void>(() => undefined)
+  const seekRef = useRef<(seconds: number) => Promise<void>>(async () => undefined)
   const transportRef = useRef<Pick<TranscriptPlayerControls, 'pause' | 'play' | 'toggle'>>({
     pause: () => undefined,
     play: () => undefined,
@@ -98,7 +98,7 @@ export function TranscriptPlaybackHost(): ReactNode {
   }, [setControls])
 
   const handleSeekReady = useCallback(
-    (nextSeek: (seconds: number) => void) => {
+    (nextSeek: (seconds: number) => Promise<void>) => {
       seekRef.current = nextSeek
       publishControls()
     },
@@ -120,7 +120,7 @@ export function TranscriptPlaybackHost(): ReactNode {
           label: t('transcript.player.startOver'),
           onClick: () => {
             restartPlayback()
-            seekRef.current(0)
+            void seekRef.current(0)
           }
         }
       })
@@ -156,7 +156,7 @@ export function TranscriptPlaybackHost(): ReactNode {
         resumeStateRef.current.done = true
         return
       }
-      seekRef.current(startAt)
+      void seekRef.current(startAt).catch(() => undefined)
     },
     [getStartAt, handleResumed]
   )
@@ -190,7 +190,7 @@ export function TranscriptPlaybackHost(): ReactNode {
     clockRef.current = { currentTime: 0, duration: 0, playing: false }
     resumeStateRef.current = { attempts: 0, done: false, notified: false }
     pendingSeekRef.current = seekToRef.current
-    seekRef.current = () => undefined
+    seekRef.current = async () => undefined
     transportRef.current = {
       pause: () => undefined,
       play: () => undefined,
@@ -207,11 +207,31 @@ export function TranscriptPlaybackHost(): ReactNode {
     if (!(session?.playWhenReady && mediaSrc && controls)) {
       return
     }
-    if (session.seekTo != null) {
-      controls.seek(session.seekTo)
+    let cancelled = false
+    let attempts = 0
+    const startPlayback = async (): Promise<void> => {
+      if (cancelled) {
+        return
+      }
+      try {
+        if (session.seekTo != null) {
+          await controls.seek(session.seekTo)
+        }
+        await controls.play()
+        consumePlayWhenReady()
+      } catch (error) {
+        attempts += 1
+        if (error instanceof Error && error.message === 'NO_TARGET' && attempts < 40) {
+          window.setTimeout(() => void startPlayback(), 50)
+          return
+        }
+        throw error
+      }
     }
-    controls.play()
-    consumePlayWhenReady()
+    void startPlayback()
+    return () => {
+      cancelled = true
+    }
   }, [consumePlayWhenReady, controls, mediaSrc, session?.playWhenReady, session?.seekTo])
 
   useEffect(() => {

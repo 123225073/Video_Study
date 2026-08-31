@@ -586,6 +586,7 @@ export const importLocalMediaForTranscription = async (
     queue: getDesktopTaskQueueRef(),
     store: getTranscriptStore(),
     paths,
+    asrTier: readActiveAsrTier(),
     language: readUiLanguage()
   })
   for (const item of result.imported) {

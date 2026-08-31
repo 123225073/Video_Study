@@ -11,6 +11,8 @@ import {
   mergeDefaultAiPrompts
 } from '../../shared/ai-prompts'
 import type {
+  AiImageProviderConfig,
+  AiImageProviderWriteInput,
   AiPrompt,
   AiPromptIconId,
   AiPromptWriteInput,
@@ -27,15 +29,35 @@ const Store = ElectronStore.default || ElectronStore
 
 interface StoredProvider extends AiProviderConfig {
   apiKeySealed: string
+  /** Legacy v3.2 preview field; image configuration now lives independently. */
+  imageModelId?: string
+}
+
+interface StoredImageProvider extends AiImageProviderConfig {
+  apiKeySealed: string
 }
 
 interface StoredAiState {
   activeProviderId: string | null
+  imageProvider: StoredImageProvider
   providers: StoredProvider[]
   prompts: AiPrompt[]
 }
 
 const log = scopedLoggers.ai
+export const DEFAULT_IMAGE_MODEL_ID = 'gpt-image-2'
+export const DEFAULT_IMAGE_BASE_URL = 'https://api.openai.com/v1'
+
+const defaultImageProvider = (now: number): StoredImageProvider => ({
+  apiKeyHeader: 'api-key',
+  apiKeySealed: '',
+  authType: 'bearer',
+  baseUrl: DEFAULT_IMAGE_BASE_URL,
+  hasApiKey: false,
+  modelId: DEFAULT_IMAGE_MODEL_ID,
+  provider: 'openai',
+  updatedAt: now
+})
 
 const PRESET_NAMES: Record<AiProviderPresetId, string> = {
   anthropic: 'Anthropic',
@@ -91,6 +113,16 @@ const toPublicProvider = (provider: StoredProvider): AiProviderConfig => ({
   updatedAt: provider.updatedAt
 })
 
+const toPublicImageProvider = (provider: StoredImageProvider): AiImageProviderConfig => ({
+  apiKeyHeader: provider.apiKeyHeader,
+  authType: provider.authType,
+  baseUrl: provider.baseUrl,
+  hasApiKey: provider.apiKeySealed.length > 0,
+  modelId: provider.modelId,
+  provider: provider.provider,
+  updatedAt: provider.updatedAt
+})
+
 class AiStore {
   // biome-ignore lint/suspicious/noExplicitAny: electron-store is a CJS default export
   private readonly store: any
@@ -101,6 +133,7 @@ class AiStore {
       name: 'ai',
       defaults: {
         activeProviderId: null,
+        imageProvider: defaultImageProvider(now),
         providers: [],
         prompts: createDefaultAiPrompts(now)
       } satisfies StoredAiState
@@ -131,8 +164,20 @@ class AiStore {
       ? (this.store.get('prompts') as AiPrompt[])
       : createDefaultAiPrompts(now)
     const activeProviderId = this.store.get('activeProviderId')
+    const storedImageProvider = this.store.get('imageProvider') as
+      | Partial<StoredImageProvider>
+      | undefined
+    const imageProvider: StoredImageProvider = {
+      ...defaultImageProvider(now),
+      ...(storedImageProvider ?? {}),
+      apiKeySealed:
+        typeof storedImageProvider?.apiKeySealed === 'string'
+          ? storedImageProvider.apiKeySealed
+          : ''
+    }
     return {
       activeProviderId: typeof activeProviderId === 'string' ? activeProviderId : null,
+      imageProvider,
       providers,
       prompts
     }
@@ -146,6 +191,7 @@ class AiStore {
     const activeExists = state.providers.some((provider) => provider.id === state.activeProviderId)
     return {
       activeProviderId: activeExists ? state.activeProviderId : null,
+      imageProvider: toPublicImageProvider(state.imageProvider),
       providers: state.providers.map(toPublicProvider),
       prompts: [...state.prompts].sort((left, right) => left.sortOrder - right.sortOrder)
     }
@@ -200,6 +246,58 @@ class AiStore {
     return toPublicProvider(record)
   }
 
+  /** Save the image provider independently from the active text provider. */
+  upsertImageProvider(input: AiImageProviderWriteInput): AiImageProviderConfig {
+    const baseUrl = input.baseUrl.trim().replace(/\/+$/u, '')
+    const modelId = input.modelId.trim()
+    if (!(baseUrl && modelId)) {
+      throw new Error('Image provider Base URL and model are required')
+    }
+    let parsed: URL
+    try {
+      parsed = new URL(baseUrl)
+    } catch {
+      throw new Error('Image provider Base URL is invalid')
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      throw new Error('Image provider Base URL must use HTTP or HTTPS')
+    }
+    const apiKeyHeader = input.apiKeyHeader?.trim() || 'api-key'
+    if (
+      input.authType === 'api-key' &&
+      (!/^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/u.test(apiKeyHeader) ||
+        ['content-length', 'content-type', 'host'].includes(apiKeyHeader.toLowerCase()))
+    ) {
+      throw new Error('Image provider API key header is invalid')
+    }
+    const existing = this.readState().imageProvider
+    if (/\r|\n/u.test(input.apiKey ?? '')) {
+      throw new Error('Image provider API key is invalid')
+    }
+    const sealedKey = input.apiKey?.trim()
+      ? sealAiSecret(input.apiKey, safeStorage)
+      : existing.apiKeySealed
+    if (input.authType !== 'none' && !sealedKey) {
+      throw new Error('Image provider API key is required')
+    }
+    const record: StoredImageProvider = {
+      apiKeyHeader,
+      apiKeySealed: input.authType === 'none' ? '' : sealedKey,
+      authType: input.authType,
+      baseUrl,
+      hasApiKey: input.authType !== 'none' && sealedKey.length > 0,
+      modelId,
+      provider: input.provider,
+      updatedAt: Date.now()
+    }
+    this.store.set('imageProvider', record)
+    log.info('ai image provider saved', {
+      authType: record.authType,
+      provider: record.provider
+    })
+    return toPublicImageProvider(record)
+  }
+
   /**
    * Remove a provider and clear it as active when needed.
    *
@@ -241,6 +339,15 @@ class AiStore {
     return {
       provider: toPublicProvider(provider),
       apiKey: openAiSecret(provider.apiKeySealed, safeStorage)
+    }
+  }
+
+  /** Return the independent image provider and its decrypted key. */
+  getImageProviderSecret(): { provider: AiImageProviderConfig; apiKey: string } {
+    const provider = this.readState().imageProvider
+    return {
+      apiKey: openAiSecret(provider.apiKeySealed, safeStorage),
+      provider: toPublicImageProvider(provider)
     }
   }
 

@@ -21,6 +21,10 @@ import { useStreamingTranscript } from '@renderer/hooks/use-streaming-transcript
 import { shareImageFileName } from '@renderer/lib/capture-prompt-share'
 import { formatClock } from '@renderer/lib/format-clock'
 import { ipcServices } from '@renderer/lib/ipc'
+import type {
+  TranscriptSelectionAction,
+  TranscriptSelectionIntent
+} from '@renderer/lib/study-studio/types'
 import {
   buildCaptionQuoteBlocks,
   buildCaptionShareQuote,
@@ -72,10 +76,13 @@ import { cn } from '@renderer/lib/utils'
 import type { TranscriptSegmentView, TranscriptSpeakerView } from '@renderer/store/transcripts'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
+  BotMessageSquare,
   ChevronDown,
   ChevronUp,
   Copy,
+  Highlighter,
   Loader2,
+  NotebookPen,
   Pencil,
   Plus,
   RotateCw,
@@ -169,6 +176,7 @@ interface TranscriptCaptionsPaneProps {
   collapsed: boolean
   currentSegmentId: string | null
   currentTimeMs: number
+  correctedSegmentIds?: ReadonlySet<string>
   /** Download this transcript belongs to, used to remember thinking-step collapse. */
   downloadId?: string
   /** Hide the outer border and Transcript tab when hosted inside TranscriptSidePanel. */
@@ -177,12 +185,18 @@ interface TranscriptCaptionsPaneProps {
   error?: string | null
   /** Local ASR ended in a failed task state. */
   failed?: boolean
+  /** Transcript rows referenced by a saved highlight annotation. */
+  highlightedSegmentIds?: ReadonlySet<string>
   noSpeech: boolean
   noSpeechDetail: string
   /** Stop an in-flight local ASR run. */
   onCancel?: () => void
+  onCorrectSegment?: (segmentId: string, text: string) => Promise<void>
   /** Retry a failed local ASR run. */
   onRetry?: () => void
+  onRestoreSegment?: (segmentId: string) => Promise<void>
+  /** Send selected transcript lines into the learning workspace. */
+  onSelectionIntent?: (action: TranscriptSelectionAction) => void
   onSeek: (seconds: number) => void
   ready: boolean
   resolveColorIndex: (speakerId: string | null) => number | null
@@ -213,14 +227,19 @@ export function TranscriptCaptionsPane({
   collapsed,
   currentSegmentId,
   currentTimeMs,
+  correctedSegmentIds,
   downloadId,
   embedded = false,
   error = null,
   failed = false,
+  highlightedSegmentIds,
   noSpeech,
   noSpeechDetail,
   onCancel,
+  onCorrectSegment,
   onRetry,
+  onRestoreSegment,
+  onSelectionIntent,
   onSeek,
   ready,
   resolveColorIndex,
@@ -896,7 +915,9 @@ export function TranscriptCaptionsPane({
       return
     }
     await persistCaptionEdit(() =>
-      ipcServices.transcript.updateSegment({ downloadId, segmentId, text: trimmed })
+      onCorrectSegment
+        ? onCorrectSegment(segmentId, trimmed)
+        : ipcServices.transcript.updateSegment({ downloadId, segmentId, text: trimmed })
     )
   }
 
@@ -1361,9 +1382,14 @@ export function TranscriptCaptionsPane({
                 const streamingLine = streamLive && streamed.streamingId === segment.id
                 const active = currentSegmentId === segment.id
                 const selected = isCaptionSegmentSelected(selection, segment.id)
+                const highlighted = Boolean(highlightedSegmentIds?.has(segment.id))
                 return (
                   <div
-                    className={cn('px-4', selected ? 'bg-primary/20' : '')}
+                    className={cn(
+                      'px-4',
+                      highlighted && 'bg-amber-100/75 dark:bg-amber-900/25',
+                      selected && 'bg-primary/20'
+                    )}
                     data-index={virtualRow.index}
                     key={virtualRow.key}
                     ref={rowVirtualizer.measureElement}
@@ -1378,6 +1404,7 @@ export function TranscriptCaptionsPane({
                     <CaptionRow
                       active={active}
                       canEdit={canEditCaptions}
+                      canRestore={Boolean(correctedSegmentIds?.has(segment.id))}
                       currentTimeMs={active ? currentTimeMs : 0}
                       editing={editingId === segment.id}
                       hasQuery={hasQuery}
@@ -1396,6 +1423,7 @@ export function TranscriptCaptionsPane({
                       onEdit={() => beginEditCaption(segment.id)}
                       onInsertAfter={() => void insertCaption({ afterId: segment.id })}
                       onInsertBefore={() => void insertCaption({ beforeId: segment.id })}
+                      onRestore={() => void onRestoreSegment?.(segment.id)}
                       onSeek={(seconds) => onSeekToken(seconds, segment.id)}
                       onSelectMatch={jumpToSearchMatch}
                       query={query}
@@ -1446,6 +1474,20 @@ export function TranscriptCaptionsPane({
             onClear={clearSelection}
             onCopy={() => void handleCopySelection()}
             onDelete={() => selection && void deleteCaptions(selection.ids)}
+            onIntent={
+              onSelectionIntent && shareQuote && selection
+                ? (intent) =>
+                    onSelectionIntent({
+                      intent,
+                      selection: {
+                        endMs: shareQuote.endMs,
+                        segmentIds: selection.ids,
+                        startMs: shareQuote.startMs,
+                        text: shareQuote.quote
+                      }
+                    })
+                : undefined
+            }
             onShare={handleShareSelection}
             open={Boolean(selection)}
           />
@@ -1499,6 +1541,7 @@ interface CaptionSelectToolbarProps {
   onClear: () => void
   onCopy: () => void
   onDelete: () => void
+  onIntent?: (intent: TranscriptSelectionIntent) => void
   onShare: () => void
   open: boolean
 }
@@ -1518,6 +1561,7 @@ function CaptionSelectToolbar({
   onClear,
   onCopy,
   onDelete,
+  onIntent,
   onShare,
   open
 }: CaptionSelectToolbarProps) {
@@ -1527,7 +1571,7 @@ function CaptionSelectToolbar({
       aria-hidden={!open}
       aria-label={t('transcript.captionSelect')}
       className={cn(
-        'flex items-center gap-1 rounded-full border border-border/80 bg-background/95 p-1 shadow-lg backdrop-blur-sm',
+        'flex max-w-[calc(100%-1rem)] flex-wrap items-center justify-center gap-1 rounded-2xl border border-border/80 bg-background/95 p-1 shadow-lg backdrop-blur-sm',
         'transition-[opacity,translate] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
         'motion-reduce:transition-[opacity] motion-reduce:duration-150',
         open
@@ -1551,6 +1595,50 @@ function CaptionSelectToolbar({
         <Copy />
         {t('transcript.promptCopy')}
       </Button>
+      {onIntent ? (
+        <>
+          <Button
+            className="rounded-full"
+            onClick={() => onIntent('highlight')}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Highlighter />
+            {t('learning.selection.highlight')}
+          </Button>
+          <Button
+            className="rounded-full"
+            onClick={() => onIntent('note')}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <NotebookPen />
+            {t('learning.selection.note')}
+          </Button>
+          <Button
+            className="rounded-full"
+            onClick={() => onIntent('quote-card')}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Share2 />
+            {t('learning.selection.quoteCard')}
+          </Button>
+          <Button
+            className="rounded-full"
+            onClick={() => onIntent('ask-ai')}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <BotMessageSquare />
+            {t('learning.selection.askAi')}
+          </Button>
+        </>
+      ) : null}
       <Button
         className="rounded-full"
         data-testid="transcript-caption-select-share"
@@ -1593,6 +1681,7 @@ function CaptionSelectToolbar({
 interface CaptionRowProps {
   active: boolean
   canEdit: boolean
+  canRestore: boolean
   currentTimeMs: number
   editing: boolean
   hasQuery: boolean
@@ -1603,6 +1692,7 @@ interface CaptionRowProps {
   onEdit: () => void
   onInsertAfter: () => void
   onInsertBefore: () => void
+  onRestore: () => void
   onSeek: (seconds: number) => void
   onSelectMatch: (segmentId: string) => void
   query: string
@@ -1621,6 +1711,7 @@ interface CaptionRowProps {
 const CaptionRow = memo(function CaptionRow({
   active,
   canEdit,
+  canRestore,
   currentTimeMs,
   editing,
   hasQuery,
@@ -1631,6 +1722,7 @@ const CaptionRow = memo(function CaptionRow({
   onEdit,
   onInsertAfter,
   onInsertBefore,
+  onRestore,
   onSeek,
   onSelectMatch,
   query,
@@ -1645,6 +1737,7 @@ const CaptionRow = memo(function CaptionRow({
   const { t } = useTranslation()
   const speakerName = resolveSpeaker(segment.speakerId)
   const words = wordsForSegment(segment)
+  const timeLabel = formatClock(segment.startMs / 1000)
   /**
    * From search, jump to this caption in the transcript. Otherwise seek playback.
    */
@@ -1672,6 +1765,7 @@ const CaptionRow = memo(function CaptionRow({
       <button
         className="flex size-5 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 leading-none"
         onClick={openCaption}
+        tabIndex={-1}
         title={hasQuery ? t('transcript.searchJumpTo') : undefined}
         type="button"
       >
@@ -1686,18 +1780,22 @@ const CaptionRow = memo(function CaptionRow({
         <button
           className="cursor-pointer truncate border-0 bg-transparent p-0 font-medium text-foreground text-sm leading-none hover:underline"
           onClick={openCaption}
+          tabIndex={-1}
           title={hasQuery ? t('transcript.searchJumpTo') : undefined}
           type="button"
         >
           <HighlightedText query={query} text={speakerName} />
         </button>
         <button
-          className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-muted-foreground text-xs tabular-nums leading-none hover:underline"
+          aria-label={
+            hasQuery ? t('transcript.searchJumpTo') : t('transcript.seekAt', { time: timeLabel })
+          }
+          className="shrink-0 cursor-pointer rounded-sm border-0 bg-transparent p-0 text-muted-foreground text-xs tabular-nums leading-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70"
           onClick={openCaption}
           title={hasQuery ? t('transcript.searchJumpTo') : undefined}
           type="button"
         >
-          {formatClock(segment.startMs / 1000)}
+          {timeLabel}
         </button>
       </div>
       <p className="col-start-2 text-left text-sm leading-relaxed [overflow-wrap:anywhere]">
@@ -1722,6 +1820,7 @@ const CaptionRow = memo(function CaptionRow({
             className="w-full cursor-pointer text-left"
             data-testid="transcript-search-jump"
             onClick={openCaption}
+            tabIndex={-1}
             title={t('transcript.searchJumpTo')}
             type="button"
           >
@@ -1751,6 +1850,12 @@ const CaptionRow = memo(function CaptionRow({
           <Pencil />
           {t('transcript.captionEdit')}
         </ContextMenuItem>
+        {canRestore ? (
+          <ContextMenuItem onClick={onRestore}>
+            <RotateCw />
+            {t('learning.corrections.restoreOriginal')}
+          </ContextMenuItem>
+        ) : null}
         <ContextMenuItem onClick={onInsertBefore}>
           {t('transcript.captionInsertBefore')}
         </ContextMenuItem>
@@ -1887,6 +1992,7 @@ function FollowText({
         data-testid={active ? 'transcript-follow-token' : undefined}
         onClick={() => onSeek(segment.startMs / 1000)}
         onDoubleClick={onDoubleClick}
+        tabIndex={-1}
         type="button"
       >
         {segment.text}
@@ -1913,6 +2019,7 @@ function FollowText({
           data-testid={current ? 'transcript-follow-token' : undefined}
           onClick={() => onSeek(seekSecondsForWord(word))}
           onDoubleClick={onDoubleClick}
+          tabIndex={-1}
           title={t('transcript.seekAt', { time: formatClock(word.startMs / 1000) })}
           type="button"
         >

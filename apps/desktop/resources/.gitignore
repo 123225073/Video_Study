@@ -8,6 +8,8 @@ ffmpeg_macos
 ffmpeg_linux
 ffmpeg
 ffmpeg/
+ffmpeg-temp/
+FFMPEG-LICENSE.txt
 ffprobe
 ffprobe.exe
 deno.exe

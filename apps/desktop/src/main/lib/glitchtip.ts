@@ -4,7 +4,6 @@ import {
   shouldDropTelemetryEvent,
   shouldSkipTelemetryError
 } from '../../shared/telemetry/issue-filter'
-import { settingsManager } from '../settings'
 
 declare const __GLITCHTIP_DSN__: string
 declare const __GLITCHTIP_ENVIRONMENT__: string
@@ -33,7 +32,7 @@ const getRelease = (): string => {
 }
 
 const isTelemetryEnabled = (): boolean => {
-  return settingsManager.get('enableAnalytics') !== false
+  return false
 }
 
 const applyScopeContext = (scope: TelemetryScope, context?: TelemetryContext): void => {

@@ -29,7 +29,7 @@ export interface TranscriptPlaybackPresentation {
 export interface TranscriptPlayerControls {
   pause: () => void
   play: () => void
-  seek: (seconds: number) => void
+  seek: (seconds: number) => Promise<void>
   toggle: () => void
 }
 

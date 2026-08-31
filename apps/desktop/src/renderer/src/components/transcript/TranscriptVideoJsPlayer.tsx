@@ -77,7 +77,7 @@ interface TranscriptVideoJsPlayerProps {
   onControlsReady?: (controls: { pause: () => void; play: () => void; toggle: () => void }) => void
   onPlaying?: (playing: boolean) => void
   onRetryPrepare?: () => void
-  onSeekReady: (seek: (seconds: number) => void) => void
+  onSeekReady: (seek: (seconds: number) => Promise<void>) => void
   onTime: (currentTime: number, duration: number) => void
   prepareError?: string | null
   preparing?: boolean
@@ -88,7 +88,7 @@ interface TranscriptVideoJsPlayerProps {
 }
 
 interface PlayerClockBridgeProps {
-  onSeekReady: (seek: (seconds: number) => void) => void
+  onSeekReady: (seek: (seconds: number) => Promise<void>) => void
   onTime: (currentTime: number, duration: number) => void
 }
 
@@ -103,13 +103,27 @@ interface PlayerClockState {
  *
  * Store.seek can no-op before attach; setting currentTime covers that case.
  */
-const seekPlayer = (store: PlayerClockState, media: unknown, seconds: number): void => {
-  if (typeof store.seek === 'function') {
-    void store.seek(seconds)
-  }
-  if (media && typeof media === 'object' && 'currentTime' in media) {
+const seekPlayer = async (
+  store: PlayerClockState,
+  media: unknown,
+  seconds: number
+): Promise<void> => {
+  const hasNativeTarget = Boolean(media && typeof media === 'object' && 'currentTime' in media)
+  if (hasNativeTarget) {
     const element = media as { currentTime: number }
     element.currentTime = seconds
+  }
+  if (typeof store.seek !== 'function') {
+    return
+  }
+  try {
+    await store.seek(seconds)
+  } catch (error) {
+    // The native media element is already a valid seek target while the
+    // Video.js command target can briefly lag behind during route rehoming.
+    if (!(hasNativeTarget && error instanceof Error && error.message === 'NO_TARGET')) {
+      throw error
+    }
   }
 }
 
@@ -255,9 +269,7 @@ function VideoClockBridge({ onSeekReady, onTime }: PlayerClockBridgeProps): Reac
   const store = useVideoPlayer() as unknown as PlayerClockState
   const media = useMedia()
   useEffect(() => {
-    onSeekReady((seconds: number) => {
-      seekPlayer(store, media, seconds)
-    })
+    onSeekReady((seconds: number) => seekPlayer(store, media, seconds))
   }, [media, onSeekReady, store])
 
   useEffect(() => {
@@ -310,9 +322,7 @@ function AudioClockBridge({ onSeekReady, onTime }: PlayerClockBridgeProps): Reac
   const store = useAudioPlayer() as unknown as PlayerClockState
   const media = useMedia()
   useEffect(() => {
-    onSeekReady((seconds: number) => {
-      seekPlayer(store, media, seconds)
-    })
+    onSeekReady((seconds: number) => seekPlayer(store, media, seconds))
   }, [media, onSeekReady, store])
 
   useEffect(() => {

@@ -1,215 +1,159 @@
-<div align="left">
-  <a href="https://github.com/nexmoe/VidBee">
-    <img src="apps/desktop/build/icon.png" alt="Logo" width="80" height="80">
-  </a>
+# 风沙视频学习台
 
-  <h3>VidBee</h3>
-  <p>
-    <a href="https://github.com/nexmoe/VidBee/stargazers"><img src="https://img.shields.io/github/stars/nexmoe/VidBee?color=ffcb47&labelColor=black&logo=github&label=Stars" /></a>
-    <a href="https://github.com/nexmoe/VidBee/graphs/contributors"><img src="https://img.shields.io/github/contributors/nexmoe/VidBee?ogo=github&label=Contributors&labelColor=black" /></a>
-    <a href="https://github.com/nexmoe/VidBee/releases"><img src="https://img.shields.io/github/downloads/nexmoe/VidBee/total?color=369eff&labelColor=black&logo=github&label=Downloads" /></a>
-    <a href="https://github.com/nexmoe/VidBee/releases/latest"><img src="https://img.shields.io/github/v/release/nexmoe/VidBee?color=369eff&labelColor=black&logo=github&label=Latest%20Release" /></a>
-    <a href="https://x.com/intent/follow?screen_name=nexmoe"><img src="https://img.shields.io/badge/Follow-%40nexmoe-1d9bf0?logo=x&labelColor=black" alt="Follow @nexmoe on X" /></a>
-    <a href="https://www.threads.com/@nexmoe"><img src="https://img.shields.io/badge/Follow-%40nexmoe-black?logo=threads&labelColor=black" alt="Follow @nexmoe on Threads" /></a>
-    <a href="https://deepwiki.com/nexmoe/VidBee"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
-    <br />
-    <br />
-    <a href="https://github.com/nexmoe/VidBee" target="_blank"><img src="screenshots/transcript-framed.webp" alt="VidBee searchable transcript with speaker labels" width="46%"/></a>
-    <a href="https://github.com/nexmoe/VidBee" target="_blank"><img src="screenshots/ai-summary-framed.webp" alt="VidBee AI summary generated from a transcript" width="46%"/></a>
-    <br />
-    <br />
-  </p>
-</div>
+把 YouTube、B 站、本地视频或音频变成可检索、可回放、可整理、可输出的个人学习资料。
 
-VidBee is a free, open-source desktop app that turns video and audio into an organized, searchable library. Download media from 1000+ supported sites or import local files. Create transcripts on your computer with speaker labels and timestamped playback, then summarize, translate, or ask questions with the AI provider and prompts you choose. Download queues, RSS subscriptions, flexible exports, and metadata controls keep the whole workflow in one place.
+这是一个 Windows 优先、本地优先的视频学习工具。它把导入、字幕获取、本地转录、时间轴逐字稿、双层笔记、流式 AI 总结、Mermaid 学习图谱、AI 生图和 Obsidian 输出收进同一个学习工作台，尽量减少在播放器、文档和 AI 对话框之间来回切换。
 
-## 👋🏻 Getting Started
+当前版本：`3.2.0`
 
-VidBee is currently under active development, and feedback is welcome for any [issue](https://github.com/nexmoe/VidBee/issues) encountered.
+> 本项目基于开源项目 [VidBee](https://github.com/nexmoe/VidBee) 改造，保留 MIT 许可证及上游版权声明。风沙版重点增加个人视频学习、学习输出和本机浏览器伴侣能力。
 
-[📥 Download VidBee](https://vidbee.org/download/) | [📚 Documentation](https://vidbee.org/docs/)
+## 核心功能
 
-> [!IMPORTANT]
->
-> **Star Us**, You will receive all release notifications from GitHub without any delay ~
+### 视频与逐字稿
 
-If VidBee is useful to you, sharing it is one of the best ways to support the project.
+- 粘贴 YouTube、B 站及其他 yt-dlp 支持的视频链接，或导入本地音视频。
+- 优先读取已有字幕，也可使用 Whisper、SenseVoice 等模型在本机转录。
+- 搜索逐字稿，点击时间戳跳回对应播放位置。
+- 保留重新转录和人工校对历史，可恢复旧版本。
+- 导出 TXT、Markdown、JSON、SRT、VTT 等格式。
 
-> [!IMPORTANT]
->
-> When you post about VidBee on **X** or **Threads**, please mention **@nexmoe** so I can see it and help amplify it:
-> - X: [@nexmoe](https://x.com/nexmoe)
-> - Threads: [@nexmoe](https://www.threads.com/@nexmoe)
-> - GitHub: [@nexmoe](https://github.com/nexmoe)
+### 学习工作台
 
-## ✨ Features
+- 宽屏采用“AI 学习拓展 / 视频与原始逐字稿 / 我的笔记”三栏布局；窄屏再切换观看、笔记和输出场景。
+- “我的笔记”是自由 Markdown；“原文备注”保留选中文案、时间位置、颜色和个人批注，两类内容互不混淆。
+- 选中逐字稿可复制、高亮、加入原文备注、问 AI 或进入金句图流程，结果始终能回到原始视频证据。
+- 本地视频可截取当前画面并加入学习输出。
+- 原始逐字稿不被 AI 润色结果覆盖；人工校对也保留历史和恢复入口。
 
-### 📝 Transcribe locally with the model that fits your computer
+### AI 学习工作流
 
-Create a transcript from a finished download, or import a local audio or video file. Speech recognition runs on your computer, so the media does not need to be uploaded to a transcription service.
+- 内置学习图谱、精华速览、完整总结、模板总结、基于原文的问答、文字大纲、播客脚本、翻译润色和 AI 生图。
+- 总结与思维导图默认可在逐字稿完成后自动运行，其余能力按需调用。
+- 所有文字 AI 结果都在主进程持续执行，以流式 Markdown 显示；切换页面不会中断，用户也可以主动停止或重新生成。
+- Mermaid 使用内置学习图解提示词，生成后先做语法与渲染校验；失败时会把错误反馈给模型并自动修复一次，再显示可视化预览。
+- AI 生图采用“用户需求 → 流式优化提示词 → 图片模型生成 → 本地预览/导出”的链路，默认图片模型为 `gpt-image-2`，也可随服务商配置修改。金句图由图片模型生成背景，再由本地画布准确排版中文原句。
+- 每个工作流都有可直接使用的默认系统提示词，并允许在设置中修改或恢复默认值。
+- 支持项目原有的 OpenAI、DeepSeek、Anthropic、Google、Ollama、LM Studio 等模型服务。
+- AI 历史以非破坏方式追加，保留生成时间和版本。
 
-- Choose from local **Whisper**, **SenseVoice**, **Parakeet**, and **Qwen3-ASR** model families. VidBee can recommend a model for your computer and language, and you can download or switch models from Settings.
-- Start transcription automatically after a download and set how many transcript jobs may run at once.
-- Use source captions when available, or run local speech recognition when you need a new transcript.
-- Detect speakers automatically, or set a fixed speaker count and re-label the conversation without changing the recognized words.
-- Search spoken text or speaker names, click a timestamp, and continue playback from that exact moment.
-- Copy the transcript, export plain text or Markdown, or create a new video with selectable or burned-in captions.
+### Obsidian 输出
 
-![VidBee searchable transcript with four identified speakers](screenshots/transcript-framed.webp)
+- 把学习文稿、笔记、AI 结果和图片写入指定 Obsidian Vault。
+- 使用受管理区域更新已导出的内容，避免静默覆盖普通同名笔记。
+- 校验目录穿越、Windows 保留名称、非法路径和符号链接越界。
 
-> [!NOTE]
->
-> **Local transcription, provider-controlled AI.** Speech recognition runs on your computer. When you run an AI prompt, the prompt and transcript content go to the provider you selected. Choose Ollama, LM Studio, or another local endpoint to keep the AI step on your computer too.
+### 浏览器学习伴侣
 
-### 🧠 Ask AI with the provider and prompts you choose
+- Chrome / Edge Manifest V3 扩展，支持 YouTube、B 站和通用 HTML5 视频页面。
+- 主动读取当前播放时间、可用字幕和用户选中文字，并发送到桌面学习台。
+- 可记录时间点或截取当前视频画面。
+- 只连接 `127.0.0.1`，使用一次性配对码和本机 Bearer Token；没有常驻网页脚本。
 
-Run AI prompts against the transcript without leaving VidBee. Built-in prompts can create bullet summaries, clean up grammar, generate FAQs, extract statistics, build mind maps, paraphrase text, or translate the transcript.
+浏览器伴侣的协议、权限和安装说明见 [apps/extension/README.md](apps/extension/README.md)。
 
-- Connect OpenAI, Anthropic, Google, DeepSeek, Groq, Azure, Hugging Face, OpenRouter, xAI, Ollama, or LM Studio.
-- Add a custom provider with your own name, Base URL, model ID, and API key, then test the connection before using it.
-- Create your own prompts with a title, icon, and instructions. Edit the built-in prompts, test them with a sample transcript, or restore the defaults.
-- Switch the active provider without changing your prompt library. API keys are stored on your computer.
+## 运行要求
 
-![VidBee AI-generated transcript summary](screenshots/ai-summary-framed.webp)
+### 普通使用
 
-### 📥 Download and organize video or audio
+- Windows 10/11 x64。
+- 本地转录需要额外磁盘空间；模型会在首次使用时下载。
+- 在线视频下载能力受平台规则、登录状态、地区和 Cookies 有效期影响。
+- AI 功能需要用户自行配置模型服务；也可以配置 Ollama 或 LM Studio 等本地服务。
 
-Save video, audio, playlists, and channels from 1000+ supported sites. Paste one link or add a batch, then manage everything from the same desktop queue.
+### 开发环境
 
-- Track active, completed, and failed downloads in one place.
-- See live progress, speed, file size, and the format being saved.
-- Pause, resume, retry, or remove tasks without rebuilding the queue.
-- Use one-click defaults when you want a fast download, or choose formats for a specific item.
+- Node.js：版本以仓库根目录 `.node-version` 为准。
+- pnpm / Corepack。
+- Windows 打包需要 PowerShell。
 
-![VidBee download queue with active and completed media](screenshots/downloads-framed.webp)
+## 安装与运行
 
-### 📡 Follow creators with configurable RSS subscriptions
+安装依赖并启动桌面开发版：
 
-Subscribe to RSS feeds and let VidBee check for new items and add them to your download queue. Each subscription can use its own rules, so regular releases do not need the same manual setup every time.
-
-- Turn automatic downloads on or keep new items ready for manual review.
-- Filter feed items by keywords, add automatic tags, and download only the latest item when you do not want the backlog.
-- Choose a custom directory and filename template for each subscription.
-- See whether each feed item is queued, downloading, completed, failed, or still waiting.
-
-![VidBee RSS subscriptions and queued feed items](screenshots/rss-framed.webp)
-
-### 🏷️ Control formats, filenames, and metadata
-
-Choose **Auto (MP4/MKV)**, **MP4**, **MKV**, **WebM**, or **Original** for video downloads, or save audio separately. VidBee also lets you control what is written into the finished file.
-
-- Embed the source title, artist, and other available metadata.
-- Add the thumbnail as cover art, keep chapter markers, and include source or automatically generated subtitles when available.
-- Choose a filename style, decide whether to use channel subfolders, and set the default download location.
-- Keep simple defaults for everyday downloads while using custom filename templates for playlists or RSS subscriptions.
-
-See [Formats & Containers](https://vidbee.org/docs/formats/) for details.
-
-## 🎬 Built for real media workflows
-
-| Working with | VidBee helps you |
-| --- | --- |
-| Interviews | Separate speakers, find a quote, jump back to its timestamp, and export the transcript. |
-| Podcasts | Create a searchable episode transcript, summarize the discussion, and use RSS to keep new episodes organized. |
-| Lectures | Search for an explanation, translate the transcript, and turn a long recording into structured notes. |
-| YouTube and saved videos | Download from a supported page or import a local file, preserve available captions and metadata, and manage everything in one queue. |
-
-## 🌐 Supported Sites
-
-VidBee works with 1000+ supported video and audio sites. Browse the current list at [vidbee.org/supported-sites](https://vidbee.org/supported-sites/).
-
-## 🧱 Web + API (Docker-ready)
-
-This monorepo now includes:
-
-- `packages/downloader-core`: Shared yt-dlp/ffmpeg download core
-- `apps/api`: Fastify API server with oRPC and SSE events
-- `apps/web`: TanStack Start web client using oRPC
-
-Run locally:
-
-```bash
-pnpm run start:web
+```powershell
+corepack enable
+pnpm install
+pnpm run dev
 ```
 
-This command starts `apps/api` and `apps/web` together.
+构建桌面端：
 
-Run with Docker:
-
-```bash
-docker compose up -d --build
+```powershell
+pnpm run build
 ```
 
-Run with GitHub Container Registry images:
+生成 Windows 安装包、免安装版和便携目录压缩包：
 
-```yaml
-services:
-  api:
-    image: ghcr.io/nexmoe/vidbee-api:latest
-    environment:
-      VIDBEE_API_HOST: 0.0.0.0
-      VIDBEE_API_PORT: 3100
-      VIDBEE_DOWNLOAD_DIR: /data/downloads
-      VIDBEE_HISTORY_STORE_PATH: /data/vidbee/vidbee.db
-    ports:
-      - "3100:3100"
-    volumes:
-      # Replace the named volume with /path/on/your/NAS:/data/downloads
-      # when downloaded files must be directly visible on the host.
-      - vidbee-downloads:/data/downloads
-      - vidbee-data:/data/vidbee
-    restart: unless-stopped
-
-  web:
-    image: ghcr.io/nexmoe/vidbee-web:latest
-    depends_on:
-      - api
-    ports:
-      - "3000:3000"
-    restart: unless-stopped
-
-volumes:
-  vidbee-downloads:
-  vidbee-data:
+```powershell
+pnpm run build:win
 ```
 
-Stop services:
+构建浏览器伴侣：
 
-```bash
-docker compose down
+```powershell
+pnpm run build:extension
+pnpm run zip:extension
 ```
 
-Optional env vars (via `.env`):
+## 推荐使用流程
 
-```bash
-VIDBEE_API_PORT=3100
-VIDBEE_WEB_PORT=3000
-# Optional host or NAS bind mount. The named volume remains the default.
-VIDBEE_DOWNLOAD_DIR_HOST=/path/on/your/NAS/downloads
+1. 粘贴视频链接，或从首页导入本地媒体。
+2. 使用来源字幕或本地模型生成逐字稿。
+3. 进入“学习资料库”，打开资料并点击时间戳边看边记。
+4. 让总结、思维导图在转录完成后自动生成，或从“学习输出”按需生成其他学习内容。
+5. 选中逐字稿进行高亮、备注、问 AI 或生成金句图，再按自己的表达习惯修改。
+6. 导出字幕、Markdown、PNG，或安全写入 Obsidian。
+
+完整的非开发者使用说明见 [风沙视频学习台-使用说明.md](风沙视频学习台-使用说明.md)。
+
+## 质量验证
+
+```powershell
+pnpm run check
+pnpm --filter ./apps/desktop run test:learning
+pnpm --filter ./apps/desktop run test:ai-image
+pnpm --filter ./apps/desktop run test:quit-security
+pnpm --filter ./apps/desktop run test:e2e:learning
+pnpm --filter ./apps/desktop exec tsx scripts/test-security-boundaries.ts
+node apps/desktop/scripts/test-local-api-security.mjs
+node apps/desktop/scripts/test-local-api-shutdown-contract.mjs
+Get-ChildItem apps/extension/tests -Filter *.test.mjs | ForEach-Object { node --experimental-strip-types --test $_.FullName }
+pnpm run build:extension
 ```
 
-## 🤝 Contributing
+`test:learning` 覆盖学习数据迁移、笔记与 AI 内容块并发写入、损坏文件恢复、提示词更新、严格 Mermaid 解析、转录源恢复和 Obsidian 路径安全等场景。生图协议测试覆盖流式局部图、兼容回退、停止、替换任务、远程图片本地化、SSRF 防护和敏感信息脱敏。端到端脚本会验证创建首页、学习资料库、宽屏三栏、双层笔记持久化、Mermaid 实际渲染、AI 模块、紧凑窗口以及浏览器伴侣的本机配对协议。
 
-You are welcome to join the open source community to build together. For more details, check out:
+## 数据与隐私
 
-- Monorepo apps:
-  - `apps/desktop`: VidBee desktop app
-  - `apps/extension`: Browser extension (WXT)
-  - Documentation: [vidbee.org/docs](https://vidbee.org/docs/)
-  - `apps/desktop/docs/glitchtip.md`: GlitchTip and `sentry-cli` setup for desktop monitoring
-- [Contributing Guide](./CONTRIBUTING.md)
-- [DeepWiki Documentation](https://deepwiki.com/nexmoe/VidBee)
+- 设置、数据库和学习笔记默认保存在 `%APPDATA%\fengsha-video-learning\`。
+- 本地转录不会把媒体上传到第三方转录服务。
+- 当已启用的自动工作流或用户按需生成内容时，逐字稿、所选片段和相关笔记会发送给用户配置的模型服务；使用本地模型服务时数据仍留在本机环境。
+- 浏览器扩展只有在用户点击并执行采集时才临时读取当前标签页。
+- `.gitignore` 排除了构建产物、测试用户目录、媒体、日志、密钥和本地数据。
 
-## 📄 License
+## 当前边界
 
-This project is distributed under the MIT License. See [`LICENSE`](LICENSE) for details.
+- 桌面端采用“导入链接或文件后学习”的主流程，不是在网页视频上持续覆盖双语字幕的悬浮插件。
+- 当前 AI 翻译以完整学习产物呈现，尚未逐句写回播放器形成实时双语字幕覆盖。
+- 网盘 OAuth 导入、应用内录制和纯空白笔记目前是明确标注的能力预留；本地上传、链接解析和浏览器助手已可使用，不会用假成功占位。
+- 对外分享和共享知识库已保留数据边界，但当前版本不发布或同步用户内容。
+- 浏览器伴侣可以主动采集当前字幕、时间点和画面，但不会持续监听浏览历史。
+- DRM、跨域 iframe、浏览器保护页或平台 DOM 更新可能让网页字幕不可读取；此时仍可把页面链接发送到桌面端。
+- 自动更新已关闭，避免连接上游 VidBee 发布通道；风沙版需要手动覆盖安装新版本。
+- 本仓库不提交 Windows 安装包、模型、下载媒体、测试截图或真实用户数据。
 
-## 🙏 Thanks
+## 仓库结构
 
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - The powerful video downloader engine
-- [FFmpeg](https://ffmpeg.org/) - The multimedia framework for video and audio processing
-- [Electron](https://www.electronjs.org/) - Build cross-platform desktop apps
-- [React](https://react.dev/) - The UI library
-- [Vite](https://vitejs.dev/) - Next generation frontend tooling
-- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
-- [shadcn/ui](https://ui.shadcn.com/) - Beautifully designed components
+- `apps/desktop`：Electron 桌面端。
+- `apps/extension`：Chrome / Edge 浏览器学习伴侣。
+- `apps/web`、`apps/api`：上游保留的 Web 与 API 应用。
+- `packages`：共享 UI、下载与基础模块。
+
+## 许可证与归属
+
+本项目使用 [MIT License](LICENSE)。原始 VidBee 代码版权归原作者及贡献者所有；新增的风沙视频学习功能在相同许可证下发布。
+
+Windows 安装包内含独立运行的 FFmpeg GPLv3 构建。许可证、构建来源、哈希和对应源码提供说明见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)；打包流程会把 FFmpeg 随附许可证复制到最终安装目录。
+
+仓库：[github.com/123225073/Video_Study](https://github.com/123225073/Video_Study)

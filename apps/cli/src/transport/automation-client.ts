@@ -23,13 +23,15 @@
  *   - token within `expiresAtSlackMs` of expiry
  */
 
-import type { Task, AddTaskRequest } from '@vidbee/task-queue'
+import type { AddTaskRequest, Task } from '@vidbee/task-queue'
 
 import type { ContractClient, ListInput } from '../subcommands'
 
 export interface AutomationClientOptions {
   /** Base URL such as `http://127.0.0.1:27100` (no trailing slash, no path). */
   baseUrl: string
+  /** Per-process secret read from the Desktop automation descriptor. */
+  handshakeSecret?: string
   /** Pre-supplied bearer token (e.g. from `--vidbee-token` or env). */
   token?: string
   /** Skip handshake; only legal when `token` is provided. */
@@ -77,6 +79,7 @@ export class AutomationClient implements ContractClient {
   private readonly clock: () => number
   private readonly requestTimeoutMs: number
   private readonly expiresAtSlackMs: number
+  private readonly handshakeSecret: string | null
   private readonly skipHandshake: boolean
   private token: string | null
   private tokenExpiresAt: number | null
@@ -87,6 +90,7 @@ export class AutomationClient implements ContractClient {
     this.clock = opts.clock ?? Date.now
     this.requestTimeoutMs = opts.requestTimeoutMs ?? 30_000
     this.expiresAtSlackMs = opts.expiresAtSlackMs ?? 60_000
+    this.handshakeSecret = opts.handshakeSecret ?? null
     this.skipHandshake = opts.skipHandshake ?? false
     this.token = opts.token ?? null
     this.tokenExpiresAt = opts.token ? Number.POSITIVE_INFINITY : null
@@ -95,7 +99,9 @@ export class AutomationClient implements ContractClient {
   // ───────────── Handshake ─────────────
 
   async handshake(): Promise<HandshakeResponse> {
-    const res = await this.rawFetch('POST', '/automation/v1/handshake', {})
+    const res = await this.rawFetch('POST', '/automation/v1/handshake', {
+      ...(this.handshakeSecret ? { handshakeSecret: this.handshakeSecret } : {})
+    })
     if (!res.ok) {
       throw new AutomationHttpError(
         'API_UNREACHABLE',

@@ -20,6 +20,7 @@ export const idlePromptRunSnapshot = (
 ): AiPromptRunSnapshot => ({
   downloadId,
   promptId,
+  startedAt: now,
   status: 'idle',
   text: '',
   thinking: '',

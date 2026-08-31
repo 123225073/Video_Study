@@ -24,44 +24,44 @@ const MIN_VISIBLE_RANGE_PERCENT = 0.4
 
 export const SPEAKER_COLOR_PALETTE: SpeakerColorClasses[] = [
   {
-    avatar: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
-    bar: 'bg-sky-500',
-    ring: 'ring-sky-500/50'
-  },
-  {
-    avatar: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-    bar: 'bg-emerald-500',
-    ring: 'ring-emerald-500/50'
-  },
-  {
-    avatar: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
-    bar: 'bg-violet-500',
-    ring: 'ring-violet-500/50'
-  },
-  {
     avatar: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
     bar: 'bg-amber-500',
     ring: 'ring-amber-500/50'
   },
   {
-    avatar: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
-    bar: 'bg-rose-500',
-    ring: 'ring-rose-500/50'
+    avatar: 'bg-[#7f8c63]/15 text-[#55613f] dark:text-[#b7c295]',
+    bar: 'bg-[#7f8c63]',
+    ring: 'ring-[#7f8c63]/50'
   },
   {
-    avatar: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300',
-    bar: 'bg-cyan-500',
-    ring: 'ring-cyan-500/50'
+    avatar: 'bg-[#b76645]/15 text-[#8b452d] dark:text-[#dca387]',
+    bar: 'bg-[#b76645]',
+    ring: 'ring-[#b76645]/50'
   },
   {
-    avatar: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
-    bar: 'bg-orange-500',
-    ring: 'ring-orange-500/50'
+    avatar: 'bg-[#846277]/15 text-[#654858] dark:text-[#c6a5b8]',
+    bar: 'bg-[#846277]',
+    ring: 'ring-[#846277]/50'
   },
   {
-    avatar: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
-    bar: 'bg-indigo-500',
-    ring: 'ring-indigo-500/50'
+    avatar: 'bg-[#6f7778]/15 text-[#50595a] dark:text-[#b2bcbd]',
+    bar: 'bg-[#6f7778]',
+    ring: 'ring-[#6f7778]/50'
+  },
+  {
+    avatar: 'bg-[#a88332]/15 text-[#765d20] dark:text-[#d7bd78]',
+    bar: 'bg-[#a88332]',
+    ring: 'ring-[#a88332]/50'
+  },
+  {
+    avatar: 'bg-[#587b76]/15 text-[#3f5f5b] dark:text-[#9cc0bb]',
+    bar: 'bg-[#587b76]',
+    ring: 'ring-[#587b76]/50'
+  },
+  {
+    avatar: 'bg-[#9a5b42]/15 text-[#743f2d] dark:text-[#cf9b85]',
+    bar: 'bg-[#9a5b42]',
+    ring: 'ring-[#9a5b42]/50'
   }
 ]
 

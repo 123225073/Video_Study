@@ -59,6 +59,31 @@ export interface AiProviderWriteInput {
   apiKey?: string
 }
 
+/** Authentication supported by OpenAI-compatible image endpoints. */
+export type AiImageAuthType = 'bearer' | 'api-key' | 'none'
+
+/** Public image-generation configuration. Its API key stays in the main process. */
+export interface AiImageProviderConfig {
+  provider: 'openai' | 'openai-compatible'
+  baseUrl: string
+  modelId: string
+  authType: AiImageAuthType
+  apiKeyHeader: string
+  hasApiKey: boolean
+  updatedAt: number
+}
+
+/** Renderer payload for the independent image-generation provider. */
+export interface AiImageProviderWriteInput {
+  provider: 'openai' | 'openai-compatible'
+  baseUrl: string
+  modelId: string
+  authType: AiImageAuthType
+  apiKeyHeader?: string
+  /** Empty on update keeps the sealed key already stored by the main process. */
+  apiKey?: string
+}
+
 /** User-editable prompt used with a transcript. */
 export interface AiPrompt {
   id: string
@@ -108,6 +133,8 @@ export interface AiProviderTestResult {
 export interface AiPromptRunSnapshot {
   downloadId: string
   promptId: string
+  /** Immutable start time used to reject stale completion events and metadata races. */
+  startedAt: number
   status: AiPromptRunStatus
   text: string
   /** Model reasoning, shown in ThinkingSteps instead of Streamdown. */
@@ -128,9 +155,55 @@ export interface AiPromptRunInput {
   uiLanguage?: string
 }
 
+/** Image sizes supported by GPT Image models and compatible endpoints. */
+export type AiImageSize = '1024x1024' | '1536x1024' | '1024x1536' | 'auto'
+
+/** Image quality accepted by the OpenAI Image API. */
+export type AiImageQuality = 'low' | 'medium' | 'high' | 'auto'
+
+/** Coarse progress stages shown while an image request is running. */
+export type AiImageRunStage = 'idle' | 'requesting' | 'generating' | 'partial' | 'completed'
+
+/** Immutable user intent captured when an image run starts. */
+export interface AiImageRunContext {
+  kind: 'cover' | 'logic' | 'quote'
+  optimizedPrompt: string
+  quote: string
+}
+
+/** Input for one Image API generation. Only one image run is active per download. */
+export interface AiImageRunInput {
+  downloadId: string
+  context: AiImageRunContext
+  size?: AiImageSize
+  quality?: AiImageQuality
+}
+
+/** Restorable in-process snapshot broadcast on `ai:image-run`. */
+export interface AiImageRunSnapshot {
+  downloadId: string
+  /** Changes for every start so renderers can ignore events from replaced runs. */
+  runId: string
+  startedAt: number
+  status: AiPromptRunStatus
+  stage: AiImageRunStage
+  modelId: string
+  /** Frozen start-time intent so tab changes cannot relabel a completed image. */
+  context: AiImageRunContext | null
+  /** Short Markdown-safe progress text; image bytes are never included here. */
+  progressText: string
+  /** Latest partial image while running, and final image once completed. */
+  imageDataUrl: string | null
+  partialImageIndex: number
+  error: string | null
+  errorCode: AiPromptErrorCode | null
+  updatedAt: number
+}
+
 /** Providers and prompts returned together for settings pages. */
 export interface AiSettingsSnapshot {
   activeProviderId: string | null
+  imageProvider: AiImageProviderConfig
   providers: AiProviderConfig[]
   prompts: AiPrompt[]
 }

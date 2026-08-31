@@ -6,6 +6,12 @@
  */
 
 .transcript-player {
+  --default-accent-color: var(--learning-accent);
+  --focus-ring-color: color-mix(
+    in oklch,
+    var(--learning-accent) 62%,
+    transparent
+  );
   --media-border-radius: 0px;
 }
 
@@ -85,7 +91,7 @@
 }
 
 .transcript-player--audio .media-default-skin--audio {
-  --default-accent-color: var(--foreground);
+  --default-accent-color: var(--learning-accent);
   --text-color: var(--foreground);
   --focus-ring-color: var(--ring);
   height: auto;

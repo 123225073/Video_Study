@@ -2,9 +2,11 @@ import { createServices, type MergeIpcService } from 'electron-ipc-decorator'
 import { AiService } from './services/ai-service'
 import { AppService } from './services/app-service'
 import { BrowserCookiesService } from './services/browser-cookies-service'
+import { CompanionService } from './services/companion-service'
 import { DownloadService } from './services/download-service'
 import { FileSystemService } from './services/file-system-service'
 import { HistoryService } from './services/history-service'
+import { LearningService } from './services/learning-service'
 import { PlayerService } from './services/player-service'
 import { SettingsService } from './services/settings-service'
 import { SubscriptionService } from './services/subscription-service'
@@ -18,9 +20,11 @@ export const services = createServices([
   AiService,
   AppService,
   BrowserCookiesService,
+  CompanionService,
   DownloadService,
   FileSystemService,
   HistoryService,
+  LearningService,
   PlayerService,
   SettingsService,
   SubscriptionService,

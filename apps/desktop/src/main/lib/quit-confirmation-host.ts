@@ -2,6 +2,7 @@ import { type TranslationDictionary, translationResources } from '@vidbee/i18n'
 import { normalizeLanguageCode } from '@vidbee/i18n/languages'
 import { app, BrowserWindow, dialog } from 'electron'
 import { settingsManager } from '../settings'
+import { countActiveAiRuns, stopAllActiveAiRuns } from './ai-active-runs'
 import { peekDesktopTaskQueueRef } from './queue-ref'
 import {
   buildQuitConfirmCopy,
@@ -11,7 +12,7 @@ import {
 } from './quit-confirmation'
 
 const FALLBACK_COPY: QuitConfirmStrings = {
-  title: 'Quit VidBee?',
+  title: '退出风沙视频学习台？',
   message: '{{count}} task is still in progress. Quitting will interrupt it.',
   messagePlural: '{{count}} tasks are still in progress. Quitting will interrupt them.',
   quit: 'Quit',
@@ -37,14 +38,12 @@ const loadQuitConfirmStrings = (): QuitConfirmStrings => {
 }
 
 /**
- * Count in-progress queue tasks, or 0 when the queue is not ready.
+ * Count all work that would be interrupted by quit.
  */
 const readInProgressTaskCount = (): number => {
   const queue = peekDesktopTaskQueueRef()
-  if (!queue) {
-    return 0
-  }
-  return countInProgressTasks(queue.stats().byStatus)
+  const queuedWork = queue ? countInProgressTasks(queue.stats().byStatus) : 0
+  return queuedWork + countActiveAiRuns()
 }
 
 /**
@@ -91,3 +90,11 @@ export const allowAppQuit = (): void => {
  * Returns true when the caller should preventDefault and wait.
  */
 export const deferAppQuitIfNeeded = (): boolean => controller.handleQuitAttempt() === 'defer'
+
+/**
+ * Stop AI transports after a quit has been allowed.
+ *
+ * Text runs persist their latest streamed answer before aborting. Image runs
+ * publish an explicit aborted state instead of failing later during teardown.
+ */
+export const stopActiveAiRunsForQuit = (): number => stopAllActiveAiRuns()

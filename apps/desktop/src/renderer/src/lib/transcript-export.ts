@@ -1,5 +1,5 @@
 export type TranscriptExportStyle = 'transcript' | 'subtitles' | 'segments' | 'whisper' | 'video'
-export type TranscriptExportFormat = 'txt' | 'md'
+export type TranscriptExportFormat = 'txt' | 'md' | 'srt' | 'vtt'
 export type TranscriptVideoEncode = 'soft' | 'hard'
 export type TranscriptExportGrouping = 'none' | 'words' | 'sentences'
 export type TranscriptExportFileExtension = TranscriptExportFormat | 'mkv' | 'mp4'
@@ -57,6 +57,11 @@ export const formatSrtClock = (ms: number): string => {
   const millis = total % 1000
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')},${String(millis).padStart(3, '0')}`
 }
+
+/**
+ * Format a cue timestamp as `HH:MM:SS.mmm` for WebVTT files.
+ */
+export const formatVttClock = (ms: number): string => formatSrtClock(ms).replace(',', '.')
 
 /**
  * Format a cue timestamp as `H:MM:SS.cc` for ASS dialogue lines.
@@ -245,6 +250,17 @@ export const buildSrtDocument = (units: TranscriptExportUnit[]): string =>
     .join('\n\n')
 
 /**
+ * Build a WebVTT document from export units.
+ */
+export const buildVttDocument = (units: TranscriptExportUnit[]): string => {
+  const cues = units.map((unit) => {
+    const range = `${formatVttClock(unit.startMs)} --> ${formatVttClock(unit.endMs)}`
+    return `${range}\n${unit.text}`
+  })
+  return ['WEBVTT', ...cues].join('\n\n')
+}
+
+/**
  * Build an ASS document used when burning captions into video.
  */
 export const buildAssDocument = (units: TranscriptExportUnit[]): string => {
@@ -278,6 +294,12 @@ export const buildTranscriptExportText = (input: BuildTranscriptExportInput): st
   const units = buildExportUnits(input.segments, input.grouping)
   if (input.style === 'video') {
     return buildSrtDocument(units)
+  }
+  if (input.format === 'srt') {
+    return buildSrtDocument(units)
+  }
+  if (input.format === 'vtt') {
+    return buildVttDocument(units)
   }
   return units.map((unit, index) => renderUnit(unit, index, input)).join('\n\n')
 }

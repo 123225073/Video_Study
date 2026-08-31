@@ -174,7 +174,7 @@ export function AppSidebar({
     <DragRegion
       asChild
       className={cn(
-        'flex w-20 min-w-20 max-w-20 flex-col items-center gap-2 border-border/60 border-r bg-background/77 py-4',
+        'flex w-20 min-w-20 max-w-20 flex-col items-center gap-2 overflow-y-auto overscroll-contain border-border/60 border-r bg-background/77 py-4',
         className
       )}
     >

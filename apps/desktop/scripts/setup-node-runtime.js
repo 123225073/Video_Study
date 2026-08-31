@@ -113,7 +113,7 @@ const nodeVersionOk = (bin, expected) => {
   return (result.stdout || '').trim() === `v${expected}`
 }
 
-const fetchAsset = async (key, destBin) => {
+const fetchAsset = async (key, destBin, destLicense) => {
   const asset = lock.assets[key]
   if (!asset) {
     throw new Error(`no locked Node asset for ${key}`)
@@ -129,11 +129,22 @@ const fetchAsset = async (key, destBin) => {
     }
     extractArchive(archive, extractDir)
     const source = join(extractDir, asset.innerBin)
+    const sourceLicense = join(extractDir, dirname(asset.innerBin), 'LICENSE')
     if (!existsSync(source)) {
       throw new Error(`node binary missing in archive: ${source}`)
     }
+    if (!existsSync(sourceLicense)) {
+      throw new Error(`Node license missing in archive: ${sourceLicense}`)
+    }
     mkdirSync(dirname(destBin), { recursive: true })
+    if (existsSync(destBin)) {
+      unlinkSync(destBin)
+    }
     moveFile(source, destBin)
+    if (existsSync(destLicense)) {
+      unlinkSync(destLicense)
+    }
+    moveFile(sourceLicense, destLicense)
     if (process.platform !== 'win32') {
       execFileSync('chmod', ['755', destBin])
     }
@@ -149,11 +160,17 @@ const fetchAsset = async (key, destBin) => {
 
 export const downloadNodeRuntime = async () => {
   const dest = join(NODE_DIR, outputName())
+  const destLicense = join(NODE_DIR, 'LICENSE')
   const universal =
     process.platform === 'darwin' &&
     (process.env.VIDBEE_MAC_NODE_MODE || process.env.VIDBEE_MAC_FFMPEG_MODE) === 'universal'
 
-  if (existsSync(dest) && nodeVersionOk(dest, lock.version) && !universal) {
+  if (
+    existsSync(dest) &&
+    existsSync(destLicense) &&
+    nodeVersionOk(dest, lock.version) &&
+    !universal
+  ) {
     log.log(`📦 node ${lock.version} already exists, skipping download`)
     return dest
   }
@@ -163,18 +180,21 @@ export const downloadNodeRuntime = async () => {
   if (universal) {
     const arm = join(NODE_DIR, 'node-arm64')
     const x64 = join(NODE_DIR, 'node-x64')
-    await fetchAsset('darwin-arm64', arm)
-    await fetchAsset('darwin-x64', x64)
+    await fetchAsset('darwin-arm64', arm, destLicense)
+    await fetchAsset('darwin-x64', x64, destLicense)
     execFileSync('lipo', ['-create', arm, x64, '-output', dest])
     execFileSync('chmod', ['755', dest])
     unlinkSync(arm)
     unlinkSync(x64)
   } else {
-    await fetchAsset(platformKey(), dest)
+    await fetchAsset(platformKey(), dest, destLicense)
   }
 
   if (!nodeVersionOk(dest, lock.version)) {
     throw new Error(`bundled node failed version check (want v${lock.version})`)
+  }
+  if (!existsSync(destLicense)) {
+    throw new Error('bundled Node license is missing')
   }
   log.log(`✅ Bundled Node ${lock.version} ready at ${dest}`)
   return dest

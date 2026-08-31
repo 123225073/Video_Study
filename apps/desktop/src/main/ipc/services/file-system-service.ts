@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { BrowserWindow, clipboard, dialog, Notification, ShareMenu, shell } from 'electron'
 import { type IpcContext, IpcMethod, IpcService } from 'electron-ipc-decorator'
+import { isSafeExternalUrl } from '../../lib/external-navigation'
 import { mediaFileDialogFilters } from '../../lib/import-local-media'
 import { getPortableDownloadsPath, isPortableMode } from '../../portable'
 import { scopedLoggers } from '../../utils/logger'
@@ -105,7 +106,14 @@ class FileSystemService extends IpcService {
     const fileName = path.basename(options.defaultFileName || 'transcript.txt')
     const defaultPath = path.join(this.getDefaultDownloadPath(_context), fileName)
     const extension = path.extname(fileName).replace('.', '') || 'txt'
-    const filterName = extension === 'md' ? 'Markdown' : 'Text'
+    const filterName =
+      extension === 'md'
+        ? 'Markdown'
+        : extension === 'srt'
+          ? 'SubRip subtitle'
+          : extension === 'vtt'
+            ? 'WebVTT subtitle'
+            : 'Text'
     const saveOptions = {
       defaultPath,
       filters: [{ extensions: [extension], name: filterName }]
@@ -135,7 +143,7 @@ class FileSystemService extends IpcService {
     _context: IpcContext,
     options: { data: ArrayBuffer; defaultFileName: string }
   ): Promise<{ path: string } | null> {
-    let fileName = path.basename(options.defaultFileName || 'VidBee.png')
+    let fileName = path.basename(options.defaultFileName || '风沙视频学习台.png')
     if (!fileName.toLowerCase().endsWith('.png')) {
       fileName = `${fileName}.png`
     }
@@ -173,7 +181,9 @@ class FileSystemService extends IpcService {
       return false
     }
 
-    const fileName = path.basename(options.fileName || 'VidBee.png').replace(/[<>:"/\\|?*]+/g, '_')
+    const fileName = path
+      .basename(options.fileName || '风沙视频学习台.png')
+      .replace(/[<>:"/\\|?*]+/g, '_')
     const tempPath = path.join(os.tmpdir(), `vidbee-share-${process.pid}-${Date.now()}-${fileName}`)
 
     try {
@@ -399,6 +409,10 @@ class FileSystemService extends IpcService {
 
   @IpcMethod()
   async openExternal(_context: IpcContext, url: string): Promise<boolean> {
+    if (!isSafeExternalUrl(url)) {
+      scopedLoggers.system.warn('Blocked unsafe external URL from IPC')
+      return false
+    }
     try {
       await shell.openExternal(url)
       return true

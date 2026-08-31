@@ -29,7 +29,6 @@ import {
   LOCAL_DOWNLOAD_PLATFORM_KEY,
   resolveDownloadPlatform
 } from '@vidbee/ui/lib/download-platform'
-import { isListIgnoreTarget } from '@vidbee/ui/lib/list-marquee'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
   AlertCircle,
@@ -700,8 +699,6 @@ export function DownloadItem({
   return (
     <ContextMenu onOpenChange={setIsContextMenuOpen}>
       <ContextMenuTrigger asChild>
-        {/* biome-ignore lint/a11y/noStaticElementInteractions: composite row with nested controls; click opens transcript */}
-        {/* biome-ignore lint/a11y/useKeyWithClickEvents: nested buttons and checkbox own keyboard focus */}
         <div
           aria-current={isNowPlaying ? 'true' : undefined}
           className={`group relative w-full max-w-full cursor-pointer overflow-hidden px-6 py-2 text-left transition-colors ${
@@ -710,13 +707,13 @@ export function DownloadItem({
           data-download-id={download.id}
           data-download-selectable={selectionEnabled ? 'true' : undefined}
           data-now-playing={isNowPlaying ? 'true' : undefined}
-          onClick={(event) => {
-            if (isListIgnoreTarget(event.target)) {
-              return
-            }
-            handleOpenTranscript()
-          }}
         >
+          <button
+            aria-label={t('transcript.library.open', { title: download.title })}
+            className="absolute inset-0 z-10 cursor-pointer bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset"
+            onClick={handleOpenTranscript}
+            type="button"
+          />
           <div className="flex w-full items-start gap-3">
             {/* Thumbnail */}
             <div className="pointer-events-none relative z-20 aspect-video h-14 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-background/60">
@@ -1005,7 +1002,7 @@ export function DownloadItem({
                     {displayErrorMessage}
                   </p>
                   {cookieFailureKind ? (
-                    <div className="pointer-events-auto">
+                    <div className="pointer-events-auto relative z-20">
                       <Button
                         className="h-7 px-2 text-[11px]"
                         onClick={(event) => {
@@ -1021,7 +1018,7 @@ export function DownloadItem({
                       </Button>
                     </div>
                   ) : null}
-                  <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 text-muted-foreground text-xs">
+                  <div className="pointer-events-auto relative z-20 flex flex-wrap items-center gap-1.5 text-muted-foreground text-xs">
                     <span className="shrink-0 font-medium text-muted-foreground text-xs">
                       {t('download.feedback.title')}:
                     </span>

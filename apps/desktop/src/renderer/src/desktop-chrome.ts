@@ -4,6 +4,7 @@ export interface DesktopChromeContextValue {
   appVersion: string
   onOpenAbout: () => void
   onOpenCookiesSettings: () => void
+  onOpenLearning: () => void
   onOpenSettings: () => void
   onOpenSupportedSites: () => void
   setTitleBar: (content: ReactNode) => void

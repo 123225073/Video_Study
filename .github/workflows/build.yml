@@ -119,6 +119,17 @@ jobs:
         # provider does not derive the channel from the version on its own).
         run: node apps/desktop/scripts/stamp-release.mjs "${GITHUB_REF_NAME}"
 
+      - name: Run Windows learning release gates
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          pnpm --filter ./apps/desktop run test:learning
+          pnpm --filter ./apps/desktop run test:ai-image
+          pnpm --filter ./apps/desktop run test:quit-security
+          pnpm --filter ./apps/desktop exec tsx scripts/test-security-boundaries.ts
+          node apps/desktop/scripts/test-local-api-security.mjs
+          node apps/desktop/scripts/test-local-api-shutdown-contract.mjs
+
       - name: Build application
         env:
           VIDBEE_MAC_FFMPEG_MODE: ${{ matrix.mac_ffmpeg_mode }}
@@ -129,6 +140,10 @@ jobs:
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: ${{ matrix.build_script }}
+
+      - name: Run Windows learning desktop E2E
+        if: matrix.platform == 'windows'
+        run: pnpm --filter ./apps/desktop run test:e2e:learning
 
       - name: Verify packaged sherpa natives
         run: node apps/desktop/scripts/check-packaged-sherpa.cjs ${{ matrix.platform }}

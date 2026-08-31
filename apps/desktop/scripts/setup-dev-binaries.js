@@ -22,6 +22,7 @@ const currentFilePath = fileURLToPath(import.meta.url)
 const currentDirPath = path.dirname(currentFilePath)
 const RESOURCES_DIR = path.join(currentDirPath, '..', 'resources')
 const FFMPEG_DIR = path.join(RESOURCES_DIR, 'ffmpeg')
+const FFMPEG_LICENSE_PATH = path.join(RESOURCES_DIR, 'FFMPEG-LICENSE.txt')
 const YTDLP_BASE_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download'
 const MAC_FFMPEG_MODE = (process.env.VIDBEE_MAC_FFMPEG_MODE || 'native').trim().toLowerCase()
 const GITHUB_TOKEN =
@@ -383,6 +384,37 @@ function fileExists(filePath) {
   return fs.existsSync(filePath)
 }
 
+function findFfmpegLicense(directory) {
+  if (!fs.existsSync(directory)) {
+    return null
+  }
+  const entries = fs.readdirSync(directory, { withFileTypes: true })
+  const license = entries.find(
+    (entry) => entry.isFile() && /^(?:copying|license)(?:\.txt)?$/i.test(entry.name)
+  )
+  if (license) {
+    return path.join(directory, license.name)
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue
+    }
+    const nested = findFfmpegLicense(path.join(directory, entry.name))
+    if (nested) {
+      return nested
+    }
+  }
+  return null
+}
+
+function copyFfmpegLicense(extractDirectory) {
+  const licensePath = findFfmpegLicense(extractDirectory)
+  if (!licensePath) {
+    throw new Error('The downloaded ffmpeg bundle does not include a license file')
+  }
+  fs.copyFileSync(licensePath, FFMPEG_LICENSE_PATH)
+}
+
 function findFirstFileByName(dirPath, fileName) {
   if (!fileExists(dirPath)) {
     return null
@@ -599,17 +631,27 @@ async function downloadFfmpegWindows(config) {
       ? checkBinary(ffprobeOutputPath, ['-version'], 'ffprobe')
       : { ok: true }
     if (validation.ok && ffprobeValidation.ok) {
-      logBinaryVersion('ffmpeg', validation)
-      if (ffprobeOutputPath) {
-        logBinaryVersion('ffprobe', ffprobeValidation)
+      if (!fileExists(FFMPEG_LICENSE_PATH)) {
+        const cachedLicenseRoot = path.join(RESOURCES_DIR, 'ffmpeg-temp')
+        if (fileExists(cachedLicenseRoot)) {
+          copyFfmpegLicense(cachedLicenseRoot)
+        }
       }
-      log('ffmpeg and ffprobe already exist, skipping download', 'info')
-      return
+      if (fileExists(FFMPEG_LICENSE_PATH)) {
+        logBinaryVersion('ffmpeg', validation)
+        if (ffprobeOutputPath) {
+          logBinaryVersion('ffprobe', ffprobeValidation)
+        }
+        log('ffmpeg and ffprobe already exist, skipping download', 'info')
+        return
+      }
+      log('ffmpeg license is missing; downloading the bundle again for compliant packaging', 'warn')
+    } else {
+      log(
+        `Existing ffmpeg/ffprobe failed version check: ${validation.message || ffprobeValidation.message}`,
+        'warn'
+      )
     }
-    log(
-      `Existing ffmpeg/ffprobe failed version check: ${validation.message || ffprobeValidation.message}`,
-      'warn'
-    )
   }
 
   log('Downloading ffmpeg for Windows...', 'download')
@@ -643,6 +685,7 @@ async function downloadFfmpegWindows(config) {
     await downloadFileWithRetry(downloadUrl, tempZip)
     log('Extracting ffmpeg...', 'info')
     extractZip(tempZip, extractDir)
+    copyFfmpegLicense(extractDir)
 
     const sourcePath = path.join(extractDir, innerPath.replace(/\\/g, path.sep))
     if (!fileExists(sourcePath)) {
@@ -770,6 +813,7 @@ async function downloadFfmpegMac(config) {
       await downloadFileWithRetry(downloadUrl, tempArtifact.tempZip)
       log(`Extracting ffmpeg for macOS (${targetArchitecture})...`, 'info')
       extractZip(tempArtifact.tempZip, tempArtifact.extractDir)
+      copyFfmpegLicense(tempArtifact.extractDir)
 
       resolvedBinaries.push({
         ffmpegPath: resolveMacExtractedBinary(
@@ -922,6 +966,7 @@ async function downloadFfmpegLinux(config) {
     await downloadFileWithRetry(downloadUrl, tempTar)
     log('Extracting ffmpeg...', 'info')
     extractTarXz(tempTar, extractDir)
+    copyFfmpegLicense(extractDir)
 
     const sourcePath = path.join(extractDir, innerPath)
     if (!fileExists(sourcePath)) {

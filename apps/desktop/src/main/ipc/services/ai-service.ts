@@ -1,6 +1,9 @@
 import { type IpcContext, IpcMethod, IpcService } from 'electron-ipc-decorator'
 import { AI_PROVIDER_PRESETS } from '../../../shared/ai-presets'
 import type {
+  AiImageProviderWriteInput,
+  AiImageRunInput,
+  AiImageRunSnapshot,
   AiPrompt,
   AiPromptRunInput,
   AiPromptRunSnapshot,
@@ -10,6 +13,7 @@ import type {
   AiProviderWriteInput,
   AiSettingsSnapshot
 } from '../../../shared/ai-types'
+import { getImageRunSnapshot, startImageRun, stopImageRun } from '../../lib/ai-image-runner'
 import { getPromptRunSnapshot, startPromptRun, stopPromptRun } from '../../lib/ai-prompt-runner'
 import { testProviderConnection } from '../../lib/ai-provider-test'
 import { aiStore } from '../../lib/ai-store'
@@ -42,6 +46,13 @@ class AiService extends IpcService {
   @IpcMethod()
   upsertProvider(_context: IpcContext, input: AiProviderWriteInput): AiSettingsSnapshot {
     aiStore.upsertProvider(input)
+    return aiStore.getSnapshot()
+  }
+
+  /** Save the image-generation endpoint without coupling it to the active text model. */
+  @IpcMethod()
+  upsertImageProvider(_context: IpcContext, input: AiImageProviderWriteInput): AiSettingsSnapshot {
+    aiStore.upsertImageProvider(input)
     return aiStore.getSnapshot()
   }
 
@@ -130,6 +141,24 @@ class AiService extends IpcService {
     input: { downloadId: string; promptId: string }
   ): AiPromptRunSnapshot {
     return getPromptRunSnapshot(input.downloadId, input.promptId)
+  }
+
+  /** Start an Image API run; partial images arrive on `ai:image-run`. */
+  @IpcMethod()
+  startImage(_context: IpcContext, input: AiImageRunInput): AiImageRunSnapshot {
+    return startImageRun(input)
+  }
+
+  /** Restore the latest image run for a learning item after a renderer remount. */
+  @IpcMethod()
+  getImageRun(_context: IpcContext, downloadId: string): AiImageRunSnapshot {
+    return getImageRunSnapshot(downloadId)
+  }
+
+  /** Abort the current image run for a learning item. */
+  @IpcMethod()
+  stopImage(_context: IpcContext, downloadId: string): AiImageRunSnapshot {
+    return stopImageRun(downloadId)
   }
 
   /**

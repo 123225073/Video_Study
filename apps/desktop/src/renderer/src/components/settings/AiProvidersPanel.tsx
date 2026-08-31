@@ -25,6 +25,7 @@ import { Check, Plus, Trash2 } from 'lucide-react'
 import { type KeyboardEvent, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { AiImageProviderPanel } from './AiImageProviderPanel'
 import { AiProviderDialog } from './AiProviderDialog'
 import { AiProviderIcon } from './ai-provider-icon'
 
@@ -159,6 +160,9 @@ export function AiProvidersPanel() {
   const activeProviderId = snapshot?.activeProviderId ?? null
   return (
     <div className="space-y-4">
+      {snapshot ? (
+        <AiImageProviderPanel onSaved={setSnapshot} value={snapshot.imageProvider} />
+      ) : null}
       {providers.length > 0 ? (
         <div className="space-y-2">
           <h3 className="px-1 font-medium text-muted-foreground text-sm">

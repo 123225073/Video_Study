@@ -11,14 +11,17 @@ import { DesktopChromeContext } from './desktop-chrome'
 import { transcriptRouteTransitionTypes } from './lib/transcript-view-transition'
 import { About } from './pages/About'
 import { Home } from './pages/Home'
+import { Learning } from './pages/Learning'
 import { Settings } from './pages/Settings'
 import { Subscriptions } from './pages/Subscriptions'
 import { TranscriptPage } from './pages/Transcript'
 
 export type SettingsTab =
   | 'advanced'
+  | 'companion'
   | 'cookies'
   | 'general'
+  | 'learning-automation'
   | 'metadata'
   | 'prompts'
   | 'providers'
@@ -38,8 +41,10 @@ const validateSettingsSearch = (search: Record<string, unknown>): { tab?: Settin
   const tab = search.tab
   if (
     tab === 'advanced' ||
+    tab === 'companion' ||
     tab === 'cookies' ||
     tab === 'general' ||
+    tab === 'learning-automation' ||
     tab === 'metadata' ||
     tab === 'prompts' ||
     tab === 'providers' ||
@@ -60,9 +65,8 @@ const HomeRoute = () => {
   }
   return (
     <Home
-      appVersion={chrome.appVersion}
-      onOpenAbout={chrome.onOpenAbout}
       onOpenCookiesSettings={chrome.onOpenCookiesSettings}
+      onOpenLearning={chrome.onOpenLearning}
       onOpenSettings={chrome.onOpenSettings}
       onOpenSupportedSites={chrome.onOpenSupportedSites}
     />
@@ -83,6 +87,12 @@ const subscriptionsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/subscriptions',
   component: Subscriptions
+})
+
+const learningRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/learning',
+  component: Learning
 })
 
 export const settingsRoute = createRoute({
@@ -122,6 +132,7 @@ const notFoundRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  learningRoute,
   subscriptionsRoute,
   settingsRoute,
   aboutRoute,

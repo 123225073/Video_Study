@@ -1,14 +1,87 @@
 {
-  "extensionName": {
-    "message": "VidBee Video Downloader"
+  "brandEyebrow": { "message": "VIDEO → KNOWLEDGE" },
+  "bridgeDisconnected": { "message": "Start the desktop app" },
+  "bridgeReady": { "message": "Learning desk connected" },
+  "captionEmpty": { "message": "No available captions were detected on this page." },
+  "captureActions": { "message": "Capture actions" },
+  "captureFrame": { "message": "Capture video frame" },
+  "captureMoment": { "message": "Save current moment" },
+  "capturing": { "message": "Capturing…" },
+  "connectedAt": {
+    "message": "Local port $PORT$",
+    "placeholders": { "port": { "content": "$1" } }
   },
+  "connectionOnline": { "message": "Desktop online" },
+  "connectionStatus": { "message": "Connection status" },
+  "connectionWaiting": { "message": "Waiting for desktop app" },
+  "currentPage": { "message": "Current learning content" },
+  "desktopLabel": { "message": "Desktop app" },
+  "desktopNotReady": {
+    "message": "The desktop learning workspace is still starting. Try again shortly."
+  },
+  "desktopUnreachable": {
+    "message": "Cannot reach the desktop learning app. Make sure it is running."
+  },
+  "downloadWithVidBee": { "message": "Send to Fengsha Video Learning" },
+  "durationUnknown": { "message": "Duration unknown" },
+  "errorGeneric": { "message": "The action failed. Please try again." },
   "extensionDescription": {
-    "message": "Download videos from over 1,000 websites with VidBee."
+    "message": "Send the active video, playback time, captions, and an optional frame to Fengsha Video Learning."
   },
-  "downloadWithVidBee": {
-    "message": "Download with VidBee"
+  "extensionName": { "message": "Fengsha Video Learning Companion" },
+  "hideButton": { "message": "Hide" },
+  "inspectAgain": { "message": "Read this page again" },
+  "invalidPairingResponse": {
+    "message": "The desktop app returned an invalid pairing response."
   },
-  "hideButton": {
-    "message": "Hide"
-  }
+  "localDevice": { "message": "LOCAL" },
+  "localFirstActiveCapture": { "message": "Local-first · On-demand capture" },
+  "loopbackConnection": { "message": "127.0.0.1 local connection" },
+  "noAutoUpload": { "message": "Never uploads automatically" },
+  "noPage": {
+    "message": "Open a normal webpage or video page. Browser settings pages cannot be captured."
+  },
+  "noVideo": { "message": "No visible video detected" },
+  "notConnected": { "message": "Not connected" },
+  "pair": { "message": "Pair securely" },
+  "pairCode": { "message": "Enter the pairing code shown by the desktop app" },
+  "pairCodeInvalid": { "message": "The pairing code is invalid or expired." },
+  "pairCodePlaceholder": { "message": "e.g. 824 196" },
+  "pairFirst": { "message": "Pair with the desktop learning app first." },
+  "pairHint": {
+    "message": "Find the one-time code in Learning Desk Settings → Browser Companion."
+  },
+  "paired": { "message": "Securely paired" },
+  "pairedSuccess": {
+    "message": "The browser and desktop learning app are now paired locally."
+  },
+  "pairingExpired": { "message": "Pairing expired. Enter a new desktop pairing code." },
+  "pairingRequired": { "message": "Connected, waiting for secure pairing" },
+  "permission": {
+    "message": "This click can read the current page once. Nothing runs in the background."
+  },
+  "product": { "message": "Fengsha Video Learning Companion" },
+  "protocolIncompatible": {
+    "message": "The browser companion and desktop app use incompatible protocol versions."
+  },
+  "readingPage": { "message": "Reading the current page…" },
+  "securityAuthorization": { "message": "Secure authorization" },
+  "send": { "message": "Send to Learning Desk" },
+  "sending": { "message": "Sending…" },
+  "sentFrame": { "message": "The video frame was sent to Learning Desk." },
+  "sentMoment": { "message": "The current time and captions were saved." },
+  "sentPage": { "message": "The current page was sent to Learning Desk." },
+  "stop": { "message": "Stop this capture" },
+  "stopped": {
+    "message": "This page capture has stopped. No background task is running."
+  },
+  "tooManyRequests": { "message": "Too many attempts. Wait a moment and try again." },
+  "transcript": { "message": "Current captions" },
+  "unpair": { "message": "Unpair" },
+  "unpairedSuccess": {
+    "message": "The local pairing token was removed from this browser."
+  },
+  "unsafePageData": { "message": "This page cannot be sent safely." },
+  "untitledVideo": { "message": "Untitled video" },
+  "videoFound": { "message": "Video detected" }
 }

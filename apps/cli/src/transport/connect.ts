@@ -11,11 +11,11 @@
  * throwing, so the runtime can map to the right exit code.
  */
 
-import { errorEnvelope, type ErrorEnvelope } from '../envelope'
+import { type ErrorEnvelope, errorEnvelope } from '../envelope'
 import type { Flags } from '../parser'
 import type { ContractClient } from '../subcommands'
 import { AutomationClient } from './automation-client'
-import { ensureDesktopReady, type AutostartResult } from './autostart'
+import { type AutostartResult, ensureDesktopReady } from './autostart'
 import { isPidAlive, readDescriptor } from './descriptor'
 import { createLocalClient, type LocalClientHandle } from './local-client'
 
@@ -24,7 +24,8 @@ export interface ConnectOptions {
   /** Test seam — overrides AutomationClient instantiation. */
   buildAutomationClient?: (
     baseUrl: string,
-    token: string | null
+    token: string | null,
+    handshakeSecret?: string
   ) => ContractClient
   /** Test seam — overrides descriptor read. */
   readDescriptorImpl?: typeof readDescriptor
@@ -137,16 +138,21 @@ async function connectDesktop(opts: ConnectOptions): Promise<ConnectResult> {
   if (!descriptor.ok) return { kind: 'error', envelope: descriptor.envelope }
   const baseUrl = `http://${descriptor.descriptor.host}:${descriptor.descriptor.port}`
   const builder = opts.buildAutomationClient ?? defaultAutomationBuilder
-  const client = builder(baseUrl, flags.token ?? null)
+  const client = builder(
+    baseUrl,
+    flags.token ?? null,
+    flags.token ? undefined : descriptor.descriptor.handshakeSecret
+  )
   return { kind: 'connected', client }
 }
 
 function defaultAutomationBuilder(
   baseUrl: string,
-  token: string | null
+  token: string | null,
+  handshakeSecret?: string
 ): ContractClient {
   if (token) {
     return new AutomationClient({ baseUrl, token, skipHandshake: true })
   }
-  return new AutomationClient({ baseUrl })
+  return new AutomationClient({ baseUrl, handshakeSecret })
 }

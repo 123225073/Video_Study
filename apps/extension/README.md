@@ -1,54 +1,105 @@
-# VidBee Video Downloader Extension
+# 风沙浏览器学习伴侣
 
-VidBee Video Downloader is a lightweight browser companion for the VidBee desktop app. It detects the video on your current tab, shows the available formats, and hands the URL to VidBee so the download happens in the desktop app instead of your browser.
+这是「风沙视频学习台」的 Chrome / Edge Manifest V3 伴侣扩展。它只在用户点击扩展并明确执行操作时读取当前标签页，不注册常驻网页脚本，也不会自动上传浏览记录。
 
-## Why install it?
+## 能做什么
 
-- **One-click handoff:** Send the current video page to VidBee without copy-pasting links.
-- **See formats before downloading:** Preview resolutions, file sizes, and audio-only options in the popup.
-- **More reliable downloads:** VidBee handles large files and multi-format downloads better than most browsers.
-- **Works on 1,000+ sites:** The extension uses the same site support as the VidBee app.
+- 识别通用 HTML5 视频、YouTube 和 B站页面。
+- 展示页面标题、平台、视频时长、当前播放时间和当前可用字幕。
+- 将页面发送到桌面学习台。
+- 记录当前时间点、所选文字和字幕上下文。
+- 截取当前可见的视频区域；发送前先在浏览器内裁剪，不上传整页截图。
+- 用户点击“停止本次采集”后立即清空弹窗内读取结果。扩展没有持续采集会话。
 
-## What it does
+## 隐私与权限
 
-1. Reads the active tab URL when you open the popup.
-2. Asks the VidBee desktop app (running locally) to analyze the video.
-3. Displays the formats it finds and lets you open VidBee to download.
+扩展只申请三个浏览器权限：
 
-## Requirements
+- `activeTab`：用户点击扩展后，临时访问当前标签页。
+- `scripting`：在本次授权的页面中执行一次性视频/字幕提取函数。
+- `storage`：在浏览器本机保存配对令牌。
 
-- VidBee desktop app installed.
-- VidBee running while you use the extension.
+唯一的主机权限是 `http://127.0.0.1/*`，用于连接本机桌面程序。扩展不拥有任意网站的永久读取权限，没有常驻 content script，也不会连接互联网服务器。
 
-## How to use
+配对令牌存储于 `chrome.storage.local`。首次使用时，需要先在桌面学习台的“设置 → 浏览器伴侣”查看一次性配对码。收到 `401` 或 `403` 后，扩展会自动删除失效令牌。
 
-1. Open a supported video page.
-2. Click the VidBee extension icon.
-3. Review available formats.
-4. Click **Download with VidBee** to start the download in the desktop app.
+## 本机桥接协议
 
-## Development
+桌面程序监听 `127.0.0.1:27100-27120`。扩展优先检查上次配对端口，失败后并行扫描标准端口范围。
 
-```bash
-pnpm install
-pnpm dev
+### 状态检查
+
+```http
+GET /companion/v1/status
 ```
 
-Build or package:
+已配对时携带 Authorization；响应示例：
 
-```bash
-pnpm build
-pnpm zip
+```json
+{ "ok": true, "pairedClientCount": 1, "app": "Fengsha Video Learning" }
 ```
 
-Firefox builds:
+### 配对
 
-```bash
-pnpm dev:firefox
-pnpm build:firefox
-pnpm zip:firefox
+```http
+POST /companion/v1/pair
+Content-Type: application/json
+
+{ "code": "824196", "clientName": "风沙浏览器学习伴侣" }
 ```
 
-## Notes on privacy
+响应：`{ "token": "...", "port": 27100 }`。
 
-The extension only sends the current tab URL to the local VidBee app on `127.0.0.1` and stores temporary results in browser storage for faster reloads.
+### 主动采集
+
+```http
+POST /companion/v1/capture
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+请求字段：
+
+```json
+{
+  "action": "open | time-marker | frame",
+  "pageUrl": "https://...",
+  "title": "视频标题",
+  "currentTimeSeconds": 123.45,
+  "durationSeconds": 600,
+  "platform": "youtube | bilibili | other",
+  "captionText": "当前字幕或可用字幕片段",
+  "captionLanguage": "zh-CN",
+  "captionCues": [{ "startSeconds": 120, "endSeconds": 126, "text": "..." }],
+  "selectedText": "用户当前选择的文字",
+  "screenshotDataUrl": "data:image/jpeg;base64,..."
+}
+```
+
+`screenshotDataUrl` 只在 `action=frame` 时发送，上限 4MB。桌面端必须限制 CORS Origin、校验 Bearer token、请求体大小和字段类型，并仅监听 loopback 地址。
+
+## 开发与加载
+
+在仓库根目录执行：
+
+```bash
+corepack pnpm --filter fengsha-learning-companion run compile
+corepack pnpm --filter fengsha-learning-companion run build
+node --experimental-strip-types --test apps/extension/tests/*.test.mjs
+```
+
+桌面端品牌图标更新后，可运行 `apps/extension/scripts/generate-brand-icons.ps1` 同步生成扩展所需的 16/32/48/128 像素图标。
+
+Chrome / Edge 加载未打包扩展：
+
+1. 打开 `chrome://extensions` 或 `edge://extensions`。
+2. 开启“开发者模式”。
+3. 点击“加载已解压的扩展程序”。
+4. 选择 `apps/extension/.output/chrome-mv3`。
+5. 启动桌面学习台，在设置页生成配对码，再打开一个视频网页点击扩展图标。
+
+## 页面兼容说明
+
+- 通用站点从最大可见的 `<video>` 读取播放状态，并读取标准 `TextTrack` 字幕。
+- YouTube 与 B站额外识别页面标题、可见字幕和已渲染的逐字稿节点。
+- 受 DRM、跨域 iframe、浏览器保护页或站点 DOM 更新影响时，扩展会保留页面链接采集，同时明确提示视频/字幕不可用。

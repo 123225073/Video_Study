@@ -126,6 +126,237 @@ export const AI_PROMPT_PRESETS: readonly AiPromptPresetSeed[] = [
     ].join('\n')
   },
   {
+    id: 'study-notes',
+    title: 'Structured Study Notes',
+    icon: 'rows-3',
+    content: [
+      'Turn this timestamped transcript into rigorous study notes. Preserve the source meaning and cite the most relevant timestamp for every important claim.',
+      '',
+      'Output format:',
+      '# Core idea',
+      '{one concise paragraph}',
+      '# Key concepts',
+      '- **{concept}** — {explanation} `[HH:MM:SS]`',
+      '# Reasoning or process',
+      '1. {step} `[HH:MM:SS]`',
+      '# Examples and evidence',
+      '- {example} `[HH:MM:SS]`',
+      '# Practical takeaway',
+      '- {actionable takeaway}',
+      '',
+      'Do not invent timestamps or facts. Skip any empty section.',
+      PRESET_FORMAT_RULES
+    ].join('\n')
+  },
+  {
+    id: 'concept-glossary',
+    title: 'Concept Glossary',
+    icon: 'highlighter',
+    content: [
+      'Extract the domain terms, concepts, abbreviations, people, products, and frameworks a learner needs to understand this transcript.',
+      '',
+      'Output format:',
+      '# {term}',
+      '- Meaning: {plain-language definition}',
+      '- In this video: {how it is used} `[HH:MM:SS]`',
+      '- Related: {related concepts, when present}',
+      '',
+      'Order terms from foundational to advanced. Do not invent definitions that conflict with the transcript.',
+      PRESET_FORMAT_RULES
+    ].join('\n')
+  },
+  {
+    id: 'active-recall',
+    title: 'Active Recall Quiz',
+    icon: 'circle-help',
+    content: [
+      'Create an active-recall quiz that tests understanding, not rote copying. Ground every answer in the transcript and cite the supporting timestamp.',
+      '',
+      'Output format:',
+      '# Questions',
+      '1. {question}',
+      '# Answer key',
+      '1. {answer} `[HH:MM:SS]`',
+      '# Transfer challenge',
+      '- {one scenario that asks the learner to apply the idea}',
+      '',
+      'Create 6 to 10 questions, moving from recall to application. Do not reveal answers in the question wording.',
+      PRESET_FORMAT_RULES
+    ].join('\n')
+  },
+  {
+    id: 'learning-action-plan',
+    title: 'Learning Action Plan',
+    icon: 'sparkles',
+    content: [
+      'Convert this transcript into a concrete learning and practice plan. Separate what to remember, what to verify, and what to do next.',
+      '',
+      'Output format:',
+      '# Remember',
+      '- {durable principle} `[HH:MM:SS]`',
+      '# Verify',
+      '- [ ] {claim, assumption, or open question to check}',
+      '# Practice',
+      '- [ ] {specific exercise or workplace application}',
+      '# Review schedule',
+      '- Tomorrow: {short review task}',
+      '- In 7 days: {retrieval or application task}',
+      '',
+      'Keep tasks specific and achievable. Do not add facts that are absent from the transcript.',
+      PRESET_FORMAT_RULES
+    ].join('\n')
+  },
+  {
+    id: 'learning-diagram',
+    title: 'Generate Learning Diagram',
+    icon: 'git-branch',
+    content: [
+      'Turn the timestamped transcript into one professional Mermaid learning diagram. If AI_GENERATED_DRAFT and RENDER_ERROR are present in the user message, repair that draft instead of starting over.',
+      '',
+      'Diagram rules:',
+      '- Use `flowchart TD` for concept relationships, or `flowchart LR` for a process with a clear sequence.',
+      '- Organize the meaning of the lesson, not the chronological order of every sentence.',
+      '- Keep 6 to 20 useful nodes. Use subgraphs only for real sections or responsibility groups.',
+      '- Use short ASCII node ids and quoted Chinese labels, for example `core["核心概念"]`.',
+      '- Use labeled edges when the relationship is not obvious, such as 原因、步骤、风险、应用.',
+      '- Do not use `click`, external links, HTML, init directives, custom JavaScript, `style`, or `classDef`.',
+      '- Preserve important source timestamps inside concise node labels when they materially help review.',
+      '- Do not invent facts or relationships absent from the transcript.',
+      '',
+      'Output exactly one fenced Mermaid block. Do not output a heading, explanation, or any text outside the fence.'
+    ].join('\n')
+  },
+  {
+    id: 'shareable-quote',
+    title: 'Select Shareable Quote',
+    icon: 'highlighter',
+    content: [
+      "Select the single strongest shareable original sentence from the timestamped transcript. Preserve the speaker's meaning and wording; do not present an AI rewrite as a direct quote.",
+      '',
+      'Output exactly three lines:',
+      '原句：{verbatim or minimally cleaned quote}',
+      '时间：{HH:MM:SS}',
+      '推荐语：{one short reason it is worth sharing}',
+      '',
+      'Do not add Markdown fences, bullets, headings, or extra commentary.'
+    ].join('\n')
+  },
+  {
+    id: 'learning-reflection-draft',
+    title: 'Draft Learning Reflection',
+    icon: 'sparkles',
+    content: [
+      'Draft a concise first-person learning reflection from the transcript and any selected passage or personal notes supplied in AI_GENERATION_CONTEXT.',
+      '',
+      "Separate the speaker's view from the learner's reflection. Cite the strongest supporting timestamp. Include one concrete way the learner could apply or verify the idea. If no personal notes are supplied, clearly write a draft that the learner can edit rather than inventing personal experience.",
+      PRESET_FORMAT_RULES
+    ].join('\n')
+  },
+  {
+    id: 'screenshot-caption',
+    title: 'Write Screenshot Caption',
+    icon: 'rows-3',
+    content: [
+      'Write one accurate sentence that explains why the captured video frame matters, using only the nearby timestamped transcript and AI_GENERATION_CONTEXT.',
+      'Do not claim to see visual details that were not supplied. Output the caption sentence only, without a heading or quotation marks.'
+    ].join('\n')
+  },
+  {
+    id: 'image-prompt-optimizer',
+    title: 'Optimize Image Prompt',
+    icon: 'sparkles',
+    content: [
+      'You are a visual prompt architect for GPT Image. Turn IMAGE_TYPE, SOURCE_TITLE, USER_REQUEST, and optional VIDEO_CONTEXT into one production-ready image-generation prompt.',
+      '',
+      'Requirements:',
+      '- Preserve the user intent and any quoted Chinese copy exactly. Do not invent claims, logos, people, or source facts.',
+      '- Specify composition, hierarchy, visual style, lighting or texture, color palette, typography, and aspect-ratio-aware placement.',
+      '- For a learning logic diagram, make relationships and reading order visually explicit without relying on Mermaid syntax.',
+      '- For a cover, reserve a clear title area and keep the composition legible at thumbnail size.',
+      '- For a quote image, make the quote the primary visual and keep supporting decoration restrained.',
+      '- Avoid vague praise words. Use concrete visual instructions and include negative constraints for clutter, illegible text, watermarks, and unrelated elements.',
+      '',
+      'Output the optimized prompt only. Use clear Markdown paragraphs or bullets, with no preamble or closing remarks. Use the same language as USER_REQUEST.'
+    ].join('\n')
+  },
+  {
+    id: 'learning-digest',
+    title: 'Learning Digest',
+    icon: 'highlighter',
+    content: [
+      'Create a fast but trustworthy digest from the timestamped transcript. Help the learner decide which parts deserve closer study.',
+      '',
+      'Output format:',
+      '# 一句话看懂',
+      '{one precise sentence}',
+      '# 三分钟精华',
+      '- **{idea}** — {explanation} `[HH:MM:SS]`',
+      '# 最值得回看',
+      '- `[HH:MM:SS]` {why this passage matters}',
+      '# 需要保留的限制',
+      '- {caveat or uncertainty}',
+      '',
+      'Use only facts in the transcript. Do not invent timestamps. Skip empty sections.',
+      PRESET_FORMAT_RULES
+    ].join('\n')
+  },
+  {
+    id: 'learning-outline',
+    title: 'Learning Outline',
+    icon: 'rows-3',
+    content: [
+      'Turn the timestamped transcript into a clean hierarchical outline based on meaning rather than equal time slices.',
+      '',
+      'Output format:',
+      '# {lesson theme}',
+      '## {chapter} `[HH:MM:SS]`',
+      '- {concept, method, example, or risk}',
+      '  - {supporting detail}',
+      '',
+      'Keep two to four useful levels. Every chapter must include its earliest reliable source timestamp. Do not invent content.',
+      PRESET_FORMAT_RULES
+    ].join('\n')
+  },
+  {
+    id: 'learning-template-summary',
+    title: 'Template Summary',
+    icon: 'sparkles',
+    content: [
+      'Generate a structured Markdown summary using the TEMPLATE and TEMPLATE_REQUIREMENTS supplied before the timestamped transcript.',
+      'Follow the requested template closely while preserving source meaning and useful timestamps. Distinguish source claims from AI synthesis and skip sections unsupported by the transcript.',
+      PRESET_FORMAT_RULES
+    ].join('\n')
+  },
+  {
+    id: 'learning-question',
+    title: 'Ask This Lesson',
+    icon: 'message-circle-question',
+    content: [
+      'Answer QUESTION using only VIDEO_TRANSCRIPT and optional PERSONAL_NOTES supplied by the user.',
+      'Cite the strongest supporting timestamps as clickable-looking Markdown labels such as `[00:12:35]`. If the material does not support an answer, say what is missing instead of guessing.',
+      'Use concise Markdown with a direct answer, supporting evidence, and one optional follow-up angle.',
+      PRESET_FORMAT_RULES
+    ].join('\n')
+  },
+  {
+    id: 'learning-podcast-script',
+    title: 'Learning Podcast',
+    icon: 'message-circle-question',
+    content: [
+      'Turn the timestamped transcript into a concise two-host review podcast script. Host A explains the structure; Host B asks useful questions, challenges unclear claims, and connects examples.',
+      '',
+      'Output format:',
+      '# 播客标题',
+      '{title}',
+      '# 对谈脚本',
+      '**主持人 A：** {line}',
+      '**主持人 B：** {line}',
+      '',
+      'Aim for 8 to 16 exchanges. Preserve source facts and mention important timestamps naturally. Do not invent personal experiences, sponsors, or closing promotions.',
+      PRESET_FORMAT_RULES
+    ].join('\n')
+  },
+  {
     id: 'translate',
     title: 'Translate',
     icon: 'languages',

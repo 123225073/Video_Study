@@ -6,9 +6,9 @@ $DistDir = Join-Path $AppDir 'dist'
 $PackageJson = Get-Content -LiteralPath (Join-Path $AppDir 'package.json') -Raw | ConvertFrom-Json
 $Version = $PackageJson.version
 $WinUnpackedDir = Join-Path $DistDir 'win-unpacked'
-$PortableDir = Join-Path $DistDir 'VidBee-portable'
+$PortableDir = Join-Path $DistDir 'FengshaVideoLearning-portable'
 $AppOutputDir = Join-Path $PortableDir 'app'
-$ZipPath = Join-Path $DistDir "vidbee-$Version-windows-portable.zip"
+$ZipPath = Join-Path $DistDir "fengsha-video-learning-$Version-windows-portable.zip"
 
 if (-not (Test-Path -LiteralPath $WinUnpackedDir)) {
   throw "Missing win-unpacked build output: $WinUnpackedDir"
@@ -57,7 +57,7 @@ $DataDir = Join-Path $PortableRoot 'Data'
 $TempDir = Join-Path $PortableRoot 'Temp'
 $DownloadsDir = Join-Path $PortableRoot 'Downloads'
 $HomeDir = Join-Path $DataDir 'Home'
-$ExePath = Join-Path $AppDir 'vidbee.exe'
+$ExePath = Join-Path $AppDir 'FengshaVideoLearning.exe'
 
 $paths = @(
     (Join-Path $DataDir 'Roaming'),
@@ -113,19 +113,19 @@ Set shell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
 scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
-ps1 = fso.BuildPath(scriptDir, "Start-VidBee-Portable.ps1")
+ps1 = fso.BuildPath(scriptDir, "Start-Fengsha-Video-Learning-Portable.ps1")
 
 command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File " & Chr(34) & ps1 & Chr(34)
 shell.Run command, 0, False
 '@
 
 $Readme = @"
-VidBee portable folder
+Fengsha Video Learning portable folder
 ======================
 
-Run VidBee Portable.lnk from this folder.
+Run Fengsha Video Learning Portable.lnk from this folder.
 
-Do not run app\vidbee.exe directly if you want the app data to stay portable.
+Do not run app\FengshaVideoLearning.exe directly if you want the app data to stay portable.
 The shortcut starts a hidden WSH launcher, which starts a hidden PowerShell
 launcher. The launcher redirects APPDATA, LOCALAPPDATA, USERPROFILE, HOME, XDG
 paths, DENO_DIR, TEMP, and TMP into this folder, and also passes a local
@@ -134,18 +134,18 @@ Chromium --user-data-dir path.
 Default download folder:
 Downloads
 
-Move this folder only while VidBee is closed. Keep the path reasonably short;
+Move this folder only while Fengsha Video Learning is closed. Keep the path reasonably short;
 very deep Windows paths can fail when browser profile/cache files exist under
 Data.
 "@
 
 [System.IO.File]::WriteAllText(
-  (Join-Path $PortableDir 'Start-VidBee-Portable.ps1'),
+  (Join-Path $PortableDir 'Start-Fengsha-Video-Learning-Portable.ps1'),
   $PowerShellLauncher,
   [System.Text.UTF8Encoding]::new($false)
 )
 [System.IO.File]::WriteAllText(
-  (Join-Path $PortableDir 'Start-VidBee-Portable.vbs'),
+  (Join-Path $PortableDir 'Start-Fengsha-Video-Learning-Portable.vbs'),
   $VbsLauncher,
   [System.Text.Encoding]::ASCII
 )
@@ -202,24 +202,24 @@ public static class PortableShortcutMaker {
     link.SetWorkingDirectory(workDir);
     link.SetRelativePath(linkPath, 0);
     link.SetIconLocation(iconPath, 0);
-    link.SetDescription("VidBee Portable");
+    link.SetDescription("Fengsha Video Learning Portable");
     ((IPersistFile)link).Save(linkPath, true);
   }
 }
 '@
 
 Add-Type -TypeDefinition $ShellLinkCode
-$ShortcutPath = Join-Path $PortableDir 'VidBee Portable.lnk'
-$VbsPath = Join-Path $PortableDir 'Start-VidBee-Portable.vbs'
-$IconPath = 'app\vidbee.exe'
+$ShortcutPath = Join-Path $PortableDir 'Fengsha Video Learning Portable.lnk'
+$VbsPath = Join-Path $PortableDir 'Start-Fengsha-Video-Learning-Portable.vbs'
+$IconPath = 'app\FengshaVideoLearning.exe'
 [PortableShortcutMaker]::Create($ShortcutPath, $VbsPath, $PortableDir, $IconPath)
 
 $RequiredFiles = @(
-  'VidBee Portable.lnk',
-  'Start-VidBee-Portable.vbs',
-  'Start-VidBee-Portable.ps1',
+  'Fengsha Video Learning Portable.lnk',
+  'Start-Fengsha-Video-Learning-Portable.vbs',
+  'Start-Fengsha-Video-Learning-Portable.ps1',
   'README-portable.txt',
-  'app\vidbee.exe',
+  'app\FengshaVideoLearning.exe',
   'app\resources\app.asar'
 )
 

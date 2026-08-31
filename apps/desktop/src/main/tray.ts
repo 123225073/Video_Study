@@ -194,7 +194,7 @@ export function createTray(): void {
   tray = new Tray(trayIconImage)
 
   // Set tooltip
-  tray.setToolTip('VidBee')
+  tray.setToolTip('风沙视频学习台')
 
   // Set context menu
   tray.setContextMenu(createContextMenu())

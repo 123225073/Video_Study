@@ -83,6 +83,7 @@ export const usePromptRun = (
         setRun({
           downloadId,
           promptId,
+          startedAt: Date.now(),
           status: 'error',
           text: '',
           thinking: '',

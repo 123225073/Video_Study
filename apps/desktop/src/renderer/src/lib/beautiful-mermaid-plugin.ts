@@ -1,5 +1,6 @@
 import { renderMermaidSVG } from 'beautiful-mermaid'
 import type { DiagramPlugin } from 'streamdown'
+import { strictParseLearningMermaid } from './strict-mermaid-parser'
 
 type MermaidRenderer = ReturnType<DiagramPlugin['getMermaid']>
 
@@ -43,6 +44,17 @@ export const mermaidSourceStart = (source: string): string =>
  */
 export const canRenderBeautifulMermaid = (source: string): boolean =>
   BEAUTIFUL_MERMAID_TYPE.test(mermaidSourceStart(source))
+
+/** Strictly parse and render an AI-generated learning diagram before persistence. */
+export const validateGeneratedLearningMermaid = async (source: string): Promise<void> => {
+  if (!/^(?:flowchart|graph)\s+(?:TD|TB|BT|LR|RL)\b/iu.test(mermaidSourceStart(source))) {
+    throw new Error('学习图解必须使用 Mermaid flowchart。')
+  }
+  if (!(await strictParseLearningMermaid(source))) {
+    throw new Error('Mermaid 严格语法解析失败。')
+  }
+  renderMermaidSVG(source, BEAUTIFUL_MERMAID_THEME)
+}
 
 /**
  * Drop Google Fonts @import so Electron CSP does not block the diagram style.

@@ -56,7 +56,7 @@ const resolveDownloadDir = (): string => {
   if (fromSettings && typeof fromSettings === 'string' && fromSettings.trim().length > 0) {
     return fromSettings
   }
-  return path.join(app.getPath('downloads'), 'VidBee')
+  return path.join(app.getPath('downloads'), '风沙视频学习台')
 }
 
 const resolveLegacyTaskQueueDbPath = (): string => {
@@ -126,8 +126,18 @@ const buildPersistAdapter = (
       dbPath: unifiedPath
     }
   } catch (err) {
+    if (app.isPackaged) {
+      scopedLoggers.engine.error(
+        'task-queue-host: persistent SQLite is unavailable; refusing in-memory production startup:',
+        err
+      )
+      throw new Error(
+        'Persistent task storage is unavailable. Task queue startup was stopped to prevent data loss.',
+        { cause: err }
+      )
+    }
     scopedLoggers.engine.warn(
-      'task-queue-host: SQLite adapter unavailable, falling back to memory:',
+      'task-queue-host: SQLite adapter unavailable in development, falling back to memory:',
       err
     )
     return { adapter: new MemoryPersistAdapter(), persistent: false, dbPath: null }

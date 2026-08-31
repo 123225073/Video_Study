@@ -20,6 +20,11 @@ import {
 } from './portable'
 import { scopedLoggers } from './utils/logger'
 
+const e2eUserDataPath = process.env.VIDBEE_E2E_USER_DATA?.trim()
+if (process.env.VIDBEE_E2E === '1' && e2eUserDataPath) {
+  app.setPath('userData', path.resolve(e2eUserDataPath))
+}
+
 // Use require for electron-store to avoid CommonJS/ESM issues
 const ElectronStore = require('electron-store')
 // Access the default export
@@ -39,11 +44,11 @@ const resolveDefaultDownloadPath = () => {
     return getPortableDownloadsPath()
   }
 
-  return path.join(os.homedir(), 'Downloads', 'VidBee')
+  return path.join(os.homedir(), 'Downloads', '风沙视频学习台')
 }
 
 const DEFAULT_DOWNLOAD_PATH = resolveDefaultDownloadPath()
-const REQUIRED_AUTO_UPDATE = !isPortableMode
+const REQUIRED_AUTO_UPDATE = false
 const REQUIRED_LAUNCH_AT_LOGIN = false
 
 /**

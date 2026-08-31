@@ -3,15 +3,15 @@
  *   docs/vidbee-desktop-first-cli-ytdlp-rss-design.md §5.2 / §5.3
  *
  * The descriptor lives at a per-platform path and is overrideable via
- * `VIDBEE_AUTOMATION_DESCRIPTOR=/path`. It carries `tokenHash` only, never
- * the plaintext token; the CLI obtains the plaintext via `handshake`.
+ * `VIDBEE_AUTOMATION_DESCRIPTOR=/path`. It carries `tokenHash` rather than
+ * the bearer token, plus a per-process secret required by `handshake`.
  */
 
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { errorEnvelope, type ErrorEnvelope } from '../envelope'
+import { type ErrorEnvelope, errorEnvelope } from '../envelope'
 
 export interface DescriptorPayload {
   version: 1
@@ -19,6 +19,7 @@ export interface DescriptorPayload {
   kind: 'desktop'
   host: string
   port: number
+  handshakeSecret: string
   tokenHash: string | null
   tokenIssuedAt: number | null
   tokenExpiresAt: number | null
@@ -135,6 +136,9 @@ function validateDescriptor(
   if (typeof v.pid !== 'number' || typeof v.pidStartedAt !== 'number') {
     return { ok: false, reason: 'descriptor missing pid/pidStartedAt' }
   }
+  if (typeof v.handshakeSecret !== 'string' || v.handshakeSecret.length < 32) {
+    return { ok: false, reason: 'descriptor missing secure handshake secret' }
+  }
   return {
     ok: true,
     value: {
@@ -143,6 +147,7 @@ function validateDescriptor(
       kind: 'desktop',
       host: v.host,
       port: v.port,
+      handshakeSecret: v.handshakeSecret,
       tokenHash: typeof v.tokenHash === 'string' ? v.tokenHash : null,
       tokenIssuedAt: typeof v.tokenIssuedAt === 'number' ? v.tokenIssuedAt : null,
       tokenExpiresAt: typeof v.tokenExpiresAt === 'number' ? v.tokenExpiresAt : null,

@@ -1,9 +1,11 @@
+import { LearningNotebookPane } from '@renderer/components/learning/LearningNotebookPane'
 import { AiPromptIcon } from '@renderer/components/settings/ai-prompt-icon'
 import { TranscriptCaptionsPane } from '@renderer/components/transcript/TranscriptCaptionsPane'
 import { TranscriptProgressThinking } from '@renderer/components/transcript/TranscriptProgressThinking'
 import { TranscriptPromptPane } from '@renderer/components/transcript/TranscriptPromptPane'
 import { ipcServices } from '@renderer/lib/ipc'
 import { logger } from '@renderer/lib/logger'
+import type { TranscriptSelectionAction } from '@renderer/lib/study-studio/types'
 import {
   startTypedViewTransition,
   TRANSCRIPT_VT_TAB
@@ -11,12 +13,13 @@ import {
 import { cn } from '@renderer/lib/utils'
 import type { TranscriptSegmentView, TranscriptSpeakerView } from '@renderer/store/transcripts'
 import type { AiPrompt, AiSettingsSnapshot } from '@shared/ai-types'
-import { AlignLeft, Check, ChevronDown } from 'lucide-react'
+import { AlignLeft, BookOpen, Check, ChevronDown } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface TranscriptSidePanelProps {
   collapsed: boolean
+  correctedSegmentIds?: ReadonlySet<string>
   currentSegmentId: string | null
   currentTimeMs: number
   downloadId: string
@@ -28,10 +31,14 @@ interface TranscriptSidePanelProps {
   noSpeechDetail: string
   /** Stop an in-flight local ASR run. */
   onCancel?: () => void
+  onCorrectSegment?: (segmentId: string, text: string) => Promise<void>
   /** Retry a failed local ASR run. */
   onRetry?: () => void
+  onRestoreSegment?: (segmentId: string) => Promise<void>
+  onSelectionIntent?: (action: TranscriptSelectionAction) => void
   onSeek: (seconds: number) => void
   ready: boolean
+  requestedTab?: { id: string; requestId: number } | null
   resolveColorIndex: (speakerId: string | null) => number | null
   resolveSpeaker: (speakerId: string | null) => string
   running: boolean
@@ -49,6 +56,8 @@ interface TranscriptSidePanelProps {
   sourceDurationMs?: number
   /** Media title printed on the share card header. */
   sourceTitle?: string
+  /** Original lesson URL used by exported timestamp links. */
+  sourceUrl?: string | null
   /** Typewriter incoming ASR lines. Off when viewing a finished caption track. */
   streamLive?: boolean
   transcriptText: string
@@ -99,6 +108,7 @@ function PromptMenuItem({
  */
 export function TranscriptSidePanel({
   collapsed,
+  correctedSegmentIds,
   currentSegmentId,
   currentTimeMs,
   downloadId,
@@ -107,9 +117,13 @@ export function TranscriptSidePanel({
   noSpeech,
   noSpeechDetail,
   onCancel,
+  onCorrectSegment,
   onRetry,
+  onRestoreSegment,
+  onSelectionIntent,
   onSeek,
   ready,
+  requestedTab = null,
   resolveColorIndex,
   resolveSpeaker,
   running,
@@ -121,6 +135,7 @@ export function TranscriptSidePanel({
   sourceCover,
   sourceDurationMs,
   sourceTitle,
+  sourceUrl,
   streamLive = running,
   transcriptText
 }: TranscriptSidePanelProps) {
@@ -171,6 +186,12 @@ export function TranscriptSidePanel({
   )
 
   useEffect(() => {
+    if (requestedTab?.id) {
+      selectTab(requestedTab.id)
+    }
+  }, [requestedTab, selectTab])
+
+  useEffect(() => {
     if (!menuOpen) {
       return
     }
@@ -202,7 +223,14 @@ export function TranscriptSidePanel({
     return null
   }
 
-  const prompts = (snapshot?.prompts ?? []).filter((prompt) => prompt.enabled)
+  const prompts = [
+    ...new Map(
+      (snapshot?.prompts ?? [])
+        .filter((prompt) => prompt.enabled)
+        .map((prompt) => [prompt.id, prompt] as const)
+    ).values()
+  ]
+  const inlinePrompts = prompts.slice(0, 2)
   const activePrompt = prompts.find((prompt) => prompt.id === tab) ?? null
   const settingsReady = snapshot !== null
   const hasProvider = Boolean(snapshot?.activeProviderId)
@@ -213,7 +241,7 @@ export function TranscriptSidePanel({
   return (
     <div className="flex h-full min-h-0 flex-col border-border/60 border-t bg-background lg:border-t-0 lg:border-l">
       <div className="relative shrink-0 border-border/60 border-b">
-        <div className="overflow-x-auto px-4 pr-11">
+        <div className="overflow-x-auto px-4 pr-11 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex min-w-max items-end gap-1" ref={tabsRef}>
             <button
               className={cn(
@@ -228,10 +256,24 @@ export function TranscriptSidePanel({
             >
               {t('transcript.title')}
             </button>
-            {prompts.map((prompt) => (
+            <button
+              className={cn(
+                'inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap px-3 py-3 font-medium text-sm transition-colors duration-200',
+                tab === 'learning'
+                  ? 'border-primary border-b-2 text-foreground'
+                  : 'border-transparent border-b-2 text-muted-foreground hover:text-foreground'
+              )}
+              data-tab-id="learning"
+              onClick={() => selectTab('learning')}
+              type="button"
+            >
+              <BookOpen className="size-3.5" />
+              {t('learning.notebook')}
+            </button>
+            {inlinePrompts.map((prompt) => (
               <button
                 className={cn(
-                  'inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap px-3 py-3 font-medium text-sm transition-colors duration-200',
+                  'inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap px-3 py-3 font-medium text-sm transition-colors duration-200 max-[419px]:hidden',
                   tab === prompt.id
                     ? 'border-primary border-b-2 text-foreground'
                     : 'border-transparent border-b-2 text-muted-foreground hover:text-foreground'
@@ -277,6 +319,12 @@ export function TranscriptSidePanel({
                   label={t('transcript.title')}
                   onSelect={() => selectTab('transcript')}
                 />
+                <PromptMenuItem
+                  active={tab === 'learning'}
+                  icon={<BookOpen className="size-3.5 shrink-0" />}
+                  label={t('learning.notebook')}
+                  onSelect={() => selectTab('learning')}
+                />
                 <div className="my-1 h-px bg-border" />
                 {prompts.map((prompt) => (
                   <PromptMenuItem
@@ -293,7 +341,17 @@ export function TranscriptSidePanel({
         ) : null}
       </div>
       <div className="flex min-h-0 flex-1 flex-col" data-vt="transcript-tab">
-        {activePrompt ? (
+        {tab === 'learning' ? (
+          <LearningNotebookPane
+            currentSegmentId={currentSegmentId}
+            currentTimeMs={currentTimeMs}
+            downloadId={downloadId}
+            onSeek={onSeek}
+            segments={segments}
+            sourceTitle={sourceTitle}
+            sourceUrl={sourceUrl}
+          />
+        ) : activePrompt ? (
           <div className="flex h-full min-h-0 flex-col">
             {running ? (
               <div className="shrink-0">
@@ -323,6 +381,7 @@ export function TranscriptSidePanel({
         ) : (
           <TranscriptCaptionsPane
             collapsed={false}
+            correctedSegmentIds={correctedSegmentIds}
             currentSegmentId={currentSegmentId}
             currentTimeMs={currentTimeMs}
             downloadId={downloadId}
@@ -332,8 +391,11 @@ export function TranscriptSidePanel({
             noSpeech={noSpeech}
             noSpeechDetail={noSpeechDetail}
             onCancel={onCancel}
+            onCorrectSegment={onCorrectSegment}
+            onRestoreSegment={onRestoreSegment}
             onRetry={onRetry}
             onSeek={onSeek}
+            onSelectionIntent={onSelectionIntent}
             ready={ready}
             resolveColorIndex={resolveColorIndex}
             resolveSpeaker={resolveSpeaker}

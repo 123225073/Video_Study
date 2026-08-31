@@ -9,8 +9,9 @@
  * - Linux:   ${XDG_CONFIG_HOME:-~/.config}/VidBee/automation.json
  * - Windows: %APPDATA%/VidBee/automation.json
  *
- * The descriptor never carries the plaintext token — only sha256(token).
- * The CLI obtains the plaintext via `POST /automation/v1/handshake`.
+ * The descriptor never carries the bearer token — only sha256(token). It
+ * carries a per-process handshake secret so only the local user that can read
+ * this file can exchange it for a short-lived bearer token.
  */
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
@@ -20,7 +21,7 @@ import { app } from 'electron'
 
 import { scopedLoggers } from '../utils/logger'
 
-const SCHEMA_VERSION = '1.0.0'
+const SCHEMA_VERSION = '1.1.0'
 const DESCRIPTOR_FILE = 'automation.json'
 const DIRNAME = 'VidBee'
 
@@ -30,6 +31,7 @@ interface DescriptorPayload {
   kind: 'desktop'
   host: string
   port: number
+  handshakeSecret: string
   tokenHash: string | null
   tokenIssuedAt: number | null
   tokenExpiresAt: number | null
@@ -87,6 +89,7 @@ const writeWithMode = (file: string, payload: string): void => {
 }
 
 export const initAutomationDescriptor = (params: {
+  handshakeSecret: string
   host: string
   port: number
 }): DescriptorPayload => {
@@ -97,6 +100,7 @@ export const initAutomationDescriptor = (params: {
     kind: 'desktop',
     host: params.host,
     port: params.port,
+    handshakeSecret: params.handshakeSecret,
     tokenHash: null,
     tokenIssuedAt: null,
     tokenExpiresAt: null,
@@ -114,6 +118,7 @@ export const initAutomationDescriptor = (params: {
 }
 
 export const updateAutomationDescriptorToken = (params: {
+  handshakeSecret: string
   host: string
   port: number
   token: string
@@ -126,6 +131,7 @@ export const updateAutomationDescriptorToken = (params: {
     kind: 'desktop',
     host: params.host,
     port: params.port,
+    handshakeSecret: params.handshakeSecret,
     tokenHash: `sha256:${createHash('sha256').update(params.token).digest('hex')}`,
     tokenIssuedAt: issuedAt,
     tokenExpiresAt: issuedAt + params.ttlMs,

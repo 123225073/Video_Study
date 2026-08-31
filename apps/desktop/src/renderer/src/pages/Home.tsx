@@ -1,18 +1,15 @@
 import { UnifiedDownloadHistory } from '../components/download/UnifiedDownloadHistory'
-import { UpdateOutdatedNotice } from '../components/update/UpdateOutdatedNotice'
-import { UpdateRestartNotice } from '../components/update/UpdateRestartNotice'
+import { LearningHero } from '../components/learning/LearningHero'
 
 interface HomeProps {
-  appVersion: string
-  onOpenAbout: () => void
+  onOpenLearning: () => void
   onOpenSupportedSites?: () => void
   onOpenSettings?: () => void
   onOpenCookiesSettings?: () => void
 }
 
 export function Home({
-  appVersion,
-  onOpenAbout,
+  onOpenLearning,
   onOpenSupportedSites,
   onOpenSettings,
   onOpenCookiesSettings
@@ -24,12 +21,9 @@ export function Home({
           onOpenCookiesSettings={onOpenCookiesSettings}
           onOpenSettings={onOpenSettings}
           onOpenSupportedSites={onOpenSupportedSites}
-          topContent={
-            <UpdateOutdatedNotice currentVersion={appVersion} onOpenAbout={onOpenAbout} />
-          }
+          topContent={<LearningHero onOpenLearning={onOpenLearning} />}
         />
       </div>
-      <UpdateRestartNotice />
     </div>
   )
 }

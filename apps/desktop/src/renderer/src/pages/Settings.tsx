@@ -1,7 +1,9 @@
 import { AiPromptsPanel } from '@renderer/components/settings/AiPromptsPanel'
 import { AiProvidersPanel } from '@renderer/components/settings/AiProvidersPanel'
 import { AsrModelPicker } from '@renderer/components/settings/AsrModelPicker'
+import { BrowserCompanionPanel } from '@renderer/components/settings/BrowserCompanionPanel'
 import { CookiesSetupPanel } from '@renderer/components/settings/CookiesSetupPanel'
+import { LearningAutomationPanel } from '@renderer/components/settings/LearningAutomationPanel'
 import {
   SETTINGS_NAV_ITEMS,
   type SettingsNavTab,
@@ -686,6 +688,10 @@ export function Settings() {
                 <AiPromptsPanel />
               </TabPanel>
 
+              <TabPanel className="space-y-4" value="learning-automation">
+                <LearningAutomationPanel />
+              </TabPanel>
+
               <TabPanel className="space-y-4" value="transcribe">
                 <AsrModelPicker
                   activeTier={settings.asrTier ?? 'minimal'}
@@ -708,6 +714,10 @@ export function Settings() {
                     )
                   }
                 />
+              </TabPanel>
+
+              <TabPanel className="space-y-4" value="companion">
+                <BrowserCompanionPanel />
               </TabPanel>
 
               <TabPanel className="space-y-4" value="advanced">
@@ -890,38 +900,6 @@ export function Settings() {
                 </ItemGroup>
 
                 <ItemGroup>
-                  <Item variant="muted">
-                    <ItemContent>
-                      <ItemTitle>{t('settings.enableAnalytics')}</ItemTitle>
-                      <ItemDescription>{t('settings.enableAnalyticsDescription')}</ItemDescription>
-                    </ItemContent>
-                    <ItemActions>
-                      {(() => {
-                        try {
-                          const analyticsValue = settings.enableAnalytics ?? true
-                          return (
-                            <Switch
-                              checked={analyticsValue}
-                              label=""
-                              onToggle={() => {
-                                try {
-                                  handleSettingChange('enableAnalytics', !analyticsValue)
-                                } catch (error) {
-                                  logger.error('[Settings] Error changing enable analytics:', error)
-                                }
-                              }}
-                            />
-                          )
-                        } catch (error) {
-                          logger.error('[Settings] Error rendering enable analytics switch:', error)
-                          return <div>Error loading enable analytics setting</div>
-                        }
-                      })()}
-                    </ItemActions>
-                  </Item>
-
-                  <ItemSeparator />
-
                   <Item variant="muted">
                     <ItemContent>
                       <ItemTitle>{t('settings.enableDownloadNotifications')}</ItemTitle>

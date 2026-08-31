@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import '../../assets/title-bar.css'
 import { updateAvailableAtom } from '@renderer/store/update'
 
-type Page = 'about' | 'home' | 'settings' | 'subscriptions'
+type Page = 'about' | 'home' | 'learning' | 'settings' | 'subscriptions'
 
 interface SidebarProps {
   currentPage: Page
@@ -34,6 +34,13 @@ export function Sidebar({
       indicator: transcriptsActive,
       label: t('menu.home'),
       onClick: () => onPageChange('home')
+    },
+    {
+      id: 'learning',
+      active: currentPage === 'learning',
+      icon: appSidebarIcons.transcripts,
+      label: t('menu.learning'),
+      onClick: () => onPageChange('learning')
     },
     {
       id: 'subscriptions',
@@ -72,5 +79,13 @@ export function Sidebar({
     }
   ]
 
-  return <AppSidebar appName="VidBee" bottomItems={bottomItems} items={items} logoAlt="VidBee" />
+  return (
+    <AppSidebar
+      appName={t('learning.appName')}
+      bottomItems={bottomItems}
+      className="fengsha-app-sidebar"
+      items={items}
+      logoAlt={t('learning.appName')}
+    />
+  )
 }

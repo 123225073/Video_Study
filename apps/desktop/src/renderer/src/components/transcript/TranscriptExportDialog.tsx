@@ -63,7 +63,9 @@ const STYLES: Array<{
 
 const FORMATS: Array<{ icon: typeof FileText; id: TranscriptExportFormat }> = [
   { icon: FileText, id: 'txt' },
-  { icon: FileText, id: 'md' }
+  { icon: FileText, id: 'md' },
+  { icon: Captions, id: 'srt' },
+  { icon: Captions, id: 'vtt' }
 ]
 
 const ENCODES: Array<{ icon: typeof Layers; id: TranscriptVideoEncode }> = [
@@ -300,7 +302,7 @@ export function TranscriptExportDialog({
               <h3 className="font-medium text-sm">
                 {t(isVideo ? 'transcript.export.encodeLabel' : 'transcript.export.formatLabel')}
               </h3>
-              <div className={cn('grid gap-2', isVideo ? 'grid-cols-2' : 'grid-cols-3')}>
+              <div className={cn('grid gap-2', isVideo ? 'grid-cols-2' : 'grid-cols-4')}>
                 {(isVideo ? ENCODES : FORMATS).map((item) => {
                   const Icon = item.icon
                   const selected = isVideo ? encode === item.id : format === item.id

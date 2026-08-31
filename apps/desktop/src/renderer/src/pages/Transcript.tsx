@@ -1,3 +1,7 @@
+import { LearningNotebookPane } from '@renderer/components/learning/LearningNotebookPane'
+import { LearningTranscriptPane } from '@renderer/components/learning/LearningTranscriptPane'
+import { LearningWorkbenchPane } from '@renderer/components/learning/LearningWorkbenchPane'
+import { StudyStudio } from '@renderer/components/study-studio/StudyStudio'
 import { AsrUpgradeDialog } from '@renderer/components/transcript/AsrUpgradeDialog'
 import { SpeakerCountDialog } from '@renderer/components/transcript/SpeakerCountDialog'
 import { TranscriptExportDialog } from '@renderer/components/transcript/TranscriptExportDialog'
@@ -7,19 +11,27 @@ import {
 } from '@renderer/components/transcript/TranscriptInfoPane'
 import { TranscriptPlaybackSlot } from '@renderer/components/transcript/TranscriptPlaybackSlot'
 import { TranscriptPlaybackStandby } from '@renderer/components/transcript/TranscriptPlaybackStandby'
-import { TranscriptSidePanel } from '@renderer/components/transcript/TranscriptSidePanel'
 import { TranscriptSourceSwitch } from '@renderer/components/transcript/TranscriptSourceSwitch'
 import { TranscriptSpeakersPane } from '@renderer/components/transcript/TranscriptSpeakersPane'
 import { Button } from '@renderer/components/ui/button'
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup
-} from '@renderer/components/ui/resizable'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
 import { DesktopChromeContext, useTitleBar } from '@renderer/desktop-chrome'
 import { useCachedThumbnail } from '@renderer/hooks/use-cached-thumbnail'
+import {
+  automaticMermaidRepairStorageKey,
+  rememberAutomaticMermaidRepairAttempt,
+  wasAutomaticMermaidRepairAttempted
+} from '@renderer/lib/automatic-mermaid-repair'
+import { validateGeneratedLearningMermaid } from '@renderer/lib/beautiful-mermaid-plugin'
 import { ipcEvents, ipcServices } from '@renderer/lib/ipc'
+import { logger } from '@renderer/lib/logger'
+import { parseGeneratedLearningMermaid } from '@renderer/lib/study-studio/ai-generation'
+import type {
+  StudyScene,
+  StudyStudioLabels,
+  TranscriptSelection,
+  TranscriptSelectionAction
+} from '@renderer/lib/study-studio/types'
 import { segmentAtTime } from '@renderer/lib/transcript-index'
 import {
   isInProgressTranscript,
@@ -51,6 +63,17 @@ import {
   upsertTranscriptAtom
 } from '@renderer/store/transcripts'
 import { buildPromptTranscriptText } from '@shared/ai-prompt-text'
+import type { AiPromptRunSnapshot } from '@shared/ai-types'
+import type { CompanionCapturePayload } from '@shared/companion-types'
+import type {
+  LearningAiArtifactKind,
+  LearningAiWorkflowId,
+  LearningTranscriptOverlay
+} from '@shared/learning-types'
+import {
+  LEARNING_AI_PROMPT_METADATA,
+  learningWorkflowIdForPrompt
+} from '@shared/learning-workflow/ai-prompts'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { DragRegion, NoDrag } from '@vidbee/ui/components/ui/drag-region'
 import {
@@ -60,6 +83,7 @@ import {
 import { mediaKindFromName } from '@vidbee/ui/lib/ingest'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
+  Camera,
   Captions,
   ChevronLeft,
   PanelRightClose,
@@ -69,7 +93,6 @@ import {
 } from 'lucide-react'
 import {
   type ReactNode,
-  type RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -78,7 +101,6 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { type PanelImperativeHandle, useDefaultLayout, usePanelRef } from 'react-resizable-panels'
 import { toast } from 'sonner'
 import {
   getCodecLabel,
@@ -90,6 +112,14 @@ import { type DownloadRecord, downloadRecordsAtom } from '../store/downloads'
 const EMPTY_SEGMENTS: TranscriptSegmentView[] = []
 const EMPTY_SPEAKERS: TranscriptSpeakerView[] = []
 const WIDE_LAYOUT_QUERY = '(min-width: 1024px)'
+
+const AI_ARTIFACT_KIND_BY_WORKFLOW: Record<LearningAiWorkflowId, LearningAiArtifactKind> = {
+  mindmap: 'mindmap',
+  'quote-candidates': 'quotes',
+  reflection: 'reflection',
+  summary: 'summary',
+  translation: 'translation'
+}
 
 /**
  * Map a download record onto Info tab fields that used to live in the details drawer.
@@ -170,63 +200,6 @@ const useWideTranscriptLayout = (): boolean => {
   return isWide
 }
 
-interface TranscriptSplitProps {
-  captions: ReactNode
-  captionsRef: RefObject<PanelImperativeHandle | null>
-  media: ReactNode
-  onCaptionsResize: () => void
-  orientation: 'horizontal' | 'vertical'
-  resizeLabel: string
-}
-
-/**
- * Split the media player and transcript list with a draggable, collapsible handle.
- */
-function TranscriptSplit({
-  captions,
-  captionsRef,
-  media,
-  onCaptionsResize,
-  orientation,
-  resizeLabel
-}: TranscriptSplitProps) {
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: `vidbee-transcript-${orientation}`,
-    onlySaveAfterUserInteractions: true
-  })
-  const isHorizontal = orientation === 'horizontal'
-  return (
-    <ResizablePanelGroup
-      className="min-h-0 flex-1"
-      defaultLayout={defaultLayout}
-      onLayoutChanged={onLayoutChanged}
-      orientation={orientation}
-    >
-      <ResizablePanel
-        className="min-h-0 min-w-0"
-        defaultSize={isHorizontal ? '52%' : '38%'}
-        id="transcript-media"
-        minSize={isHorizontal ? '28%' : '22%'}
-      >
-        {media}
-      </ResizablePanel>
-      <ResizableHandle aria-label={resizeLabel} autoHide />
-      <ResizablePanel
-        className="min-h-0 min-w-0"
-        collapsedSize="0px"
-        collapsible
-        defaultSize={isHorizontal ? '48%' : '62%'}
-        id="transcript-captions"
-        minSize={isHorizontal ? '24%' : '30%'}
-        onResize={onCaptionsResize}
-        panelRef={captionsRef}
-      >
-        {captions}
-      </ResizablePanel>
-    </ResizablePanelGroup>
-  )
-}
-
 interface TranscriptHeaderProps {
   backLabel: string
   canExport: boolean
@@ -248,6 +221,7 @@ interface TranscriptHeaderProps {
   sourceLabel?: string
   sourceSwitch?: ReactNode
   stillTranscribeLabel: string
+  showCaptionsToggle?: boolean
   title: string
   upgradeLabel: string
 }
@@ -263,7 +237,7 @@ function TranscriptSourceIcon({
     sourceKind === 'captions' ? (
       <Captions className="block size-4 text-muted-foreground" />
     ) : sourceKind === 'asr' ? (
-      <Sparkles className="block size-4 text-violet-500" />
+      <Sparkles className="block size-4 text-amber-600 dark:text-amber-400" />
     ) : null
   if (!icon) {
     return null
@@ -315,6 +289,7 @@ function TranscriptHeader({
   sourceLabel,
   sourceSwitch,
   stillTranscribeLabel,
+  showCaptionsToggle = true,
   title,
   upgradeLabel
 }: TranscriptHeaderProps) {
@@ -353,16 +328,18 @@ function TranscriptHeader({
             </Button>
           </>
         ) : null}
-        <Button
-          aria-label={captionsCollapsed ? expandLabel : collapseLabel}
-          className="h-8 w-8"
-          onClick={onToggleCaptions}
-          size="icon"
-          type="button"
-          variant="ghost"
-        >
-          {captionsCollapsed ? <PanelRightOpen /> : <PanelRightClose />}
-        </Button>
+        {showCaptionsToggle ? (
+          <Button
+            aria-label={captionsCollapsed ? expandLabel : collapseLabel}
+            className="h-8 w-8"
+            onClick={onToggleCaptions}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            {captionsCollapsed ? <PanelRightOpen /> : <PanelRightClose />}
+          </Button>
+        ) : null}
         {failed ? (
           <Button onClick={onRetry} size="sm">
             <RotateCw />
@@ -382,7 +359,7 @@ function TranscriptHeader({
 
 export function TranscriptPage() {
   const { downloadId } = useParams({ from: '/downloads/$downloadId/transcript' })
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const navigate = useNavigate()
   const chrome = useContext(DesktopChromeContext)
   const isWide = useWideTranscriptLayout()
@@ -390,11 +367,29 @@ export function TranscriptPage() {
   const upsert = useSetAtom(upsertTranscriptAtom)
   const modelPrep = useTranscriptModelPrep()
   const [snapshot, setSnapshot] = useState<TranscriptSnapshotView | null>(null)
+  const [learningTranscript, setLearningTranscript] = useState<LearningTranscriptOverlay | null>(
+    null
+  )
   const [exportOpen, setExportOpen] = useState(false)
   const [upgradeOpen, setUpgradeOpen] = useState(false)
   const [speakerCountOpen, setSpeakerCountOpen] = useState(false)
   const [partials, setPartials] = useState<TranscriptSegmentView[]>(EMPTY_SEGMENTS)
-  const [captionsCollapsed, setCaptionsCollapsed] = useState(false)
+  const [studyScene, setStudyScene] = useState<StudyScene>(() => {
+    const saved = window.localStorage.getItem(`fengsha-study-scene:${downloadId}`)
+    return saved === 'note' || saved === 'output' ? saved : 'watch'
+  })
+  const [pendingNoteCapture, setPendingNoteCapture] = useState<{
+    id: string
+    kind: 'bookmark'
+    quote: string
+    text: string
+    timestampMs: number
+  } | null>(null)
+  const [outputSelection, setOutputSelection] = useState<TranscriptSelection | null>(null)
+  const [outputSelectionIntent, setOutputSelectionIntent] = useState<
+    'quote-card' | 'reflection' | null
+  >(null)
+  const [, setCompanionCapture] = useState<CompanionCapturePayload | null>(null)
   const session = useAtomValue(playbackSessionAtom)
   const clock = useAtomValue(playbackClockAtom)
   const controls = useAtomValue(playbackControlsAtom)
@@ -403,23 +398,15 @@ export function TranscriptPage() {
   const releaseIdle = useSetAtom(releaseIdlePlaybackAtom)
   const setPresentation = useSetAtom(playbackPresentationAtom)
   const hadListedTranscript = useRef(false)
-  const captionsRef = usePanelRef()
-  const syncCaptionsCollapsed = useCallback(() => {
-    setCaptionsCollapsed(captionsRef.current?.isCollapsed() ?? false)
-  }, [captionsRef])
-
-  const toggleCaptions = useCallback(() => {
-    const panel = captionsRef.current
-    if (!panel) {
-      return
-    }
-    if (panel.isCollapsed()) {
-      panel.expand()
-    } else {
-      panel.collapse()
-    }
-    setCaptionsCollapsed(panel.isCollapsed())
-  }, [captionsRef])
+  const handledCompanionCapturesRef = useRef(new Set<string>())
+  const automaticAiRunKeysRef = useRef(new Set<string>())
+  const selectStudyScene = useCallback(
+    (scene: StudyScene) => {
+      setStudyScene(scene)
+      window.localStorage.setItem(`fengsha-study-scene:${downloadId}`, scene)
+    },
+    [downloadId]
+  )
 
   const download = useMemo(() => {
     for (const record of records.values()) {
@@ -502,7 +489,51 @@ export function TranscriptPage() {
   })
   const running = workspace.running
   const streamLive = workspace.streamLive
-  const segments = workspace.segments
+  const rawSegments = workspace.segments
+  const segments = useMemo(() => {
+    if (!learningTranscript) {
+      return rawSegments
+    }
+    const sourceSegments =
+      rawSegments.length > 0
+        ? rawSegments
+        : learningTranscript.segments.map(
+            (segment, sortIndex): TranscriptSegmentView => ({
+              confidence: null,
+              endMs: segment.endMs,
+              id: segment.id,
+              sortIndex,
+              speakerId: segment.speakerId,
+              startMs: segment.startMs,
+              text: segment.originalText
+            })
+          )
+    const effectiveText = new Map(
+      learningTranscript.segments.map((segment) => {
+        const correction = learningTranscript.corrections.findLast(
+          (item) => item.segmentId === segment.id
+        )
+        return [segment.id, correction?.correctedText ?? segment.originalText] as const
+      })
+    )
+    return sourceSegments.map((segment) => ({
+      ...segment,
+      text: effectiveText.get(segment.id) ?? segment.text
+    }))
+  }, [learningTranscript, rawSegments])
+  const correctedSegmentIds = useMemo(() => {
+    if (!learningTranscript) {
+      return new Set<string>()
+    }
+    return new Set(
+      learningTranscript.segments.flatMap((segment) => {
+        const latest = learningTranscript.corrections.findLast(
+          (correction) => correction.segmentId === segment.id
+        )
+        return latest && latest.correctedText !== segment.originalText ? [segment.id] : []
+      })
+    )
+  }, [learningTranscript])
   const liveSpeakers = useMemo(() => speakersFromSegments(segments), [segments])
   const speakers =
     snapshot?.record?.speakers && snapshot.record.speakers.length > 0
@@ -557,6 +588,360 @@ export function TranscriptPage() {
     [currentTimeMs, segments]
   )
   const title = download?.title ?? t('transcript.title')
+  const captureCurrentFrame = useCallback((): void => {
+    const video = document.querySelector<HTMLVideoElement>('video')
+    if (!(video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA)) {
+      toast.error(t('learning.captureFrameUnavailable'))
+      return
+    }
+    try {
+      const sourceWidth = video.videoWidth
+      const sourceHeight = video.videoHeight
+      if (!(sourceWidth > 0 && sourceHeight > 0)) {
+        throw new Error('Video frame dimensions are unavailable')
+      }
+      const scale = Math.min(1, 1600 / Math.max(sourceWidth, sourceHeight))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(sourceWidth * scale))
+      canvas.height = Math.max(1, Math.round(sourceHeight * scale))
+      const context = canvas.getContext('2d')
+      if (!context) {
+        throw new Error('Canvas is unavailable')
+      }
+      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+      const screenshotDataUrl = canvas.toDataURL('image/jpeg', 0.88)
+      setCompanionCapture({
+        action: 'frame',
+        captionCues: currentSegment
+          ? [
+              {
+                endSeconds: currentSegment.endMs / 1000,
+                startSeconds: currentSegment.startMs / 1000,
+                text: currentSegment.text
+              }
+            ]
+          : [],
+        captionLanguage: snapshot?.record?.language ?? null,
+        captionText: currentSegment?.text ?? '',
+        currentTimeSeconds: currentTime,
+        durationSeconds: duration || null,
+        pageUrl: download?.url ?? `https://local.fengsha.invalid/${encodeURIComponent(downloadId)}`,
+        platform: 'other',
+        screenshotDataUrl,
+        selectedText: '',
+        title
+      })
+      selectStudyScene('output')
+      toast.success(t('learning.frameCaptured'))
+    } catch (error) {
+      logger.warn('Failed to capture the current video frame', error)
+      toast.error(t('learning.captureFrameUnavailable'))
+    }
+  }, [
+    currentSegment,
+    currentTime,
+    download?.url,
+    downloadId,
+    duration,
+    selectStudyScene,
+    snapshot?.record?.language,
+    t,
+    title
+  ])
+  const ensureLearningTranscript = useCallback(async (): Promise<LearningTranscriptOverlay> => {
+    const existing = await ipcServices.learning.get(downloadId)
+    const existingTranscript = existing?.transcript ?? null
+    const sameSource =
+      existingTranscript &&
+      (rawSegments.length === 0 ||
+        (existingTranscript.segments.length === rawSegments.length &&
+          rawSegments.every(
+            (segment, index) => existingTranscript.segments[index]?.id === segment.id
+          )))
+    if (existingTranscript && sameSource) {
+      setLearningTranscript(existingTranscript)
+      return existingTranscript
+    }
+    const now = Date.now()
+    const transcript: LearningTranscriptOverlay = {
+      corrections: [],
+      segments: rawSegments.map((segment) => ({
+        endMs: segment.endMs,
+        id: segment.id,
+        originalText: segment.text,
+        speakerId: segment.speakerId,
+        startMs: segment.startMs,
+        translatedText: ''
+      })),
+      sourceVersionId: `${downloadId}:${snapshot?.record?.createdAt ?? snapshot?.updatedAt ?? now}`,
+      updatedAt: now,
+      version: 1
+    }
+    const saved = await ipcServices.learning.save({
+      downloadId,
+      source: existing?.source ?? {
+        author: download?.channel ?? download?.uploader ?? '',
+        canonicalUrl: download?.url ?? null,
+        durationMs,
+        platform: resolveDownloadPlatform(download?.url ?? '').key,
+        thumbnailUrl: download?.thumbnail ?? null,
+        title
+      },
+      sourceUrl: download?.url ?? null,
+      title,
+      transcript
+    })
+    if (!saved.transcript) {
+      throw new Error('Learning transcript could not be initialized')
+    }
+    setLearningTranscript(saved.transcript)
+    return saved.transcript
+  }, [
+    download,
+    downloadId,
+    durationMs,
+    rawSegments,
+    snapshot?.record?.createdAt,
+    snapshot?.updatedAt,
+    title
+  ])
+
+  useEffect(() => {
+    if (running) {
+      return
+    }
+    if (rawSegments.length === 0) {
+      void ipcServices.learning
+        .get(downloadId)
+        .then((saved) => setLearningTranscript(saved?.transcript ?? null))
+        .catch((error) => logger.error('Failed to restore the learning transcript', error))
+      return
+    }
+    void ensureLearningTranscript().catch((error) =>
+      logger.error('Failed to initialize non-destructive transcript history', error)
+    )
+  }, [downloadId, ensureLearningTranscript, rawSegments.length, running])
+
+  const correctLearningSegment = useCallback(
+    async (segmentId: string, text: string): Promise<void> => {
+      await ensureLearningTranscript()
+      const saved = await ipcServices.learning.applyCorrection({
+        correctedText: text,
+        downloadId,
+        reason: 'manual',
+        segmentId
+      })
+      setLearningTranscript(saved.transcript ?? null)
+      toast.success(t('learning.corrections.saved'))
+    },
+    [downloadId, ensureLearningTranscript, t]
+  )
+
+  const restoreLearningSegment = useCallback(
+    async (segmentId: string): Promise<void> => {
+      const saved = await ipcServices.learning.restoreCorrection({
+        correctionId: null,
+        downloadId,
+        segmentId
+      })
+      setLearningTranscript(saved.transcript ?? null)
+      toast.success(t('learning.corrections.restored'))
+    },
+    [downloadId, t]
+  )
+
+  const persistLearningAiArtifact = useCallback(
+    async (run: AiPromptRunSnapshot): Promise<void> => {
+      if (run.downloadId !== downloadId || run.status !== 'completed' || !run.text.trim()) {
+        return
+      }
+      const workflowId = learningWorkflowIdForPrompt(run.promptId)
+      if (!workflowId) {
+        return
+      }
+      const [settings, notebook, aiSnapshot] = await Promise.all([
+        ipcServices.learning.getAiSettings(),
+        ipcServices.learning.get(downloadId),
+        ipcServices.ai.getSnapshot()
+      ])
+      if (!notebook) {
+        return
+      }
+      const prompt = settings.prompts.find((item) => item.id === workflowId)
+      if (!prompt) {
+        return
+      }
+      if (
+        (notebook.transcript?.updatedAt ?? 0) > run.startedAt ||
+        prompt.updatedAt > run.startedAt
+      ) {
+        logger.info('Ignoring stale learning AI result', {
+          downloadId,
+          promptId: run.promptId,
+          runStartedAt: run.startedAt
+        })
+        return
+      }
+      const transcriptVersion = notebook.transcript?.version ?? 1
+      const repairKey = automaticMermaidRepairStorageKey(
+        downloadId,
+        run.promptId,
+        transcriptVersion,
+        prompt.version
+      )
+      let artifactContent = run.text.trim()
+      if (workflowId === 'mindmap') {
+        try {
+          const code = parseGeneratedLearningMermaid(artifactContent)
+          await validateGeneratedLearningMermaid(code)
+          artifactContent = `\`\`\`mermaid\n${code}\n\`\`\``
+          rememberAutomaticMermaidRepairAttempt(window.localStorage, repairKey, false)
+        } catch (error) {
+          if (wasAutomaticMermaidRepairAttempted(window.localStorage, repairKey)) {
+            throw error
+          }
+          rememberAutomaticMermaidRepairAttempt(window.localStorage, repairKey, true)
+          const transcriptText = buildPromptTranscriptText(segments, speakerName)
+          const message = error instanceof Error ? error.message : String(error)
+          await ipcServices.ai.startPrompt({
+            downloadId,
+            promptId: run.promptId,
+            transcriptText: `${transcriptText}\n\nAI_GENERATED_DRAFT (repair this data):\n${run.text}\n\nRENDER_ERROR:\n${message}`,
+            uiLanguage: i18n.language
+          })
+          return
+        }
+      }
+      const artifactId = `ai:${workflowId}:${run.updatedAt}`
+      if (notebook.aiArtifacts?.some((artifact) => artifact.id === artifactId)) {
+        return
+      }
+      const activeProvider = aiSnapshot.providers.find(
+        (provider) => provider.id === aiSnapshot.activeProviderId
+      )
+      try {
+        await ipcServices.learning.appendAiArtifact({
+          artifact: {
+            content: artifactContent,
+            createdAt: Date.now(),
+            id: artifactId,
+            kind: AI_ARTIFACT_KIND_BY_WORKFLOW[workflowId],
+            model: activeProvider?.modelId ?? settings.defaultModel,
+            prompt: prompt.systemPrompt,
+            promptVersion: prompt.version,
+            sourceSegmentIds: notebook.transcript?.segments.map((segment) => segment.id) ?? [],
+            transcriptVersion
+          },
+          downloadId
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (!message.includes('already exists')) {
+          throw error
+        }
+      }
+    },
+    [downloadId, i18n.language, segments, speakerName]
+  )
+
+  useEffect(() => {
+    const listener = (...args: unknown[]): void => {
+      const run = args[0] as AiPromptRunSnapshot | undefined
+      if (!run) {
+        return
+      }
+      void persistLearningAiArtifact(run).catch((error) =>
+        logger.error('Failed to persist learning AI artifact', error)
+      )
+    }
+    const subscription = ipcEvents.on('ai:prompt-run', listener)
+    return () => {
+      ipcEvents.removeListener('ai:prompt-run', subscription)
+    }
+  }, [persistLearningAiArtifact])
+
+  useEffect(() => {
+    if (running || segments.length === 0 || !learningTranscript) {
+      return
+    }
+    let active = true
+    const runAutomaticWorkflows = async (): Promise<void> => {
+      const [settings, notebook, aiSnapshot] = await Promise.all([
+        ipcServices.learning.getAiSettings(),
+        ipcServices.learning.get(downloadId),
+        ipcServices.ai.getSnapshot()
+      ])
+      if (!(active && notebook && aiSnapshot.activeProviderId)) {
+        return
+      }
+      const transcriptVersion = notebook.transcript?.version ?? 1
+      const transcriptText = buildPromptTranscriptText(segments, speakerName)
+      for (const rule of settings.workflows) {
+        if (!(active && rule.enabled && rule.runOnTranscriptComplete)) {
+          continue
+        }
+        const prompt = settings.prompts.find((item) => item.id === rule.id)
+        const metadata = LEARNING_AI_PROMPT_METADATA[rule.id]
+        if (!prompt) {
+          continue
+        }
+        const artifactKind = AI_ARTIFACT_KIND_BY_WORKFLOW[rule.id]
+        if (
+          notebook.aiArtifacts?.some(
+            (artifact) =>
+              artifact.kind === artifactKind &&
+              artifact.promptVersion === prompt.version &&
+              artifact.transcriptVersion === transcriptVersion
+          )
+        ) {
+          continue
+        }
+        const currentRun = await ipcServices.ai.getPromptRun({
+          downloadId,
+          promptId: metadata.promptId
+        })
+        if (currentRun.status === 'running') {
+          continue
+        }
+        if (
+          currentRun.status === 'completed' &&
+          currentRun.startedAt >= (notebook.transcript?.updatedAt ?? 0) &&
+          currentRun.startedAt >= prompt.updatedAt
+        ) {
+          await persistLearningAiArtifact(currentRun)
+          continue
+        }
+        const runKey = `${downloadId}:${metadata.promptId}:${transcriptVersion}:${prompt.version}`
+        if (automaticAiRunKeysRef.current.has(runKey)) {
+          continue
+        }
+        automaticAiRunKeysRef.current.add(runKey)
+        // A persisted prompt run has no transcript-version key. When the current
+        // artifact is missing, always start a fresh run so a corrected or restored
+        // transcript cannot silently reuse an answer produced from older text.
+        await ipcServices.ai.startPrompt({
+          downloadId,
+          promptId: metadata.promptId,
+          transcriptText,
+          uiLanguage: i18n.language
+        })
+      }
+    }
+    void runAutomaticWorkflows().catch((error) =>
+      logger.error('Failed to start automatic learning workflows', error)
+    )
+    return () => {
+      active = false
+    }
+  }, [
+    downloadId,
+    i18n.language,
+    learningTranscript,
+    persistLearningAiArtifact,
+    running,
+    segments,
+    speakerName
+  ])
   const subtitle = download?.channel ?? download?.uploader ?? null
   // Renderer CSP blocks remote covers (xyzcdn, etc.); only cached/local URLs are safe.
   const thumbnail = cachedThumbnail ?? null
@@ -586,15 +971,201 @@ export function TranscriptPage() {
     [downloadId, isAudio, mediaPath, subtitle, thumbnail, title]
   )
   const ownsPlayer = session?.downloadId === downloadId
+  useEffect(() => {
+    if (!(ownsPlayer && controls)) {
+      return
+    }
+    const key = `fengsha-pending-seek:${downloadId}`
+    const pending = Number(window.localStorage.getItem(key))
+    if (!Number.isFinite(pending) || pending < 0) {
+      return
+    }
+    let cancelled = false
+    let attempts = 0
+    const applyPendingSeek = async (): Promise<void> => {
+      if (cancelled) {
+        return
+      }
+      try {
+        await controls.seek(pending / 1000)
+        window.localStorage.removeItem(key)
+      } catch (error) {
+        attempts += 1
+        if (error instanceof Error && error.message === 'NO_TARGET' && attempts < 40) {
+          window.setTimeout(() => void applyPendingSeek(), 50)
+          return
+        }
+        logger.warn('Failed to apply pending transcript seek', error)
+      }
+    }
+    void applyPendingSeek()
+    return () => {
+      cancelled = true
+    }
+  }, [controls, downloadId, ownsPlayer])
   const seek = useCallback(
     (seconds: number) => {
-      if (ownsPlayer) {
-        controls?.seek(seconds)
-        return
+      if (ownsPlayer && controls) {
+        try {
+          void Promise.resolve(controls.seek(seconds)).catch((error: unknown) => {
+            if (error instanceof Error && error.message === 'NO_TARGET') {
+              takeSession({ ...sessionInput, seekTo: seconds })
+              return
+            }
+            logger.warn('Failed to seek transcript playback', error)
+          })
+          return
+        } catch (error) {
+          if (!(error instanceof Error && error.message === 'NO_TARGET')) {
+            throw error
+          }
+        }
       }
       takeSession({ ...sessionInput, seekTo: seconds })
     },
     [controls, ownsPlayer, sessionInput, takeSession]
+  )
+
+  useEffect(() => {
+    const sourceUrl = download?.url
+    if (!sourceUrl) {
+      return
+    }
+    const comparableUrl = (value: string): string => {
+      try {
+        const url = new URL(value)
+        url.hash = ''
+        url.searchParams.delete('t')
+        return url.toString()
+      } catch {
+        return value
+      }
+    }
+    const applyCapture = (capture: CompanionCapturePayload): void => {
+      if (comparableUrl(capture.pageUrl) !== comparableUrl(sourceUrl)) {
+        return
+      }
+      const captureId = `${capture.action}:${capture.pageUrl}:${capture.currentTimeSeconds}:${capture.selectedText}`
+      if (handledCompanionCapturesRef.current.has(captureId)) {
+        return
+      }
+      handledCompanionCapturesRef.current.add(captureId)
+      seek(capture.currentTimeSeconds)
+      if (capture.action === 'frame') {
+        setCompanionCapture(capture)
+        selectStudyScene('output')
+        return
+      }
+      if (capture.action === 'time-marker') {
+        const quote = capture.selectedText || capture.captionText
+        setPendingNoteCapture({
+          id: `companion-${Date.now()}-${Math.round(capture.currentTimeSeconds * 1000)}`,
+          kind: 'bookmark',
+          quote,
+          text: t('learning.companion.markerNote'),
+          timestampMs: capture.currentTimeSeconds * 1000
+        })
+        selectStudyScene('note')
+      }
+    }
+    const listener = (...args: unknown[]) => {
+      const capture = args[0] as CompanionCapturePayload | undefined
+      if (capture) {
+        applyCapture(capture)
+      }
+    }
+    const subscription = ipcEvents.on('companion:capture', listener)
+    try {
+      const stored = JSON.parse(
+        window.localStorage.getItem('fengsha-companion-captures') ?? '[]'
+      ) as unknown
+      if (Array.isArray(stored)) {
+        const latest = stored.findLast(
+          (item): item is CompanionCapturePayload & { receivedAt?: number } =>
+            Boolean(item && typeof item === 'object' && 'pageUrl' in item)
+        )
+        if (latest && latest.action !== 'open') {
+          applyCapture(latest)
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to restore browser companion capture', error)
+    }
+    return () => {
+      ipcEvents.removeListener('companion:capture', subscription)
+    }
+  }, [download?.url, seek, selectStudyScene, t])
+
+  const handleSelectionIntent = useCallback(
+    async (action: TranscriptSelectionAction): Promise<void> => {
+      const selectedText = action.selection.text.trim()
+      if (!selectedText) {
+        return
+      }
+      if (action.intent === 'seek') {
+        seek(action.selection.startMs / 1000)
+        return
+      }
+      if (action.intent === 'copy') {
+        await navigator.clipboard.writeText(selectedText)
+        toast.success(t('learning.copied'))
+        return
+      }
+      if (action.intent === 'highlight') {
+        try {
+          const now = Date.now()
+          await ipcServices.learning.upsertNote({
+            downloadId,
+            note: {
+              completed: false,
+              createdAt: now,
+              highlightColor: 'amber',
+              id: `highlight-${now}-${action.selection.startMs}`,
+              kind: 'bookmark',
+              quote: selectedText,
+              sourceEndOffset: selectedText.length,
+              sourceSegmentIds: action.selection.segmentIds ?? [],
+              sourceStartOffset: 0,
+              text: '',
+              timestampMs: action.selection.startMs,
+              updatedAt: now
+            }
+          })
+          window.dispatchEvent(
+            new CustomEvent('learning:notes-changed', { detail: { downloadId } })
+          )
+          toast.success(t('learning.selection.highlighted'))
+        } catch (error) {
+          logger.error('Failed to highlight selected transcript', error)
+          toast.error(t('learning.saveFailed'))
+        }
+        return
+      }
+      if (action.intent === 'note') {
+        setPendingNoteCapture({
+          id: `capture-${Date.now()}-${action.selection.startMs}`,
+          kind: 'bookmark',
+          quote: selectedText,
+          text: t('learning.selection.capturedNote'),
+          timestampMs: action.selection.startMs
+        })
+        selectStudyScene('note')
+        toast.success(t('learning.selection.addedToNotes'))
+        return
+      }
+      if (action.intent === 'reflection' || action.intent === 'quote-card') {
+        setOutputSelection(action.selection)
+        setOutputSelectionIntent(action.intent)
+        selectStudyScene('output')
+        return
+      }
+      if (action.intent === 'ask-ai') {
+        setOutputSelection(action.selection)
+        setOutputSelectionIntent('reflection')
+        selectStudyScene('output')
+      }
+    },
+    [downloadId, seek, selectStudyScene, t]
   )
 
   const handlePlayThis = useCallback(() => {
@@ -676,7 +1247,7 @@ export function TranscriptPage() {
         canExport={Boolean(ready && segments.length > 0)}
         canForce={noSpeech}
         canUpgrade={Boolean(ready && segments.length > 0 && !fromCaptions && !running)}
-        captionsCollapsed={captionsCollapsed}
+        captionsCollapsed={false}
         collapseLabel={t('transcript.collapsePanel')}
         expandLabel={t('transcript.expandPanel')}
         exportLabel={t('transcript.export.action')}
@@ -685,9 +1256,10 @@ export function TranscriptPage() {
         onExport={handleExport}
         onForce={() => void handleForce()}
         onRetry={() => void handleRetry()}
-        onToggleCaptions={toggleCaptions}
+        onToggleCaptions={() => {}}
         onUpgrade={() => setUpgradeOpen(true)}
         retryLabel={t('transcript.retry')}
+        showCaptionsToggle={false}
         sourceKind={snapshot?.sourceKind}
         sourceLabel={
           fromCaptions
@@ -703,7 +1275,6 @@ export function TranscriptPage() {
       />
     ),
     [
-      captionsCollapsed,
       failed,
       fromCaptions,
       handleBack,
@@ -717,12 +1288,10 @@ export function TranscriptPage() {
       snapshot?.sourceKind,
       sourceSwitch,
       t,
-      title,
-      toggleCaptions
+      title
     ]
   )
   useTitleBar(header)
-  const orientation = isWide ? 'horizontal' : 'vertical'
   const currentSpeakerId = currentSegment?.speakerId ?? null
   useEffect(() => {
     if (session?.downloadId !== downloadId) {
@@ -797,6 +1366,72 @@ export function TranscriptPage() {
     </div>
   )
 
+  const studioLabels: StudyStudioLabels = {
+    regions: {
+      note: t('learning.studio.regions.note'),
+      output: t('learning.studio.regions.output'),
+      transcript: t('learning.studio.regions.transcript'),
+      video: t('learning.studio.regions.video')
+    },
+    sceneDescriptions: {
+      note: t('learning.studio.descriptions.note'),
+      output: t('learning.studio.descriptions.output'),
+      watch: t('learning.studio.descriptions.watch')
+    },
+    scenes: {
+      note: t('learning.studio.scenes.note'),
+      output: t('learning.studio.scenes.output'),
+      watch: t('learning.studio.scenes.watch')
+    }
+  }
+
+  const transcriptPane = (
+    <LearningTranscriptPane
+      correctedSegmentIds={correctedSegmentIds}
+      currentSegmentId={currentSegment?.id ?? null}
+      currentTimeMs={currentTimeMs}
+      downloadId={downloadId}
+      error={snapshot?.error ?? null}
+      failed={failed}
+      noSpeech={noSpeech}
+      noSpeechDetail={t('transcript.noSpeechDetail')}
+      onCancel={running ? () => void handleCancel() : undefined}
+      onCorrectSegment={correctLearningSegment}
+      onRestoreSegment={restoreLearningSegment}
+      onRetry={failed ? () => void handleRetry() : undefined}
+      onSeek={seek}
+      onSelectionIntent={(action) => void handleSelectionIntent(action)}
+      ready={Boolean(ready) || segments.length > 0}
+      resolveColorIndex={speakerColorIndex}
+      resolveSpeaker={speakerName}
+      running={running}
+      runningLabel={t(
+        transcriptProgressLabelKey(
+          snapshot?.listState,
+          snapshot?.stage,
+          modelPrep.ready,
+          segments.length > 0
+        )
+      )}
+      segments={segments}
+      sourceCover={thumbnail}
+      sourceDurationMs={durationMs}
+      sourceTitle={download?.title ?? title}
+      sourceUrl={download?.url ?? null}
+      speakers={speakers}
+      stage={
+        snapshot?.listState === 'queued'
+          ? 'queued'
+          : snapshot?.listState === 'retry-scheduled'
+            ? 'retry-scheduled'
+            : snapshot?.stage
+      }
+      stageHistory={snapshot?.stageHistory ?? []}
+      streamLive={streamLive}
+      transcriptText={buildPromptTranscriptText(segments, speakerName)}
+    />
+  )
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {chrome ? null : (
@@ -804,55 +1439,46 @@ export function TranscriptPage() {
           {header}
         </DragRegion>
       )}
-      <TranscriptSplit
-        captions={
-          <TranscriptSidePanel
-            collapsed={captionsCollapsed}
+      <StudyStudio
+        actions={
+          <Button
+            disabled={isAudio}
+            onClick={captureCurrentFrame}
+            size="sm"
+            title={isAudio ? t('learning.captureFrameUnavailable') : t('learning.captureFrame')}
+            variant="outline"
+          >
+            <Camera className="size-4" />
+            {t('learning.captureFrame')}
+          </Button>
+        }
+        labels={studioLabels}
+        note={
+          <LearningNotebookPane
+            capture={pendingNoteCapture}
             currentSegmentId={currentSegment?.id ?? null}
             currentTimeMs={currentTimeMs}
             downloadId={downloadId}
-            error={snapshot?.error ?? null}
-            failed={failed}
-            noSpeech={noSpeech}
-            noSpeechDetail={t('transcript.noSpeechDetail')}
-            onCancel={running ? () => void handleCancel() : undefined}
-            onRetry={failed ? () => void handleRetry() : undefined}
             onSeek={seek}
-            ready={Boolean(ready) || segments.length > 0}
-            resolveColorIndex={speakerColorIndex}
-            resolveSpeaker={speakerName}
-            running={running}
-            runningLabel={t(
-              transcriptProgressLabelKey(
-                snapshot?.listState,
-                snapshot?.stage,
-                modelPrep.ready,
-                segments.length > 0
-              )
-            )}
             segments={segments}
-            sourceCover={thumbnail}
-            sourceDurationMs={durationMs}
             sourceTitle={download?.title ?? title}
-            speakers={speakers}
-            stage={
-              snapshot?.listState === 'queued'
-                ? 'queued'
-                : snapshot?.listState === 'retry-scheduled'
-                  ? 'retry-scheduled'
-                  : snapshot?.stage
-            }
-            stageHistory={snapshot?.stageHistory ?? []}
-            streamLive={streamLive}
+            sourceUrl={download?.url ?? null}
+          />
+        }
+        onSceneChange={selectStudyScene}
+        output={
+          <LearningWorkbenchPane
+            downloadId={downloadId}
+            onSeek={seek}
+            selectedQuote={outputSelection}
+            selectionIntent={outputSelectionIntent}
+            sourceTitle={download?.title ?? title}
             transcriptText={buildPromptTranscriptText(segments, speakerName)}
           />
         }
-        captionsRef={captionsRef}
-        key={orientation}
-        media={mediaPane}
-        onCaptionsResize={syncCaptionsCollapsed}
-        orientation={orientation}
-        resizeLabel={t('transcript.resizeHandle')}
+        scene={studyScene}
+        transcript={transcriptPane}
+        video={mediaPane}
       />
       <TranscriptExportDialog
         isAudio={isAudio}

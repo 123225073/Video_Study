@@ -6,9 +6,10 @@ import { Sidebar } from '@renderer/components/ui/sidebar'
 import { Toaster } from '@renderer/components/ui/sonner'
 import { TitleBar } from '@renderer/components/ui/title-bar'
 import { WhatsNewHost } from '@renderer/components/whats-new/WhatsNewDialog'
+import type { CompanionCapturePayload } from '@shared/companion-types'
 import type { SubscriptionRule } from '@shared/types'
 import { Outlet, useNavigate, useRouteContext, useRouterState } from '@tanstack/react-router'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import {
   type CSSProperties,
   type ReactNode,
@@ -23,8 +24,6 @@ import { toast } from 'sonner'
 import { DesktopChromeContext } from './desktop-chrome'
 import { useDownloadEvents } from './hooks/use-download-events'
 import { useImportLocalMedia } from './hooks/use-import-local-media'
-import { useRybbitDailyClientVersion } from './hooks/use-rybbit-daily-client-version'
-import { useRybbitScript } from './hooks/use-rybbit-script'
 import { addRendererBreadcrumb, setRendererTelemetryEnabled } from './lib/glitchtip'
 import { ipcEvents, ipcServices } from './lib/ipc'
 import { logger } from './lib/logger'
@@ -36,7 +35,7 @@ import {
   shouldShowPlaybackBar
 } from './lib/transcript-playback'
 import { withDesktopUtm } from './lib/url'
-import { loadSettingsAtom, settingsAtom } from './store/settings'
+import { loadSettingsAtom } from './store/settings'
 import { loadSubscriptionsAtom, setSubscriptionsAtom } from './store/subscriptions'
 import { playbackSessionAtom } from './store/transcript-playback'
 import {
@@ -47,11 +46,12 @@ import {
 } from './store/transcripts'
 import { updateAvailableAtom, updateReadyAtom } from './store/update'
 
-type Page = 'about' | 'home' | 'settings' | 'subscriptions'
+type Page = 'about' | 'home' | 'learning' | 'settings' | 'subscriptions'
 
 const pageToPath: Record<Page, string> = {
   about: '/about',
   home: '/',
+  learning: '/learning',
   settings: '/settings',
   subscriptions: '/subscriptions'
 }
@@ -81,6 +81,8 @@ const pathToPage = (pathname: string): Page => {
   switch (normalized) {
     case '/about':
       return 'about'
+    case '/learning':
+      return 'learning'
     case '/settings':
       return 'settings'
     case '/subscriptions':
@@ -99,7 +101,6 @@ export function AppLayout() {
   const [titleBarContent, setTitleBarContent] = useState<ReactNode>(null)
   const loadSubscriptions = useSetAtom(loadSubscriptionsAtom)
   const setSubscriptions = useSetAtom(setSubscriptionsAtom)
-  const [settings] = useAtom(settingsAtom)
   const loadSettings = useSetAtom(loadSettingsAtom)
   const loadTranscripts = useSetAtom(loadTranscriptMapAtom)
   const upsertTranscript = useSetAtom(upsertTranscriptAtom)
@@ -124,18 +125,8 @@ export function AppLayout() {
   const currentPage = pathToPage(pathname)
   const supportedSitesUrl = withDesktopUtm('https://vidbee.org/supported-sites/')
   const toolsUrl = withDesktopUtm('https://vidbee.org/tools/')
-  const analyticsEnabled = settings.enableAnalytics ?? true
-  const isRybbitReady = useRybbitScript(analyticsEnabled)
-
   useDownloadEvents()
   const { applyImportResult } = useImportLocalMedia()
-  useRybbitDailyClientVersion({
-    appName: 'VidBee',
-    enabled: analyticsEnabled,
-    isReady: isRybbitReady,
-    platform,
-    version: appVersion
-  })
 
   const handlePageChange = useCallback(
     (page: Page) => {
@@ -164,8 +155,8 @@ export function AppLayout() {
   }, [toolsUrl])
 
   useEffect(() => {
-    setRendererTelemetryEnabled(analyticsEnabled)
-  }, [analyticsEnabled])
+    setRendererTelemetryEnabled(false)
+  }, [])
 
   useEffect(() => {
     loadSettings()
@@ -186,7 +177,15 @@ export function AppLayout() {
 
   useEffect(() => {
     const handleDeepLink = (rawUrl: unknown) => {
-      const url = typeof rawUrl === 'string' ? rawUrl.trim() : ''
+      const url =
+        typeof rawUrl === 'string'
+          ? rawUrl.trim()
+          : rawUrl &&
+              typeof rawUrl === 'object' &&
+              'url' in rawUrl &&
+              typeof rawUrl.url === 'string'
+            ? rawUrl.url.trim()
+            : ''
       if (!url) {
         return
       }
@@ -198,6 +197,38 @@ export function AppLayout() {
       ipcEvents.removeListener('download:deeplink', handleDeepLink)
     }
   }, [handlePageChange])
+
+  useEffect(() => {
+    const handleCompanionCapture = (...args: unknown[]) => {
+      const capture = args[0] as CompanionCapturePayload | undefined
+      if (!capture?.pageUrl) {
+        return
+      }
+      const storageKey = 'fengsha-companion-captures'
+      try {
+        const existing = JSON.parse(window.localStorage.getItem(storageKey) ?? '[]') as unknown
+        const captures = Array.isArray(existing) ? existing : []
+        const persistedCapture =
+          (capture.screenshotDataUrl?.length ?? 0) > 750_000
+            ? { ...capture, screenshotDataUrl: null }
+            : capture
+        window.localStorage.setItem(
+          storageKey,
+          JSON.stringify([...captures.slice(-19), { ...persistedCapture, receivedAt: Date.now() }])
+        )
+      } catch (error) {
+        logger.warn('Failed to retain browser companion capture', error)
+      }
+      if (capture.action === 'open') {
+        handlePageChange('home')
+      }
+      toast.success(i18n.t('learning.companion.captureReceived'))
+    }
+    const subscription = ipcEvents.on('companion:capture', handleCompanionCapture)
+    return () => {
+      ipcEvents.removeListener('companion:capture', subscription)
+    }
+  }, [handlePageChange, i18n])
 
   useEffect(() => {
     const handleMediaImported = (...args: unknown[]) => {
@@ -322,6 +353,7 @@ export function AppLayout() {
       appVersion,
       onOpenAbout: () => handlePageChange('about'),
       onOpenCookiesSettings: handleOpenCookiesSettings,
+      onOpenLearning: () => handlePageChange('learning'),
       onOpenSettings: () => handlePageChange('settings'),
       onOpenSupportedSites: handleOpenSupportedSites,
       setTitleBar: setTitleBarContent
@@ -346,8 +378,8 @@ export function AppLayout() {
           transcriptsActive={hasActiveTranscripts}
         />
 
-        <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-vt="main">
+        <main className="fengsha-app-canvas flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-vt="main">
             {currentPage === 'settings' ? null : (
               <TitleBar platform={platform}>{titleBarContent}</TitleBar>
             )}
@@ -355,8 +387,8 @@ export function AppLayout() {
             <div
               className={
                 currentPage === 'settings'
-                  ? 'min-h-0 flex-1 overflow-hidden'
-                  : 'min-h-0 flex-1 overflow-y-auto overflow-x-hidden'
+                  ? 'min-h-0 min-w-0 flex-1 overflow-hidden'
+                  : 'min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden'
               }
             >
               <Outlet />

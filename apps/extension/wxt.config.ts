@@ -8,6 +8,6 @@ export default defineConfig({
     description: '__MSG_extensionDescription__',
     default_locale: 'en',
     host_permissions: ['http://127.0.0.1/*'],
-    permissions: ['activeTab', 'storage']
+    permissions: ['activeTab', 'scripting', 'storage']
   }
 })

@@ -1,5 +1,5 @@
-appId: com.vidbee
-productName: VidBee
+appId: com.fengsha.videolearning
+productName: 风沙视频学习台
 compression: maximum
 directories:
   buildResources: build
@@ -7,9 +7,9 @@ beforeBuild: build/before-build.cjs
 beforePack: build/before-pack.cjs
 afterPack: build/after-pack.cjs
 protocols:
-  - name: VidBee
+  - name: 风沙视频学习台
     schemes:
-      - vidbee
+      - fengsha-video
 files:
   - '!**/.vscode/*'
   - '!**/.context/**'
@@ -96,16 +96,21 @@ extraResources:
     to: resources
     filter:
       - '**/*'
+      - '!ffmpeg-temp{,/**}'
       - '!mpv{,/**}'
       - '!deno'
       - '!deno.exe'
+  - from: ../../LICENSE
+    to: OPEN-SOURCE-LICENSE.txt
+  - from: ../../THIRD-PARTY-NOTICES.md
+    to: THIRD-PARTY-NOTICES.txt
   # §11: official Node LTS binary (resources/node) also serves yt-dlp EJS.
   # NOTE: VidBee CLI is now distributed standalone via npm / brew / shell
   # installer (NEX-148). Desktop no longer bundles `@vidbee/cli` and no
   # longer ships a `vidbee` shim. Users install the CLI explicitly with
   # `npm install -g @vidbee/cli` (or one of the other channels).
 win:
-  executableName: vidbee
+  executableName: FengshaVideoLearning
   target:
     - nsis
     - portable
@@ -135,7 +140,7 @@ linux:
   target:
     - AppImage
     - deb
-  maintainer: team@vidbee.org
+  maintainer: 123225073
   category: Utility
 deb:
   # Issue #378: fix chrome-sandbox SUID perms so the .deb launches.
@@ -145,7 +150,3 @@ appImage:
 asarUnpack:
   - node_modules/sherpa-onnx-*/**
 npmRebuild: true
-publish:
-  provider: github
-  owner: nexmoe
-  repo: vidbee

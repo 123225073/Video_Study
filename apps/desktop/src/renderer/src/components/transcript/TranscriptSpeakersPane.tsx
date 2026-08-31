@@ -58,7 +58,7 @@ export function TranscriptSpeakersPane({
   const showSpeakerTab = rows.length > 0
   const showInfoTab = Boolean(info && hasTranscriptInfo(info))
   const activeTab = tabOverride ?? (showSpeakerTab ? 'speakers' : 'info')
-  if (compact) {
+  if (compact || (rows.length === 1 && !showInfoTab)) {
     if (!showSpeakerTab) {
       return null
     }

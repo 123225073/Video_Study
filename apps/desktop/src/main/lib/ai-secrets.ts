@@ -1,6 +1,6 @@
 /** Prefix for secrets stored with Electron safeStorage. */
 export const AI_SECRET_ENCRYPTED_PREFIX = 'enc:'
-/** Prefix for secrets stored as plaintext when OS encryption is unavailable. */
+/** Legacy prefix retained only so existing plaintext values can still be read. */
 export const AI_SECRET_PLAIN_PREFIX = 'plain:'
 
 export interface AiSecretCodec {
@@ -21,7 +21,7 @@ export const sealAiSecret = (value: string, codec: AiSecretCodec): string => {
     return ''
   }
   if (!codec.isEncryptionAvailable()) {
-    return `${AI_SECRET_PLAIN_PREFIX}${trimmed}`
+    throw new Error('OS credential encryption is unavailable; the AI API key was not saved')
   }
   return `${AI_SECRET_ENCRYPTED_PREFIX}${codec.encryptString(trimmed).toString('base64')}`
 }
