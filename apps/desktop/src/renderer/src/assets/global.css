@@ -94,6 +94,12 @@ body {
   filter: drop-shadow(0 8px 12px rgb(35 27 16 / 16%));
 }
 
+.fengsha-app-sidebar .app-sidebar-name {
+  max-width: 4.5rem;
+  text-wrap: balance;
+  white-space: pre-line;
+}
+
 .fengsha-app-sidebar [data-slot="sidebar-nav-group"] {
   gap: 0.625rem;
 }
@@ -1001,4 +1007,43 @@ body {
   > div:first-child
   > p:has(> [data-streamdown="strong"]:only-child) {
   margin-block-start: 0;
+}
+
+/* Keep destructive controls outside the row button while preserving the row's full click target. */
+.learning-recent-entry,
+.learning-library-entry {
+  position: relative;
+}
+
+.learning-recent-entry .learning-recent-row,
+.learning-library-entry .learning-library-row,
+.learning-library-entry .learning-library-card {
+  padding-right: 3.75rem;
+  width: 100%;
+}
+
+.learning-recent-delete,
+.learning-item-delete {
+  color: var(--muted-foreground);
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.learning-recent-delete:hover,
+.learning-item-delete:hover {
+  background: color-mix(in srgb, var(--destructive) 10%, transparent);
+  color: var(--destructive);
+}
+
+.learning-recent-delete svg,
+.learning-item-delete svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+.learning-card-grid .learning-item-delete {
+  top: 1rem;
+  transform: none;
 }

@@ -662,6 +662,27 @@ export const startImageRun = (input: AiImageRunInput): AiImageRunSnapshot => {
 export const getImageRunSnapshot = (downloadId: string): AiImageRunSnapshot =>
   runs.get(downloadId)?.snapshot ?? idleImageRunSnapshot(downloadId)
 
+/**
+ * Permanently discard every image-generation state owned by a deleted learning item.
+ * This differs from stopImageRun: completed/error snapshots may contain large base64 images
+ * and must not remain addressable after their workspace has been deleted.
+ */
+export const deleteImageRunForDownload = (downloadId: string): boolean => {
+  const run = runs.get(downloadId)
+  if (!run) {
+    return false
+  }
+  run.discarded = true
+  if (run.snapshot.status === 'running') {
+    run.controller.abort()
+  }
+  run.quitRegistration?.finish()
+  run.snapshot = idleImageRunSnapshot(downloadId)
+  runs.delete(downloadId)
+  broadcastImageRun(run.snapshot)
+  return true
+}
+
 /** Abort the current image run without affecting completed images. */
 export const stopImageRun = (downloadId: string): AiImageRunSnapshot => {
   const run = runs.get(downloadId)

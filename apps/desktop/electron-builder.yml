@@ -1,5 +1,5 @@
 appId: com.fengsha.videolearning
-productName: 风沙视频学习台
+productName: 风沙AI学习平台
 compression: maximum
 directories:
   buildResources: build
@@ -7,7 +7,7 @@ beforeBuild: build/before-build.cjs
 beforePack: build/before-pack.cjs
 afterPack: build/after-pack.cjs
 protocols:
-  - name: 风沙视频学习台
+  - name: 风沙AI学习平台
     schemes:
       - fengsha-video
 files:

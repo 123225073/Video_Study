@@ -24,7 +24,7 @@ const LEGACY_MINDMAP_PROMPT = `你是一名知识结构设计师。请只依据�
 4. 在重要叶子节点末尾保留时间标记，例如 关键步骤 [00:08:20]。
 5. 只输出一个 mermaid 代码块，不要输出解释文字。`
 
-const MINDMAP_PROMPT = `你是一名严谨的学习图解设计师。请只依据逐字稿，输出一段可直接渲染的 Mermaid flowchart 代码。如果输入中包含 AI_GENERATED_DRAFT 和 RENDER_ERROR，请修复原草稿，不要重新改变内容主旨。
+const LEGACY_FLOWCHART_PROMPT = `你是一名严谨的学习图解设计师。请只依据逐字稿，输出一段可直接渲染的 Mermaid flowchart 代码。如果输入中包含 AI_GENERATED_DRAFT 和 RENDER_ERROR，请修复原草稿，不要重新改变内容主旨。
 
 要求：
 1. 概念关系使用 flowchart TD，明确的顺序流程使用 flowchart LR；控制在 6 到 20 个节点。
@@ -33,6 +33,20 @@ const MINDMAP_PROMPT = `你是一名严谨的学习图解设计师。请只依�
 4. 不得加入逐字稿中没有出现的观点；重要节点尽量保留可靠时间标记。
 5. 禁止 click、HTML、init、style、classDef 和外部链接。
 6. 只输出一个 mermaid 代码块，代码块外不得有解释文字。`
+
+const MINDMAP_PROMPT = `你是一名严谨的学习思维导图设计师。请只依据逐字稿，输出一段可直接渲染的 Mermaid mindmap 代码。如果输入中包含 AI_GENERATED_DRAFT 和 RENDER_ERROR，请修复原草稿，不要改变内容主旨。
+
+要求：
+1. 第一行必须是 mindmap，根节点使用视频主题；使用两个空格表示一级缩进。
+2. 按知识关系组织为三到五条主分支，例如核心概念、论证或步骤、案例、限制风险、行动启发；不要机械照搬时间顺序。
+3. 总节点控制在 8 到 24 个，层级以三到四层为宜；同级节点避免重复，标签简洁但不能只剩空泛关键词。
+4. 标签包含括号、方括号或冒号时使用双引号包裹；不得加入逐字稿中没有出现的观点。
+5. 重要叶子节点尽量保留可靠时间标记，例如 "关键步骤 [00:08:20]"；没有可靠时间时不要伪造。
+6. 禁止 click、HTML、init、style、classDef、外部链接以及 flowchart 或 graph 语法。
+7. 只输出一个 mermaid 代码块，代码块外不得有解释文字。`
+
+const MINDMAP_OUTPUT_CONTRACT = `【系统输出契约（优先级高于上方的用户自定义提示词）】
+你必须输出 Mermaid mindmap，而不是 flowchart、graph 或其他图表语法。第一行必须是 mindmap；只输出一个 mermaid 代码块，代码块外不得有任何文字。`
 
 const TRANSLATION_PROMPT =
   '你是一名专业字幕译者。请结合相邻字幕上下文翻译当前片段，保持术语、人物名和产品名一致。保留原时间轴，不增删事实，不覆盖用户人工校对的译文。'
@@ -63,7 +77,15 @@ const WORKFLOW_IDS = [
 export const isLegacyDefaultLearningPrompt = (
   id: LearningAiWorkflowId,
   systemPrompt: string
-): boolean => id === 'mindmap' && systemPrompt.trim() === LEGACY_MINDMAP_PROMPT
+): boolean =>
+  id === 'mindmap' && [LEGACY_MINDMAP_PROMPT, LEGACY_FLOWCHART_PROMPT].includes(systemPrompt.trim())
+
+/** Preserve user customization while enforcing the renderer's required output grammar at runtime. */
+export const applyLearningWorkflowOutputContract = (
+  id: LearningAiWorkflowId,
+  systemPrompt: string
+): string =>
+  id === 'mindmap' ? `${systemPrompt.trim()}\n\n${MINDMAP_OUTPUT_CONTRACT}` : systemPrompt.trim()
 
 export const createDefaultLearningAiSettings = (now = Date.now()): LearningAiWorkflowSettings => ({
   defaultModel: '',
@@ -72,7 +94,7 @@ export const createDefaultLearningAiSettings = (now = Date.now()): LearningAiWor
       id,
       systemPrompt: PROMPT_TEXT[id],
       updatedAt: now,
-      version: id === 'mindmap' ? 2 : 1
+      version: id === 'mindmap' ? 3 : 1
     })
   ),
   updatedAt: now,

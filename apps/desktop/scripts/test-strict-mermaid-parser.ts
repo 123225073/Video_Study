@@ -6,7 +6,8 @@ import {
 } from '../src/renderer/src/lib/automatic-mermaid-repair'
 import {
   decideMermaidRecoveryAction,
-  validateLearningFlowchartStructure
+  validateLearningFlowchartStructure,
+  validateLearningMindmapStructure
 } from '../src/renderer/src/lib/strict-mermaid-parser'
 
 const run = (): void => {
@@ -26,6 +27,17 @@ const run = (): void => {
       false,
       `strict parser must reject: ${invalid}`
     )
+  }
+  assert.equal(
+    validateLearningMindmapStructure('mindmap\n  视频学习\n    核心概念\n      证据 [00:10]'),
+    true
+  )
+  for (const invalid of [
+    'mindmap\n视频学习\n  核心概念',
+    'mindmap\n  视频学习\n      跳级节点',
+    'mindmap\n  视频学习\n    flowchart TD'
+  ]) {
+    assert.equal(validateLearningMindmapStructure(invalid), false)
   }
   assert.equal(decideMermaidRecoveryAction(false), 'repair-once')
   assert.equal(decideMermaidRecoveryAction(true), 'reject')

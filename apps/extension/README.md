@@ -1,6 +1,6 @@
 # 风沙浏览器学习伴侣
 
-这是「风沙视频学习台」的 Chrome / Edge Manifest V3 伴侣扩展。它只在用户点击扩展并明确执行操作时读取当前标签页，不注册常驻网页脚本，也不会自动上传浏览记录。
+这是「风沙AI学习平台」的 Chrome / Edge Manifest V3 伴侣扩展。它只在用户点击扩展并明确执行操作时读取当前标签页，不注册常驻网页脚本，也不会自动上传浏览记录。
 
 ## 能做什么
 
@@ -36,7 +36,7 @@ GET /companion/v1/status
 已配对时携带 Authorization；响应示例：
 
 ```json
-{ "ok": true, "pairedClientCount": 1, "app": "Fengsha Video Learning" }
+{ "ok": true, "pairedClientCount": 1, "app": "Fengsha AI Learning Platform" }
 ```
 
 ### 配对

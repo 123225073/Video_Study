@@ -13,6 +13,8 @@ import type { TranscriptSelection } from '@renderer/lib/study-studio/types'
 import type { AiSettingsSnapshot } from '@shared/ai-types'
 import { APP_PROTOCOL } from '@shared/constants'
 import type {
+  LearningAiWorkflowId,
+  LearningAiWorkflowSettings,
   LearningBlock,
   LearningNotebook,
   ObsidianAttachmentInput
@@ -58,15 +60,17 @@ interface LearningModuleDefinition {
   id: LearningModuleId
   label: string
   promptId: string | null
+  workflowId?: LearningAiWorkflowId
 }
 
 const MODULES: LearningModuleDefinition[] = [
   {
-    description: 'Mermaid 完整逻辑图',
+    description: 'Mermaid 完整思维导图',
     icon: GitBranch,
     id: 'diagram',
-    label: '学习图谱',
-    promptId: 'learning-diagram'
+    label: '思维导图',
+    promptId: 'create-mindmap',
+    workflowId: 'mindmap'
   },
   {
     description: '快速判断值得回看的部分',
@@ -80,7 +84,8 @@ const MODULES: LearningModuleDefinition[] = [
     icon: FileText,
     id: 'summary',
     label: '完整总结',
-    promptId: 'fengsha-learning-summary'
+    promptId: 'study-notes',
+    workflowId: 'summary'
   },
   {
     description: '按场景套用结构',
@@ -115,7 +120,8 @@ const MODULES: LearningModuleDefinition[] = [
     icon: Languages,
     id: 'translation',
     label: '翻译润色',
-    promptId: 'fengsha-learning-translation'
+    promptId: 'translate',
+    workflowId: 'translation'
   },
   {
     description: '封面、逻辑图与金句图',
@@ -338,6 +344,7 @@ export function LearningWorkbenchPane({
   const [question, setQuestion] = useState('')
   const [notebook, setNotebook] = useState<LearningNotebook | null>(null)
   const [aiSettings, setAiSettings] = useState<AiSettingsSnapshot | null>(null)
+  const [workflowSettings, setWorkflowSettings] = useState<LearningAiWorkflowSettings | null>(null)
   const [speaking, setSpeaking] = useState(false)
   const [validatedDiagramOutput, setValidatedDiagramOutput] = useState('')
   const [diagramValidationError, setDiagramValidationError] = useState<string | null>(null)
@@ -355,11 +362,16 @@ export function LearningWorkbenchPane({
 
   useEffect(() => {
     let active = true
-    void Promise.all([ipcServices.learning.get(downloadId), ipcServices.ai.getSnapshot()])
-      .then(([savedNotebook, settings]) => {
+    void Promise.all([
+      ipcServices.learning.get(downloadId),
+      ipcServices.ai.getSnapshot(),
+      ipcServices.learning.getAiSettings()
+    ])
+      .then(([savedNotebook, settings, savedWorkflowSettings]) => {
         if (active) {
           setNotebook(savedNotebook)
           setAiSettings(settings)
+          setWorkflowSettings(savedWorkflowSettings)
         }
       })
       .catch((error) => logger.error('Failed to load learning AI workbench', error))
@@ -413,7 +425,8 @@ export function LearningWorkbenchPane({
               rememberDiagramRepairAttempted(downloadId, true)
               setDiagramValidationError('图谱语法未通过，AI 正在根据渲染错误自动修复一次。')
               await promptRun.start(
-                `${transcriptText}\n\nAI_GENERATED_DRAFT (repair this data):\n${snapshot.text}\n\nRENDER_ERROR:\n${message}`
+                `${transcriptText}\n\nAI_GENERATED_DRAFT (repair this data):\n${snapshot.text}\n\nRENDER_ERROR:\n${message}`,
+                workflowSettings?.prompts.find((item) => item.id === 'mindmap')?.systemPrompt
               )
               return
             }
@@ -445,7 +458,7 @@ export function LearningWorkbenchPane({
         logger.error('Failed to persist learning AI result', error)
       }
     })()
-  }, [downloadId, promptRun.run, promptRun.start, transcriptText])
+  }, [downloadId, promptRun.run, promptRun.start, transcriptText, workflowSettings])
 
   useEffect(
     () => () => {
@@ -508,7 +521,10 @@ export function LearningWorkbenchPane({
       setValidatedDiagramOutput('')
     }
     await promptRun.start(
-      buildRunInput({ moduleId, notebook, question, selectedQuote, templateId, transcriptText })
+      buildRunInput({ moduleId, notebook, question, selectedQuote, templateId, transcriptText }),
+      module.workflowId
+        ? workflowSettings?.prompts.find((item) => item.id === module.workflowId)?.systemPrompt
+        : undefined
     )
   }
 

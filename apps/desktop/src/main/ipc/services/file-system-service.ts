@@ -143,7 +143,7 @@ class FileSystemService extends IpcService {
     _context: IpcContext,
     options: { data: ArrayBuffer; defaultFileName: string }
   ): Promise<{ path: string } | null> {
-    let fileName = path.basename(options.defaultFileName || '风沙视频学习台.png')
+    let fileName = path.basename(options.defaultFileName || '风沙AI学习平台.png')
     if (!fileName.toLowerCase().endsWith('.png')) {
       fileName = `${fileName}.png`
     }
@@ -182,7 +182,7 @@ class FileSystemService extends IpcService {
     }
 
     const fileName = path
-      .basename(options.fileName || '风沙视频学习台.png')
+      .basename(options.fileName || '风沙AI学习平台.png')
       .replace(/[<>:"/\\|?*]+/g, '_')
     const tempPath = path.join(os.tmpdir(), `vidbee-share-${process.pid}-${Date.now()}-${fileName}`)
 

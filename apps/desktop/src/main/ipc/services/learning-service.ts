@@ -14,17 +14,29 @@ import type {
   LearningTranscriptCorrectionInput,
   LearningTranscriptRestoreInput,
   LearningTranscriptSourceRestoreInput,
+  LearningWorkspaceDeleteInput,
+  LearningWorkspaceDeleteResult,
   ObsidianExportInput,
   ObsidianExportPreview,
   ObsidianExportResult
 } from '../../../shared/learning-types'
 import { LEARNING_AI_PROMPT_METADATA } from '../../../shared/learning-workflow/ai-prompts'
+import { deleteImageRunForDownload } from '../../lib/ai-image-runner'
 import { aiStore } from '../../lib/ai-store'
+import { historyManager } from '../../lib/history-manager'
+import { deleteDownloadedMediaFile } from '../../lib/learning-media-delete'
 import { LearningStore } from '../../lib/learning-store'
 import { ObsidianExporter } from '../../lib/learning-workspace/obsidian-exporter'
+import { getPlayerHost } from '../../lib/player-host'
+import { resolveTaskSourceFile } from '../../lib/source-file'
+import { getDesktopTaskQueue } from '../../lib/task-queue-host'
+import { deleteTranscriptsForDownload } from '../../lib/transcript-host'
+import { scopedLoggers } from '../../utils/logger'
 
 let learningStore: LearningStore | null = null
 const obsidianExporter = new ObsidianExporter()
+const logger = scopedLoggers.engine
+const TERMINAL_LEARNING_DELETE_STATUSES = new Set(['cancelled', 'completed', 'failed'])
 
 const getLearningStore = (): LearningStore => {
   learningStore ??= new LearningStore(path.join(app.getPath('userData'), 'learning-notebooks.json'))
@@ -91,6 +103,61 @@ class LearningService extends IpcService {
   @IpcMethod()
   save(_context: IpcContext, input: LearningNotebookWriteInput): Promise<LearningNotebook> {
     return getLearningStore().save(input)
+  }
+
+  @IpcMethod()
+  async deleteWorkspace(
+    _context: IpcContext,
+    input: LearningWorkspaceDeleteInput
+  ): Promise<LearningWorkspaceDeleteResult> {
+    const downloadId = input.downloadId.trim()
+    if (!downloadId) {
+      throw new Error('A download id is required to delete a learning workspace')
+    }
+    const queue = getDesktopTaskQueue()
+    const task = queue.get(downloadId)
+    const options = (task?.input.options ?? {}) as Record<string, unknown>
+    const preservedLocalSource =
+      options.source === 'local-import' || task?.input.url.startsWith('file:') === true
+    const downloadedMediaPath =
+      input.deleteDownloadedMedia && !preservedLocalSource && task
+        ? resolveTaskSourceFile(task)
+        : null
+
+    if (task && !TERMINAL_LEARNING_DELETE_STATUSES.has(task.status)) {
+      await queue.cancel(downloadId, 'user')
+    }
+    deleteImageRunForDownload(downloadId)
+    const deletedHistory = await historyManager.removeHistoryItem(downloadId)
+    if (!deletedHistory) {
+      deleteTranscriptsForDownload(downloadId)
+    }
+    const deletedNotebook = await getLearningStore().deleteWorkspace(downloadId)
+    let deletedDownloadedMedia = false
+    let downloadedMediaDeleteFailed = false
+    let failedDownloadedMediaPath: string | null = null
+    if (downloadedMediaPath) {
+      await getPlayerHost().detachIfPlaying(downloadedMediaPath)
+      const mediaDeleteResult = await deleteDownloadedMediaFile(downloadedMediaPath)
+      const mediaDeleteStatus = mediaDeleteResult.status
+      deletedDownloadedMedia = mediaDeleteStatus === 'deleted'
+      downloadedMediaDeleteFailed = mediaDeleteStatus === 'failed' || mediaDeleteStatus === 'unsafe'
+      failedDownloadedMediaPath = downloadedMediaDeleteFailed ? mediaDeleteResult.filePath : null
+      if (downloadedMediaDeleteFailed) {
+        logger.warn('learning: failed to delete downloaded media', {
+          downloadId,
+          mediaDeleteStatus
+        })
+      }
+    }
+    return {
+      deletedDownloadedMedia,
+      deletedHistory,
+      deletedNotebook,
+      downloadedMediaDeleteFailed,
+      failedDownloadedMediaPath,
+      preservedLocalSource
+    }
   }
 
   @IpcMethod()

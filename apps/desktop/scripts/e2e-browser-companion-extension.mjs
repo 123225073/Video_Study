@@ -35,7 +35,7 @@ try {
 
   await page.goto(`chrome-extension://${extensionId}/popup.html`)
   await page
-    .getByText(/^(?:风沙浏览器学习伴侣|Fengsha Video Learning Companion)$/u)
+    .getByText(/^(?:风沙浏览器学习伴侣|Fengsha AI Learning Companion)$/u)
     .waitFor({ timeout: 10_000 })
   await page.getByRole('button', { name: /^(?:重新读取当前页|Read this page again)$/u }).waitFor()
   await page.screenshot({

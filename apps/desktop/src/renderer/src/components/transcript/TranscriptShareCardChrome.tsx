@@ -88,7 +88,7 @@ export function TranscriptShareCardChrome({
             data-testid="transcript-share-card-cover"
           >
             <RemoteImage
-              alt={title || 'VidBee'}
+              alt={title || '风沙AI学习平台'}
               className="h-full w-full object-cover"
               src={cover}
             />
@@ -116,14 +116,14 @@ export function TranscriptShareCardChrome({
         ) : null}
         <footer className="flex items-center gap-4" data-testid="transcript-share-card-footer">
           <img
-            alt="VidBee"
+            alt="风沙AI学习平台"
             className="size-14 rounded-xl"
             height={56}
             src="./app-icon.png"
             width={56}
           />
           <div>
-            <p className="font-semibold text-[26px] leading-tight">VidBee</p>
+            <p className="font-semibold text-[26px] leading-tight">风沙AI学习平台</p>
             <p className="mt-1 whitespace-nowrap text-[14px] text-white/65 leading-snug">
               {tagline}
             </p>

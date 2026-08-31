@@ -18,11 +18,11 @@
   "desktopLabel": { "message": "桌面端" },
   "desktopNotReady": { "message": "桌面学习工作区仍在启动，请稍后重试。" },
   "desktopUnreachable": { "message": "无法连接桌面学习台，请确认软件正在运行。" },
-  "downloadWithVidBee": { "message": "发送到风沙视频学习台" },
+  "downloadWithVidBee": { "message": "发送到风沙AI学习平台" },
   "durationUnknown": { "message": "时长未知" },
   "errorGeneric": { "message": "操作失败，请稍后重试。" },
   "extensionDescription": {
-    "message": "将当前视频、播放时间、字幕和可选画面安全发送到风沙视频学习台。"
+    "message": "将当前视频、播放时间、字幕和可选画面安全发送到风沙AI学习平台。"
   },
   "extensionName": { "message": "风沙浏览器学习伴侣" },
   "hideButton": { "message": "隐藏" },

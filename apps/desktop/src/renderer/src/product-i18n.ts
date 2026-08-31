@@ -68,7 +68,7 @@ const en = {
     },
     addLesson: 'Add a lesson',
     addNote: 'Add note',
-    appName: 'Fengsha Video Learning',
+    appName: 'Fengsha AI Learning Platform',
     centerDescription:
       'Keep every lesson, objective, insight, open question, and next action in one place.',
     centerEyebrow: 'PERSONAL KNOWLEDGE WORKSPACE',
@@ -126,6 +126,23 @@ const en = {
       'Paste a YouTube or Bilibili link, or import local media. Transcribe locally, translate, summarize, take timestamped notes, and export subtitles.',
     heroEyebrow: 'LOCAL-FIRST VIDEO LEARNING',
     heroTitle: 'Turn one video into a reusable body of knowledge',
+    deleteDialog: {
+      cancel: 'Cancel',
+      confirm: 'Delete permanently',
+      deleteDownloadedMedia: 'Also delete the media file downloaded by this app',
+      deleting: 'Deleting…',
+      description:
+        'Delete “{{title}}” and its transcript, notes, highlights, and AI outputs? This cannot be undone.',
+      failed: 'The learning source could not be deleted',
+      itemLabel: 'Delete {{title}}',
+      localHint: 'The original local audio or video file will be preserved.',
+      localPreserved: 'Learning data deleted; the original local file was preserved',
+      mediaDeleteFailed:
+        'Learning data was deleted, but Windows kept the downloaded media file in use. Close other players and delete that file manually.',
+      openMediaLocation: 'Open file location',
+      success: 'Learning source deleted',
+      title: 'Delete this learning source?'
+    },
     home: {
       actions: {
         blank: {
@@ -366,13 +383,15 @@ const en = {
       askAi: 'Ask AI',
       capturedNote: 'Source passage captured — add your understanding here.',
       configureAi: 'Configure and enable an AI provider first.',
+      copy: 'Copy',
       highlight: 'Highlight',
       highlighted: 'Passage highlighted',
       noPrompt: 'Enable at least one AI prompt first.',
       note: 'Add note',
       quoteCard: 'Quote card',
       reflection: 'Reflection',
-      reflectionPrompt: 'What did this passage change, clarify, or make actionable for me?'
+      reflectionPrompt: 'What did this passage change, clarify, or make actionable for me?',
+      seek: 'Play from here'
     },
     startFirst: 'Create the first lesson',
     studio: {
@@ -391,12 +410,35 @@ const en = {
     companionTab: 'Browser companion',
     learningAutomationTab: 'Learning automation',
     ai: {
+      providerCards: {
+        add: 'Add',
+        addTextDescription: 'Add a provider to generate study content',
+        authentication: 'Authentication',
+        cancel: 'Cancel',
+        configureImage: 'Configure image model',
+        edit: 'Edit',
+        imageDescription:
+          'Image generation is configured independently. The API key is sealed locally, and saving does not make a paid request.',
+        imageModel: 'Image model',
+        inUse: 'In use',
+        keepSavedKey: 'Leave blank to keep saved key',
+        keyHeader: 'API key header',
+        localNoAuth: 'None (local only)',
+        model: 'Model',
+        notConfigured: 'Not configured',
+        openAiCompatible: 'OpenAI-compatible',
+        saveImage: 'Save image model',
+        savedImage: 'Image model saved securely',
+        service: 'Service',
+        setupRequired: 'Setup required',
+        textModel: 'Text model'
+      },
       presetPrompts: {
         'active-recall': { title: 'Active Recall Quiz' },
         'concept-glossary': { title: 'Concept Glossary' },
         'image-prompt-optimizer': { title: 'Optimize Image Prompt' },
         'learning-action-plan': { title: 'Learning Action Plan' },
-        'learning-diagram': { title: 'Learning Diagram' },
+        'learning-diagram': { title: 'Generate Mind Map' },
         'learning-digest': { title: 'Learning Digest' },
         'learning-outline': { title: 'Learning Outline' },
         'learning-podcast-script': { title: 'Learning Podcast' },
@@ -473,7 +515,7 @@ const zh = {
     },
     addLesson: '添加学习视频',
     addNote: '添加笔记',
-    appName: '风沙视频学习台',
+    appName: '风沙AI学习平台',
     centerDescription: '集中管理每一节视频、学习目标、知识点、待解问题和下一步行动。',
     centerEyebrow: '个人知识工作台',
     centerTitle: '学习中心',
@@ -527,6 +569,22 @@ const zh = {
       '粘贴 YouTube、B 站链接或导入本地视频。本地转录、翻译总结、时间点笔记、字幕导出，一处完成。',
     heroEyebrow: '本地优先的视频学习工作台',
     heroTitle: '把一段视频，变成一套真正能复用的知识',
+    deleteDialog: {
+      cancel: '取消',
+      confirm: '永久删除',
+      deleteDownloadedMedia: '同时删除由本软件通过链接下载的音视频文件',
+      deleting: '正在删除…',
+      description: '确定删除“{{title}}”吗？逐字稿、笔记、高亮和 AI 生成内容都会删除，且无法撤销。',
+      failed: '删除学习资料失败',
+      itemLabel: '删除 {{title}}',
+      localHint: '这是本地导入的资料，只删除学习数据，不会删除你的原始音视频文件。',
+      localPreserved: '学习数据已删除，原始本地文件已保留',
+      mediaDeleteFailed:
+        '学习数据已删除，但 Windows 仍占用着下载的音视频文件。请关闭其他播放器后手动删除该文件。',
+      openMediaLocation: '打开文件所在位置',
+      success: '学习资料已删除',
+      title: '删除这份学习资料？'
+    },
     home: {
       actions: {
         blank: { description: '从一张自由页面开始', title: '空白笔记' },
@@ -739,13 +797,15 @@ const zh = {
       askAi: '问 AI',
       capturedNote: '已摘录这段原文，请补充你自己的理解。',
       configureAi: '请先在设置中配置并启用一个 AI 服务商。',
+      copy: '复制',
       highlight: '高亮',
       highlighted: '原文已高亮',
       noPrompt: '请先启用至少一套 AI 提示词。',
       note: '加入笔记',
       quoteCard: '金句卡片',
       reflection: '写心得',
-      reflectionPrompt: '这段内容改变、澄清了什么？我准备如何应用？'
+      reflectionPrompt: '这段内容改变、澄清了什么？我准备如何应用？',
+      seek: '从这里播放'
     },
     startFirst: '创建第一节课程',
     studio: {
@@ -764,12 +824,35 @@ const zh = {
     companionTab: '浏览器助手',
     learningAutomationTab: '学习自动化',
     ai: {
+      providerCards: {
+        add: '添加',
+        addTextDescription: '添加一个服务商后即可开始生成学习内容',
+        authentication: '鉴权方式',
+        cancel: '取消',
+        configureImage: '配置图片模型',
+        edit: '编辑',
+        imageDescription:
+          '图片模型与文字模型独立调用。密钥加密保存在本机，保存配置不会发起付费生图。',
+        imageModel: '图片模型',
+        inUse: '使用中',
+        keepSavedKey: '留空则保留原密钥',
+        keyHeader: '密钥请求头',
+        localNoAuth: '无鉴权（仅本地接口）',
+        model: '模型名称',
+        notConfigured: '尚未配置',
+        openAiCompatible: 'OpenAI 兼容接口',
+        saveImage: '保存图片模型',
+        savedImage: '图片模型配置已安全保存',
+        service: '服务类型',
+        setupRequired: '待配置',
+        textModel: '文字模型'
+      },
       presetPrompts: {
         'active-recall': { title: '主动回忆测验' },
         'concept-glossary': { title: '概念词典' },
         'image-prompt-optimizer': { title: '优化生图提示词' },
         'learning-action-plan': { title: '学习行动计划' },
-        'learning-diagram': { title: '生成学习图谱' },
+        'learning-diagram': { title: '生成思维导图' },
         'learning-digest': { title: '精华速览' },
         'learning-outline': { title: '文字大纲' },
         'learning-podcast-script': { title: 'AI 学习播客' },

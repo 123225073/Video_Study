@@ -1,3 +1,4 @@
+import { TranscriptSelectionToolbar } from '@renderer/components/study-studio/TranscriptSelectionToolbar'
 import { SpeakerAvatar } from '@renderer/components/transcript/SpeakerAvatar'
 import { TranscriptCaptionShareCard } from '@renderer/components/transcript/TranscriptCaptionShareCard'
 import { TranscriptProgressThinking } from '@renderer/components/transcript/TranscriptProgressThinking'
@@ -22,6 +23,8 @@ import { shareImageFileName } from '@renderer/lib/capture-prompt-share'
 import { formatClock } from '@renderer/lib/format-clock'
 import { ipcServices } from '@renderer/lib/ipc'
 import type {
+  FloatingAnchorRect,
+  TranscriptSelection,
   TranscriptSelectionAction,
   TranscriptSelectionIntent
 } from '@renderer/lib/study-studio/types'
@@ -56,11 +59,16 @@ import {
   shouldPauseFollowFromWheel
 } from '@renderer/lib/transcript-follow'
 import {
+  splitTranscriptHighlightParts,
+  type TranscriptHighlightRange
+} from '@renderer/lib/transcript-highlights'
+import {
   activeWordIndex,
   endsCaptionSentence,
   seekSecondsForWord,
   wordsForSegment
 } from '@renderer/lib/transcript-karaoke'
+import { buildNativeTranscriptSelection } from '@renderer/lib/transcript-native-selection'
 import { matchesTranscriptQuery, splitHighlightedParts } from '@renderer/lib/transcript-search'
 import {
   CAPTION_LIST_ESTIMATE_WIDTH_PX,
@@ -150,6 +158,25 @@ const queryFollowTarget = (list: HTMLElement, segmentId: string): HTMLElement | 
   return token instanceof HTMLElement ? token : row
 }
 
+/** Return a Range endpoint's transcript text container. */
+const transcriptTextContainer = (node: Node | null): HTMLElement | null => {
+  const element = node instanceof Element ? node : node?.parentElement
+  const container = element?.closest('[data-transcript-text][data-transcript-segment-id]')
+  return container instanceof HTMLElement ? container : null
+}
+
+/** Measure a DOM Range endpoint as a UTF-16 offset inside one transcript line. */
+const characterOffsetInContainer = (container: HTMLElement, node: Node, offset: number): number => {
+  const prefix = document.createRange()
+  prefix.selectNodeContents(container)
+  try {
+    prefix.setEnd(node, offset)
+    return prefix.toString().length
+  } catch {
+    return 0
+  }
+}
+
 /**
  * Ignore user-scroll pauses while a programmatic follow jump is settling.
  */
@@ -185,8 +212,8 @@ interface TranscriptCaptionsPaneProps {
   error?: string | null
   /** Local ASR ended in a failed task state. */
   failed?: boolean
-  /** Transcript rows referenced by a saved highlight annotation. */
-  highlightedSegmentIds?: ReadonlySet<string>
+  /** Exact character ranges referenced by saved highlight annotations. */
+  transcriptHighlightRanges?: ReadonlyMap<string, readonly TranscriptHighlightRange[]>
   noSpeech: boolean
   noSpeechDetail: string
   /** Stop an in-flight local ASR run. */
@@ -232,7 +259,7 @@ export function TranscriptCaptionsPane({
   embedded = false,
   error = null,
   failed = false,
-  highlightedSegmentIds,
+  transcriptHighlightRanges,
   noSpeech,
   noSpeechDetail,
   onCancel,
@@ -270,6 +297,10 @@ export function TranscriptCaptionsPane({
   const [followPaused, setFollowPaused] = useState(false)
   const [resumeDirection, setResumeDirection] = useState<FollowResumeDirection>('up')
   const [selection, setSelection] = useState<CaptionSelection | null>(null)
+  const [nativeSelection, setNativeSelection] = useState<TranscriptSelection | null>(null)
+  const [nativeSelectionAnchor, setNativeSelectionAnchor] = useState<
+    FloatingAnchorRect | undefined
+  >()
   const [marquee, setMarquee] = useState<CaptionMarquee | null>(null)
   const [shareDraft, setShareDraft] = useState<CaptionShareQuote | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
@@ -743,6 +774,85 @@ export function TranscriptCaptionsPane({
     setMarquee(null)
   }, [])
 
+  /** Remove the browser text selection and its contextual toolbar. */
+  const clearNativeSelection = useCallback((): void => {
+    globalThis.getSelection?.()?.removeAllRanges()
+    setNativeSelection(null)
+    setNativeSelectionAnchor(undefined)
+  }, [])
+
+  /** Convert the current DOM Range into exact source offsets and playback time. */
+  const captureNativeSelection = useCallback((): void => {
+    const browserSelection = globalThis.getSelection?.()
+    const list = listRef.current
+    if (
+      !(browserSelection && list && !browserSelection.isCollapsed && browserSelection.rangeCount)
+    ) {
+      return
+    }
+    const range = browserSelection.getRangeAt(0)
+    const firstContainer = transcriptTextContainer(range.startContainer)
+    const lastContainer = transcriptTextContainer(range.endContainer)
+    if (
+      !(
+        firstContainer &&
+        lastContainer &&
+        list.contains(firstContainer) &&
+        list.contains(lastContainer)
+      )
+    ) {
+      return
+    }
+    const selectedContainers = [
+      ...list.querySelectorAll('[data-transcript-text][data-transcript-segment-id]')
+    ].filter(
+      (node): node is HTMLElement =>
+        node instanceof HTMLElement &&
+        Boolean(node.dataset.transcriptSegmentId) &&
+        range.intersectsNode(node)
+    )
+    const selectedSegments = selectedContainers.flatMap((container) => {
+      const segment = displaySegments.find(
+        (item) => item.id === container.dataset.transcriptSegmentId
+      )
+      return segment ? [segment] : []
+    })
+    const native = buildNativeTranscriptSelection(
+      selectedSegments,
+      characterOffsetInContainer(firstContainer, range.startContainer, range.startOffset),
+      characterOffsetInContainer(lastContainer, range.endContainer, range.endOffset)
+    )
+    if (!native) {
+      return
+    }
+    const rect = range.getBoundingClientRect()
+    setSelection(null)
+    setFollowPaused(true)
+    setNativeSelection(native)
+    setNativeSelectionAnchor({
+      height: rect.height,
+      left: rect.left,
+      top: rect.top,
+      width: rect.width
+    })
+  }, [displaySegments])
+
+  /** Route an exact text selection through the same note, highlight, and AI actions. */
+  const handleNativeSelectionIntent = useCallback(
+    (action: TranscriptSelectionAction): void => {
+      if (action.intent === 'seek') {
+        onSeek(action.selection.startMs / 1000)
+        return
+      }
+      if (action.intent === 'copy' && !onSelectionIntent) {
+        void navigator.clipboard.writeText(action.selection.text)
+        return
+      }
+      onSelectionIntent?.(action)
+    },
+    [onSeek, onSelectionIntent]
+  )
+
   /**
    * Cancel a pending long-press timer.
    */
@@ -1030,8 +1140,9 @@ export function TranscriptCaptionsPane({
     if (hasQuery || streamLive) {
       setSelection(null)
       setMarquee(null)
+      clearNativeSelection()
     }
-  }, [hasQuery, streamLive])
+  }, [clearNativeSelection, hasQuery, streamLive])
 
   useEffect(() => {
     window.addEventListener('pointerup', finishSelectPointer)
@@ -1092,7 +1203,8 @@ export function TranscriptCaptionsPane({
     if (
       !canSelectCaptions ||
       event.button !== 0 ||
-      (event.target instanceof Element && event.target.closest('[data-caption-select-toolbar]'))
+      (event.target instanceof Element &&
+        event.target.closest('[data-caption-select-toolbar], [data-transcript-text]'))
     ) {
       return
     }
@@ -1289,11 +1401,14 @@ export function TranscriptCaptionsPane({
       </div>
       <div className="relative min-h-0 flex-1">
         <div
-          className="h-full select-none overflow-y-auto contain-strict"
+          className="h-full select-text overflow-y-auto contain-strict"
           data-testid="transcript-captions-list"
           onPointerDown={onListPointerDown}
           onPointerMove={onListPointerMove}
-          onPointerUp={finishSelectPointer}
+          onPointerUp={() => {
+            finishSelectPointer()
+            window.requestAnimationFrame(captureNativeSelection)
+          }}
           onScroll={onListScroll}
           onWheel={onListWheel}
           ref={listRef}
@@ -1382,14 +1497,10 @@ export function TranscriptCaptionsPane({
                 const streamingLine = streamLive && streamed.streamingId === segment.id
                 const active = currentSegmentId === segment.id
                 const selected = isCaptionSegmentSelected(selection, segment.id)
-                const highlighted = Boolean(highlightedSegmentIds?.has(segment.id))
+                const highlightRanges = transcriptHighlightRanges?.get(segment.id) ?? []
                 return (
                   <div
-                    className={cn(
-                      'px-4',
-                      highlighted && 'bg-amber-100/75 dark:bg-amber-900/25',
-                      selected && 'bg-primary/20'
-                    )}
+                    className={cn('px-4', selected && 'bg-primary/20')}
                     data-index={virtualRow.index}
                     key={virtualRow.key}
                     ref={rowVirtualizer.measureElement}
@@ -1408,6 +1519,7 @@ export function TranscriptCaptionsPane({
                       currentTimeMs={active ? currentTimeMs : 0}
                       editing={editingId === segment.id}
                       hasQuery={hasQuery}
+                      highlightRanges={highlightRanges}
                       isSearchHit={
                         hasQuery
                           ? matches[activeMatch]?.id === segment.id
@@ -1442,7 +1554,7 @@ export function TranscriptCaptionsPane({
           ) : null}
         </div>
         {marquee ? <CaptionMarqueeBox marquee={marquee} /> : null}
-        {followPaused && !hasQuery && currentSegmentId && !selection ? (
+        {followPaused && !hasQuery && currentSegmentId && !(selection || nativeSelection) ? (
           <div className="absolute right-3 bottom-6 z-10">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1467,6 +1579,24 @@ export function TranscriptCaptionsPane({
               <TooltipContent side="left">{t('transcript.followResume')}</TooltipContent>
             </Tooltip>
           </div>
+        ) : null}
+        {nativeSelection ? (
+          <TranscriptSelectionToolbar
+            anchor={nativeSelectionAnchor}
+            ariaLabel={t('transcript.captionSelect')}
+            labels={{
+              'ask-ai': t('learning.selection.askAi'),
+              copy: t('learning.selection.copy'),
+              highlight: t('learning.selection.highlight'),
+              note: t('learning.selection.note'),
+              'quote-card': t('learning.selection.quoteCard'),
+              reflection: t('learning.selection.reflection'),
+              seek: t('learning.selection.seek')
+            }}
+            onDismiss={clearNativeSelection}
+            onIntent={handleNativeSelectionIntent}
+            selection={nativeSelection}
+          />
         ) : null}
         <div className="pointer-events-none absolute inset-x-3 bottom-4 z-20 flex justify-center">
           <CaptionSelectToolbar
@@ -1685,6 +1815,7 @@ interface CaptionRowProps {
   currentTimeMs: number
   editing: boolean
   hasQuery: boolean
+  highlightRanges: readonly TranscriptHighlightRange[]
   isSearchHit: boolean
   onChangeSpeaker: (speakerId: string) => void
   onCommitEdit: (text: string) => void
@@ -1715,6 +1846,7 @@ const CaptionRow = memo(function CaptionRow({
   currentTimeMs,
   editing,
   hasQuery,
+  highlightRanges,
   isSearchHit,
   onChangeSpeaker,
   onCommitEdit,
@@ -1797,8 +1929,25 @@ const CaptionRow = memo(function CaptionRow({
         >
           {timeLabel}
         </button>
+        {canEdit && !editing ? (
+          <button
+            aria-label={t('transcript.captionEdit')}
+            className="ml-auto inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 transition hover:bg-muted hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70"
+            data-caption-edit-button="true"
+            data-testid="transcript-caption-edit"
+            onClick={onEdit}
+            title={t('transcript.captionEdit')}
+            type="button"
+          >
+            <Pencil className="size-3.5" />
+          </button>
+        ) : null}
       </div>
-      <p className="col-start-2 text-left text-sm leading-relaxed [overflow-wrap:anywhere]">
+      <p
+        className="col-start-2 cursor-text select-text text-left text-sm leading-relaxed [overflow-wrap:anywhere]"
+        data-transcript-segment-id={segment.id}
+        data-transcript-text="true"
+      >
         {editing ? (
           <CaptionTextEditor
             initialText={segment.text}
@@ -1830,6 +1979,7 @@ const CaptionRow = memo(function CaptionRow({
           <FollowText
             active={active}
             currentTimeMs={currentTimeMs}
+            highlightRanges={highlightRanges}
             onDoubleClick={canEdit ? onEdit : undefined}
             onSeek={onSeek}
             segment={segment}
@@ -1954,6 +2104,7 @@ function CaptionTextEditor({ initialText, onCancel, onCommit }: CaptionTextEdito
 interface FollowTextProps {
   active: boolean
   currentTimeMs: number
+  highlightRanges: readonly TranscriptHighlightRange[]
   onDoubleClick?: () => void
   onSeek: (seconds: number) => void
   segment: TranscriptSegmentView
@@ -1977,6 +2128,7 @@ const splitKaraokeGap = (text: string): { gap: boolean; label: string } => {
 function FollowText({
   active,
   currentTimeMs,
+  highlightRanges,
   onDoubleClick,
   onSeek,
   segment,
@@ -1987,29 +2139,37 @@ function FollowText({
   if (words.length === 0) {
     return (
       <button
-        className="w-full cursor-text border-0 bg-transparent p-0 text-left font-[inherit] text-[length:inherit] leading-[inherit]"
+        className="block w-full cursor-text select-text appearance-none border-0 bg-transparent p-0 text-left font-[inherit] text-[length:inherit] leading-[inherit]"
         data-follow-token={active ? 'true' : undefined}
         data-testid={active ? 'transcript-follow-token' : undefined}
-        onClick={() => onSeek(segment.startMs / 1000)}
+        onClick={() => {
+          if (window.getSelection()?.isCollapsed !== false) {
+            onSeek(segment.startMs / 1000)
+          }
+        }}
         onDoubleClick={onDoubleClick}
         tabIndex={-1}
         type="button"
       >
-        {segment.text}
+        <TranscriptRangeText ranges={highlightRanges} text={segment.text} />
       </button>
     )
   }
 
+  let sourceCursor = 0
   return words.map((word, index) => {
     const current = index === currentIndex
     const { gap, label } = splitKaraokeGap(word.text)
     const previousEnded = index > 0 && endsCaptionSentence(words[index - 1]?.text ?? '')
+    const matchedStart = segment.text.indexOf(label, sourceCursor)
+    const sourceStart = matchedStart >= 0 ? matchedStart : sourceCursor
+    sourceCursor = Math.min(segment.text.length, sourceStart + label.length)
     return (
       <Fragment key={`${word.startMs}-${word.endMs}-${word.text}`}>
         {gap && !previousEnded ? ' ' : null}
         <button
           className={cn(
-            'inline cursor-pointer whitespace-normal border-0 bg-transparent p-0 text-left align-baseline font-[inherit] text-[length:inherit] leading-[inherit]',
+            'inline cursor-text select-text appearance-none whitespace-normal border-0 bg-transparent p-0 text-left align-baseline font-[inherit] text-[length:inherit] leading-[inherit]',
             current
               ? '-mx-0.5 rounded-sm bg-primary px-0.5 text-primary-foreground'
               : 'hover:rounded-sm hover:bg-muted'
@@ -2017,18 +2177,55 @@ function FollowText({
           data-caption-token="true"
           data-follow-token={current ? 'true' : undefined}
           data-testid={current ? 'transcript-follow-token' : undefined}
-          onClick={() => onSeek(seekSecondsForWord(word))}
+          onClick={() => {
+            if (window.getSelection()?.isCollapsed !== false) {
+              onSeek(seekSecondsForWord(word))
+            }
+          }}
           onDoubleClick={onDoubleClick}
           tabIndex={-1}
           title={t('transcript.seekAt', { time: formatClock(word.startMs / 1000) })}
           type="button"
         >
-          {label}
+          <TranscriptRangeText ranges={highlightRanges} sourceStart={sourceStart} text={label} />
         </button>
         {index < words.length - 1 && endsCaptionSentence(label) ? <br /> : null}
       </Fragment>
     )
   })
+}
+
+const transcriptHighlightClass = {
+  amber: 'bg-amber-200/85 dark:bg-amber-700/55',
+  blue: 'bg-sky-200/85 dark:bg-sky-700/55',
+  green: 'bg-emerald-200/85 dark:bg-emerald-700/55',
+  pink: 'bg-pink-200/85 dark:bg-pink-700/55',
+  purple: 'bg-violet-200/85 dark:bg-violet-700/55'
+} as const
+
+interface TranscriptRangeTextProps {
+  ranges: readonly TranscriptHighlightRange[]
+  sourceStart?: number
+  text: string
+}
+
+/** Render only the persisted character interval as a semantic highlight. */
+function TranscriptRangeText({ ranges, sourceStart = 0, text }: TranscriptRangeTextProps) {
+  return splitTranscriptHighlightParts(text, ranges, sourceStart).map((part) =>
+    part.highlighted && part.color ? (
+      <mark
+        className={cn('rounded-[2px] px-px text-inherit', transcriptHighlightClass[part.color])}
+        data-highlight-end={part.end}
+        data-highlight-start={part.start}
+        data-transcript-highlight="true"
+        key={`${part.start}-${part.end}-${part.color}`}
+      >
+        {part.text}
+      </mark>
+    ) : (
+      <Fragment key={`${part.start}-${part.end}-plain`}>{part.text}</Fragment>
+    )
+  )
 }
 
 interface HighlightedTextProps {

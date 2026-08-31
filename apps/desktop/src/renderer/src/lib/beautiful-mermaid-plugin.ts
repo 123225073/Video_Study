@@ -47,13 +47,14 @@ export const canRenderBeautifulMermaid = (source: string): boolean =>
 
 /** Strictly parse and render an AI-generated learning diagram before persistence. */
 export const validateGeneratedLearningMermaid = async (source: string): Promise<void> => {
-  if (!/^(?:flowchart|graph)\s+(?:TD|TB|BT|LR|RL)\b/iu.test(mermaidSourceStart(source))) {
-    throw new Error('学习图解必须使用 Mermaid flowchart。')
+  if (!/^mindmap(?:\s|$)/iu.test(mermaidSourceStart(source))) {
+    throw new Error('学习图解必须使用 Mermaid mindmap 思维导图。')
   }
   if (!(await strictParseLearningMermaid(source))) {
     throw new Error('Mermaid 严格语法解析失败。')
   }
-  renderMermaidSVG(source, BEAUTIFUL_MERMAID_THEME)
+  const { default: mermaidJs } = await import('mermaid')
+  await mermaidJs.render(`learning-mindmap-${crypto.randomUUID()}`, source)
 }
 
 /**

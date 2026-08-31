@@ -56,7 +56,7 @@ const resolveDownloadDir = (): string => {
   if (fromSettings && typeof fromSettings === 'string' && fromSettings.trim().length > 0) {
     return fromSettings
   }
-  return path.join(app.getPath('downloads'), '风沙视频学习台')
+  return path.join(app.getPath('downloads'), '风沙AI学习平台')
 }
 
 const resolveLegacyTaskQueueDbPath = (): string => {

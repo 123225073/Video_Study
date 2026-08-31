@@ -10,27 +10,27 @@ export interface LearningAiPromptMetadata {
 export const LEARNING_AI_PROMPT_METADATA: Record<LearningAiWorkflowId, LearningAiPromptMetadata> = {
   mindmap: {
     icon: 'git-branch',
-    promptId: 'fengsha-learning-mindmap',
+    promptId: 'create-mindmap',
     title: '风沙学习 · 思维导图'
   },
   'quote-candidates': {
     icon: 'highlighter',
-    promptId: 'fengsha-learning-quote-candidates',
+    promptId: 'shareable-quote',
     title: '风沙学习 · 金句候选'
   },
   reflection: {
     icon: 'sparkles',
-    promptId: 'fengsha-learning-reflection',
+    promptId: 'learning-reflection-draft',
     title: '风沙学习 · 学习心得'
   },
   summary: {
     icon: 'rows-3',
-    promptId: 'fengsha-learning-summary',
+    promptId: 'study-notes',
     title: '风沙学习 · 深度总结'
   },
   translation: {
     icon: 'languages',
-    promptId: 'fengsha-learning-translation',
+    promptId: 'translate',
     title: '风沙学习 · 字幕翻译'
   }
 }

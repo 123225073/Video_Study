@@ -32,6 +32,7 @@ import type {
   TranscriptSelection,
   TranscriptSelectionAction
 } from '@renderer/lib/study-studio/types'
+import { applyTranscriptCorrectionOverlay } from '@renderer/lib/transcript-correction-overlay'
 import { segmentAtTime } from '@renderer/lib/transcript-index'
 import {
   isInProgressTranscript,
@@ -508,18 +509,7 @@ export function TranscriptPage() {
               text: segment.originalText
             })
           )
-    const effectiveText = new Map(
-      learningTranscript.segments.map((segment) => {
-        const correction = learningTranscript.corrections.findLast(
-          (item) => item.segmentId === segment.id
-        )
-        return [segment.id, correction?.correctedText ?? segment.originalText] as const
-      })
-    )
-    return sourceSegments.map((segment) => ({
-      ...segment,
-      text: effectiveText.get(segment.id) ?? segment.text
-    }))
+    return applyTranscriptCorrectionOverlay(sourceSegments, learningTranscript)
   }, [learningTranscript, rawSegments])
   const correctedSegmentIds = useMemo(() => {
     if (!learningTranscript) {
@@ -806,6 +796,7 @@ export function TranscriptPage() {
           await ipcServices.ai.startPrompt({
             downloadId,
             promptId: run.promptId,
+            promptContent: prompt.systemPrompt,
             transcriptText: `${transcriptText}\n\nAI_GENERATED_DRAFT (repair this data):\n${run.text}\n\nRENDER_ERROR:\n${message}`,
             uiLanguage: i18n.language
           })
@@ -922,6 +913,7 @@ export function TranscriptPage() {
         await ipcServices.ai.startPrompt({
           downloadId,
           promptId: metadata.promptId,
+          promptContent: prompt.systemPrompt,
           transcriptText,
           uiLanguage: i18n.language
         })
@@ -1123,9 +1115,9 @@ export function TranscriptPage() {
               id: `highlight-${now}-${action.selection.startMs}`,
               kind: 'bookmark',
               quote: selectedText,
-              sourceEndOffset: selectedText.length,
+              sourceEndOffset: action.selection.sourceEndOffset ?? selectedText.length,
               sourceSegmentIds: action.selection.segmentIds ?? [],
-              sourceStartOffset: 0,
+              sourceStartOffset: action.selection.sourceStartOffset ?? 0,
               text: '',
               timestampMs: action.selection.startMs,
               updatedAt: now

@@ -5,6 +5,7 @@ export type MermaidRecoveryAction = 'repair-once' | 'reject'
 let parserPromise: Promise<StrictMermaidParser> | null = null
 
 const FLOWCHART_HEADER = /^(?:flowchart|graph)\s+(?:TD|TB|BT|LR|RL)\b/iu
+const MINDMAP_HEADER = /^mindmap\s*$/iu
 const EDGE = /(?:-->|-\.->|==>|~~~|---)(?:\|[^|\r\n]+\|)?\s*[A-Za-z_][\w-]*/u
 const EDGE_WITHOUT_TARGET = /(?:-->|-\.->|==>|~~~|---)(?:\|[^|\r\n]+\|)?\s*$/u
 const NODE_OR_DIRECTIVE =
@@ -78,6 +79,35 @@ export const validateLearningFlowchartStructure = (source: string): boolean => {
   return edgeCount > 0
 }
 
+/** Reject empty, flat, over-indented, or directive-bearing mindmaps before Mermaid parses them. */
+export const validateLearningMindmapStructure = (source: string): boolean => {
+  const lines = source
+    .trim()
+    .split(/\r?\n/u)
+    .filter((line) => line.trim())
+  if (lines.length < 3 || !MINDMAP_HEADER.test(lines[0]?.trim() ?? '')) {
+    return false
+  }
+  if (/(?:^|\n)\s*(?:click\s|%%\{|classDef\s|style\s|flowchart\s|graph\s)/iu.test(source)) {
+    return false
+  }
+  let previousDepth = 0
+  let rootCount = 0
+  for (const line of lines.slice(1)) {
+    const indent = line.match(/^\s*/u)?.[0].replaceAll('\t', '  ').length ?? 0
+    const depth = Math.floor(indent / 2)
+    const label = line.trim()
+    if (indent % 2 !== 0 || depth < 1 || depth > previousDepth + 1 || !label) {
+      return false
+    }
+    if (depth === 1) {
+      rootCount += 1
+    }
+    previousDepth = depth
+  }
+  return rootCount === 1
+}
+
 /** A failed diagram gets exactly one automatic repair attempt, never an infinite retry loop. */
 export const decideMermaidRecoveryAction = (
   repairAlreadyAttempted: boolean
@@ -93,4 +123,5 @@ const loadParser = (): Promise<StrictMermaidParser> => {
 
 /** Use Mermaid's own grammar instead of a permissive SVG renderer as validation. */
 export const strictParseLearningMermaid = async (source: string): Promise<boolean> =>
-  validateLearningFlowchartStructure(source) && (await loadParser())(source)
+  (validateLearningFlowchartStructure(source) || validateLearningMindmapStructure(source)) &&
+  (await loadParser())(source)

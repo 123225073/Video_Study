@@ -19,6 +19,7 @@ import type {
   LearningTranscriptSourceRestoreInput
 } from '../../shared/learning-types'
 import { LearningAttachmentStore } from './learning-workspace/attachment-store'
+import { persistWorkspaceDeletion } from './learning-workspace/delete-workspace'
 import {
   type LearningStoreDocument,
   mergeAiSettings,
@@ -180,6 +181,28 @@ export class LearningStore {
     await this.writeQueue
     const document = await this.readDocument()
     return document.notebooks.find((notebook) => notebook.downloadId === id) ?? null
+  }
+
+  deleteWorkspace(downloadId: string): Promise<boolean> {
+    const id = normalizedText(downloadId)
+    if (!id) {
+      throw new Error('A download id is required to delete a learning workspace')
+    }
+    const operation = this.writeQueue.then(async () => {
+      const document = await this.readDocument()
+      return persistWorkspaceDeletion({
+        document,
+        downloadId: id,
+        persistDocument: (nextDocument) => this.writeDocument(nextDocument),
+        pruneAttachments: (nextDocument) =>
+          this.attachmentStore.pruneOrphanedAttachments(nextDocument)
+      })
+    })
+    this.writeQueue = operation.then(
+      () => undefined,
+      () => undefined
+    )
+    return operation
   }
 
   save(input: LearningNotebookWriteInput): Promise<LearningNotebook> {
@@ -440,10 +463,12 @@ export class LearningStore {
     })
   }
 
-  private mutateDocument<T>(update: (document: LearningStoreDocument) => T): Promise<T> {
+  private mutateDocument<T>(
+    update: (document: LearningStoreDocument) => T | Promise<T>
+  ): Promise<T> {
     const operation = this.writeQueue.then(async () => {
       const document = await this.readDocument()
-      const result = update(document)
+      const result = await update(document)
       await this.writeDocument(document)
       return result
     })

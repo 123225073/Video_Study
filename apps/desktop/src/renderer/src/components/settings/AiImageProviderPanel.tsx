@@ -1,6 +1,22 @@
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@renderer/components/ui/dialog'
 import { Input } from '@renderer/components/ui/input'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle
+} from '@renderer/components/ui/item'
 import { Label } from '@renderer/components/ui/label'
 import {
   Select,
@@ -12,7 +28,7 @@ import {
 import { ipcServices } from '@renderer/lib/ipc'
 import { logger } from '@renderer/lib/logger'
 import type { AiImageAuthType, AiImageProviderConfig, AiSettingsSnapshot } from '@shared/ai-types'
-import { ImageIcon, KeyRound, Loader2 } from 'lucide-react'
+import { Check, ImageIcon, KeyRound, Loader2, Pencil } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -24,14 +40,14 @@ interface AiImageProviderPanelProps {
   value: AiImageProviderConfig
 }
 
-/** Independent BYOK configuration for OpenAI-compatible image generation. */
+/** Compact image-model capability card with its configuration isolated in a dialog. */
 export function AiImageProviderPanel({ onSaved, value }: AiImageProviderPanelProps) {
-  const { i18n } = useTranslation()
-  const isChinese = (i18n.resolvedLanguage ?? i18n.language).toLowerCase().startsWith('zh')
+  const { t } = useTranslation()
   const baseUrlId = useId()
   const modelId = useId()
   const keyId = useId()
   const headerId = useId()
+  const [open, setOpen] = useState(false)
   const [provider, setProvider] = useState<AiImageProviderConfig['provider']>(value.provider)
   const [authType, setAuthType] = useState<AiImageAuthType>(value.authType)
   const [baseUrl, setBaseUrl] = useState(value.baseUrl)
@@ -49,10 +65,27 @@ export function AiImageProviderPanel({ onSaved, value }: AiImageProviderPanelPro
     setApiKey('')
   }, [value])
 
+  const handleOpenChange = (nextOpen: boolean): void => {
+    if (nextOpen) {
+      setProvider(value.provider)
+      setAuthType(value.authType)
+      setBaseUrl(value.baseUrl)
+      setModel(value.modelId)
+      setApiKeyHeader(value.apiKeyHeader)
+      setApiKey('')
+    }
+    setOpen(nextOpen)
+  }
+
+  const configured = value.authType === 'none' || value.hasApiKey
   const canSave =
     Boolean(baseUrl.trim() && model.trim()) &&
     (authType === 'none' || Boolean(apiKey.trim() || value.hasApiKey)) &&
     (authType !== 'api-key' || Boolean(apiKeyHeader.trim()))
+  const providerName =
+    value.provider === 'openai-compatible'
+      ? t('settings.ai.providerCards.openAiCompatible')
+      : 'OpenAI'
 
   const save = async (): Promise<void> => {
     if (!canSave || saving) {
@@ -69,7 +102,8 @@ export function AiImageProviderPanel({ onSaved, value }: AiImageProviderPanelPro
         provider
       })
       onSaved(snapshot)
-      toast.success(isChinese ? '图片模型配置已安全保存' : 'Image provider saved securely')
+      setOpen(false)
+      toast.success(t('settings.ai.providerCards.savedImage'))
     } catch (error) {
       logger.error('Failed to save image provider', error)
       toast.error(error instanceof Error ? error.message : 'Failed to save image provider')
@@ -79,130 +113,145 @@ export function AiImageProviderPanel({ onSaved, value }: AiImageProviderPanelPro
   }
 
   return (
-    <section className="rounded-xl border bg-muted/20 p-4">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg border bg-background">
-            <ImageIcon className="size-4" />
-          </span>
-          <div>
-            <h3 className="font-medium">
-              {isChinese ? '独立图片生成服务' : 'Independent image provider'}
-            </h3>
-            <p className="mt-1 max-w-2xl text-muted-foreground text-xs leading-5">
-              {isChinese
-                ? '与文字模型完全分开。API 密钥加密保存在本机；保存配置不会假装测试成功，也不会发起付费生图。'
-                : 'Separate from text models. The API key is sealed locally; saving does not fake a successful test or make a paid request.'}
-            </p>
-          </div>
-        </div>
-        <Badge variant={value.hasApiKey || value.authType === 'none' ? 'secondary' : 'outline'}>
-          <KeyRound className="size-3" />
-          {value.hasApiKey || value.authType === 'none'
-            ? isChinese
-              ? '已配置'
-              : 'Configured'
-            : isChinese
-              ? '待填写密钥'
-              : 'API key required'}
-        </Badge>
-      </div>
+    <>
+      <Item className="min-h-20 border bg-card shadow-xs" rounded="both" variant="muted">
+        <ItemMedia className="border-amber-200 bg-amber-50 text-amber-700" variant="icon">
+          <ImageIcon className="size-4" />
+        </ItemMedia>
+        <ItemContent>
+          <p className="mb-1 font-medium text-[11px] text-muted-foreground uppercase tracking-[0.14em]">
+            {t('settings.ai.providerCards.imageModel')}
+          </p>
+          <ItemTitle>
+            {providerName}
+            <Badge variant={configured ? 'secondary' : 'outline'}>
+              {configured ? (
+                <Check aria-hidden className="size-3" />
+              ) : (
+                <KeyRound className="size-3" />
+              )}
+              {configured
+                ? t('settings.ai.providerCards.inUse')
+                : t('settings.ai.providerCards.setupRequired')}
+            </Badge>
+          </ItemTitle>
+          <ItemDescription>{value.modelId}</ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          <Button onClick={() => handleOpenChange(true)} size="sm" type="button" variant="outline">
+            <Pencil aria-hidden className="size-3.5" />
+            {t('settings.ai.providerCards.edit')}
+          </Button>
+        </ItemActions>
+      </Item>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="grid gap-2">
-          <Label>{isChinese ? '图片服务类型' : 'Image service'}</Label>
-          <Select
-            onValueChange={(next: AiImageProviderConfig['provider']) => {
-              setProvider(next)
-              if (next === 'openai') {
-                setBaseUrl(OPENAI_IMAGE_BASE_URL)
-                setAuthType('bearer')
-                setModel('gpt-image-2')
-              }
-            }}
-            value={provider}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="openai">OpenAI</SelectItem>
-              <SelectItem value="openai-compatible">
-                {isChinese ? 'OpenAI 兼容接口' : 'OpenAI-compatible'}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-2">
-          <Label>{isChinese ? '鉴权方式' : 'Authentication'}</Label>
-          <Select onValueChange={(next: AiImageAuthType) => setAuthType(next)} value={authType}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="bearer">Bearer token</SelectItem>
-              <SelectItem value="api-key">API key header</SelectItem>
-              <SelectItem value="none">
-                {isChinese ? '无鉴权（仅本地接口）' : 'None (local only)'}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-2 sm:col-span-2">
-          <Label htmlFor={baseUrlId}>Base URL</Label>
-          <Input
-            id={baseUrlId}
-            onChange={(event) => setBaseUrl(event.currentTarget.value)}
-            placeholder={OPENAI_IMAGE_BASE_URL}
-            value={baseUrl}
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor={modelId}>{isChinese ? '图片模型' : 'Image model'}</Label>
-          <Input
-            id={modelId}
-            onChange={(event) => setModel(event.currentTarget.value)}
-            placeholder="gpt-image-2"
-            value={model}
-          />
-        </div>
-        {authType === 'api-key' ? (
-          <div className="grid gap-2">
-            <Label htmlFor={headerId}>{isChinese ? '密钥请求头' : 'API key header'}</Label>
-            <Input
-              id={headerId}
-              onChange={(event) => setApiKeyHeader(event.currentTarget.value)}
-              placeholder="api-key"
-              value={apiKeyHeader}
-            />
+      <Dialog onOpenChange={handleOpenChange} open={open}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="grid size-8 place-items-center rounded-lg border bg-amber-50 text-amber-700">
+                <ImageIcon className="size-4" />
+              </span>
+              {t('settings.ai.providerCards.configureImage')}
+            </DialogTitle>
+            <DialogDescription>{t('settings.ai.providerCards.imageDescription')}</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>{t('settings.ai.providerCards.service')}</Label>
+              <Select
+                onValueChange={(next: AiImageProviderConfig['provider']) => {
+                  setProvider(next)
+                  if (next === 'openai') {
+                    setBaseUrl(OPENAI_IMAGE_BASE_URL)
+                    setAuthType('bearer')
+                    setModel('gpt-image-2')
+                  }
+                }}
+                value={provider}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="openai">OpenAI</SelectItem>
+                  <SelectItem value="openai-compatible">
+                    {t('settings.ai.providerCards.openAiCompatible')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>{t('settings.ai.providerCards.authentication')}</Label>
+              <Select onValueChange={(next: AiImageAuthType) => setAuthType(next)} value={authType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bearer">Bearer token</SelectItem>
+                  <SelectItem value="api-key">API key header</SelectItem>
+                  <SelectItem value="none">{t('settings.ai.providerCards.localNoAuth')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2 sm:col-span-2">
+              <Label htmlFor={baseUrlId}>Base URL</Label>
+              <Input
+                id={baseUrlId}
+                onChange={(event) => setBaseUrl(event.currentTarget.value)}
+                placeholder={OPENAI_IMAGE_BASE_URL}
+                value={baseUrl}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor={modelId}>{t('settings.ai.providerCards.model')}</Label>
+              <Input
+                id={modelId}
+                onChange={(event) => setModel(event.currentTarget.value)}
+                placeholder="gpt-image-2"
+                value={model}
+              />
+            </div>
+            {authType === 'api-key' ? (
+              <div className="grid gap-2">
+                <Label htmlFor={headerId}>{t('settings.ai.providerCards.keyHeader')}</Label>
+                <Input
+                  id={headerId}
+                  onChange={(event) => setApiKeyHeader(event.currentTarget.value)}
+                  placeholder="api-key"
+                  value={apiKeyHeader}
+                />
+              </div>
+            ) : null}
+            {authType === 'none' ? null : (
+              <div className="grid gap-2 sm:col-span-2">
+                <Label htmlFor={keyId}>API Key</Label>
+                <Input
+                  autoComplete="off"
+                  id={keyId}
+                  onChange={(event) => setApiKey(event.currentTarget.value)}
+                  placeholder={
+                    value.hasApiKey ? t('settings.ai.providerCards.keepSavedKey') : 'sk-...'
+                  }
+                  type="password"
+                  value={apiKey}
+                />
+              </div>
+            )}
           </div>
-        ) : null}
-        {authType === 'none' ? null : (
-          <div className="grid gap-2 sm:col-span-2">
-            <Label htmlFor={keyId}>API Key</Label>
-            <Input
-              autoComplete="off"
-              id={keyId}
-              onChange={(event) => setApiKey(event.currentTarget.value)}
-              placeholder={
-                value.hasApiKey
-                  ? isChinese
-                    ? '留空则保留原密钥'
-                    : 'Leave blank to keep saved key'
-                  : 'sk-...'
-              }
-              type="password"
-              value={apiKey}
-            />
-          </div>
-        )}
-      </div>
-      <div className="mt-4 flex justify-end">
-        <Button disabled={!canSave || saving} onClick={() => void save()} type="button">
-          {saving ? <Loader2 className="animate-spin" /> : null}
-          {isChinese ? '保存图片服务' : 'Save image provider'}
-        </Button>
-      </div>
-    </section>
+
+          <DialogFooter>
+            <Button onClick={() => setOpen(false)} type="button" variant="outline">
+              {t('settings.ai.providerCards.cancel')}
+            </Button>
+            <Button disabled={!canSave || saving} onClick={() => void save()} type="button">
+              {saving ? <Loader2 className="animate-spin" /> : null}
+              {t('settings.ai.providerCards.saveImage')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

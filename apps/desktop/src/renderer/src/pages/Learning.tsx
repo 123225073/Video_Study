@@ -1,3 +1,7 @@
+import {
+  LearningDeleteDialog,
+  type LearningDeleteTarget
+} from '@renderer/components/learning/LearningDeleteDialog'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -19,7 +23,8 @@ import {
   LayoutList,
   NotebookPen,
   Search,
-  Tags
+  Tags,
+  Trash2
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,6 +36,7 @@ interface LibraryLesson {
   downloadId: string
   durationMs: number
   hasTranscript: boolean
+  isLocalSource: boolean
   noteCount: number
   outputCount: number
   status: LibraryStatus
@@ -88,6 +94,7 @@ export function Learning() {
   const [statusFilter, setStatusFilter] = useState<'all' | LibraryStatus>('all')
   const [tagFilter, setTagFilter] = useState('')
   const [view, setView] = useState<LibraryView>('list')
+  const [deleteTarget, setDeleteTarget] = useState<LearningDeleteTarget | null>(null)
 
   useEffect(() => {
     void ipcServices.learning
@@ -153,6 +160,7 @@ export function Learning() {
           notebook?.source?.durationMs ??
           (record?.duration ?? 0) * 1000,
         hasTranscript,
+        isLocalSource: record?.url.startsWith('file:') === true,
         noteCount: notebook?.notes.length ?? 0,
         outputCount: notebook?.blocks?.length ?? notebook?.aiArtifacts?.length ?? 0,
         status: resolveLibraryStatus(snapshot.listState, hasTranscript, Boolean(notebook)),
@@ -180,6 +188,7 @@ export function Learning() {
           notebook.notes.at(-1)?.timestampMs ??
           (record?.duration ?? 0) * 1000,
         hasTranscript: false,
+        isLocalSource: record?.url.startsWith('file:') === true,
         noteCount: notebook.notes.length,
         outputCount: notebook.blocks?.length ?? notebook.aiArtifacts?.length ?? 0,
         status: 'saved',
@@ -378,51 +387,76 @@ export function Learning() {
       {!query.trim() && visibleLessons.length > 0 ? (
         <div className={view === 'card' ? 'learning-card-grid' : 'learning-item-list'}>
           {visibleLessons.map((lesson) => (
-            <button
-              className={view === 'card' ? 'learning-library-card' : 'learning-library-row'}
-              key={lesson.downloadId}
-              onClick={() => openLesson(lesson.downloadId)}
-              type="button"
-            >
-              <span className="learning-item-leading">
-                <FileText aria-hidden="true" />
-              </span>
-              <span className="learning-item-copy">
-                <span className="learning-item-meta">
-                  <span className={`learning-library-status status-${lesson.status}`}>
-                    {t(`learning.library.status.${lesson.status}`)}
+            <div className="learning-library-entry" key={lesson.downloadId}>
+              <button
+                className={view === 'card' ? 'learning-library-card' : 'learning-library-row'}
+                onClick={() => openLesson(lesson.downloadId)}
+                type="button"
+              >
+                <span className="learning-item-leading">
+                  <FileText aria-hidden="true" />
+                </span>
+                <span className="learning-item-copy">
+                  <span className="learning-item-meta">
+                    <span className={`learning-library-status status-${lesson.status}`}>
+                      {t(`learning.library.status.${lesson.status}`)}
+                    </span>
+                    <span>
+                      <Clock3 aria-hidden="true" /> {formatLearningClock(lesson.durationMs)}
+                    </span>
                   </span>
-                  <span>
-                    <Clock3 aria-hidden="true" /> {formatLearningClock(lesson.durationMs)}
+                  <strong>{lesson.title}</strong>
+                  <span className="learning-item-tags">
+                    {lesson.tags.slice(0, 3).map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                    {lesson.noteCount > 0 ? (
+                      <span>{t('learning.noteCount', { count: lesson.noteCount })}</span>
+                    ) : null}
+                    {lesson.outputCount > 0 ? (
+                      <span>{t('learning.outputCount', { count: lesson.outputCount })}</span>
+                    ) : null}
                   </span>
                 </span>
-                <strong>{lesson.title}</strong>
-                <span className="learning-item-tags">
-                  {lesson.tags.slice(0, 3).map((tag) => (
-                    <span key={tag}>{tag}</span>
-                  ))}
-                  {lesson.noteCount > 0 ? (
-                    <span>{t('learning.noteCount', { count: lesson.noteCount })}</span>
-                  ) : null}
-                  {lesson.outputCount > 0 ? (
-                    <span>{t('learning.outputCount', { count: lesson.outputCount })}</span>
-                  ) : null}
+                <span className="learning-item-trailing">
+                  <time
+                    dateTime={
+                      lesson.updatedAt > 0 ? new Date(lesson.updatedAt).toISOString() : undefined
+                    }
+                  >
+                    {formatUpdatedAt(lesson.updatedAt)}
+                  </time>
+                  <ArrowRight aria-hidden="true" />
                 </span>
-              </span>
-              <span className="learning-item-trailing">
-                <time
-                  dateTime={
-                    lesson.updatedAt > 0 ? new Date(lesson.updatedAt).toISOString() : undefined
-                  }
-                >
-                  {formatUpdatedAt(lesson.updatedAt)}
-                </time>
-                <ArrowRight aria-hidden="true" />
-              </span>
-            </button>
+              </button>
+              <Button
+                aria-label={t('learning.deleteDialog.itemLabel', { title: lesson.title })}
+                className="learning-item-delete"
+                onClick={() =>
+                  setDeleteTarget({
+                    downloadId: lesson.downloadId,
+                    isLocalSource: lesson.isLocalSource,
+                    title: lesson.title
+                  })
+                }
+                size="icon"
+                title={t('learning.deleteDialog.itemLabel', { title: lesson.title })}
+                variant="ghost"
+              >
+                <Trash2 aria-hidden="true" />
+              </Button>
+            </div>
           ))}
         </div>
       ) : null}
+      <LearningDeleteDialog
+        onDeleted={(downloadId) => {
+          setNotebooks((current) => current.filter((item) => item.downloadId !== downloadId))
+          setResults((current) => current.filter((item) => item.downloadId !== downloadId))
+        }}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        target={deleteTarget}
+      />
     </div>
   )
 }

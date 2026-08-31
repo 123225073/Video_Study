@@ -1,3 +1,7 @@
+import {
+  LearningDeleteDialog,
+  type LearningDeleteTarget
+} from '@renderer/components/learning/LearningDeleteDialog'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
 import { useImportLocalMedia } from '@renderer/hooks/use-import-local-media'
@@ -19,7 +23,8 @@ import {
   Link2,
   MonitorUp,
   Puzzle,
-  Radio
+  Radio,
+  Trash2
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -40,6 +45,7 @@ interface QuickCreateAction {
 interface RecentLearningItem {
   downloadId: string
   durationMs: number
+  isLocalSource: boolean
   noteCount: number
   title: string
   updatedAt: number
@@ -60,6 +66,7 @@ export function LearningHero({ onOpenLearning }: LearningHeroProps) {
   const transcripts = useAtomValue(transcriptMapAtom)
   const { pickAndImportMedia } = useImportLocalMedia()
   const [notebooks, setNotebooks] = useState<LearningNotebook[]>([])
+  const [deleteTarget, setDeleteTarget] = useState<LearningDeleteTarget | null>(null)
 
   useEffect(() => {
     void ipcServices.learning
@@ -81,6 +88,7 @@ export function LearningHero({ onOpenLearning }: LearningHeroProps) {
       itemsById.set(snapshot.downloadTaskId, {
         downloadId: snapshot.downloadTaskId,
         durationMs: snapshot.record.segments.at(-1)?.endMs ?? 0,
+        isLocalSource: record?.url.startsWith('file:') === true,
         noteCount: notebook?.notes.length ?? 0,
         title: record?.title || snapshot.title || t('learning.untitled'),
         updatedAt: notebook?.updatedAt ?? snapshot.updatedAt ?? record?.completedAt ?? 0
@@ -91,9 +99,11 @@ export function LearningHero({ onOpenLearning }: LearningHeroProps) {
       if (itemsById.has(notebook.downloadId)) {
         continue
       }
+      const record = records.get(notebook.downloadId)
       itemsById.set(notebook.downloadId, {
         downloadId: notebook.downloadId,
         durationMs: notebook.source?.durationMs ?? notebook.notes.at(-1)?.timestampMs ?? 0,
+        isLocalSource: record?.url.startsWith('file:') === true,
         noteCount: notebook.notes.length,
         title: notebook.title || t('learning.untitled'),
         updatedAt: notebook.updatedAt
@@ -233,36 +243,64 @@ export function LearningHero({ onOpenLearning }: LearningHeroProps) {
         ) : (
           <div className="learning-recent-list">
             {recentItems.map((item, index) => (
-              <button
-                className="learning-recent-row"
-                key={item.downloadId}
-                onClick={() =>
-                  void navigate({
-                    params: { downloadId: item.downloadId },
-                    to: '/downloads/$downloadId/transcript'
-                  })
-                }
-                type="button"
-              >
-                <span className="learning-recent-index">{String(index + 1).padStart(2, '0')}</span>
-                <span className="min-w-0 flex-1 text-left">
-                  <strong className="block truncate">{item.title}</strong>
-                  <small>
-                    {formatLearningClock(item.durationMs)} ·{' '}
-                    {t('learning.noteCount', { count: item.noteCount })}
-                  </small>
-                </span>
-                <time
-                  dateTime={item.updatedAt > 0 ? new Date(item.updatedAt).toISOString() : undefined}
+              <div className="learning-recent-entry" key={item.downloadId}>
+                <button
+                  className="learning-recent-row"
+                  onClick={() =>
+                    void navigate({
+                      params: { downloadId: item.downloadId },
+                      to: '/downloads/$downloadId/transcript'
+                    })
+                  }
+                  type="button"
                 >
-                  {formatUpdatedAt(item.updatedAt)}
-                </time>
-                <ArrowRight aria-hidden="true" />
-              </button>
+                  <span className="learning-recent-index">
+                    {String(index + 1).padStart(2, '0')}
+                  </span>
+                  <span className="min-w-0 flex-1 text-left">
+                    <strong className="block truncate">{item.title}</strong>
+                    <small>
+                      {formatLearningClock(item.durationMs)} ·{' '}
+                      {t('learning.noteCount', { count: item.noteCount })}
+                    </small>
+                  </span>
+                  <time
+                    dateTime={
+                      item.updatedAt > 0 ? new Date(item.updatedAt).toISOString() : undefined
+                    }
+                  >
+                    {formatUpdatedAt(item.updatedAt)}
+                  </time>
+                  <ArrowRight aria-hidden="true" />
+                </button>
+                <Button
+                  aria-label={t('learning.deleteDialog.itemLabel', { title: item.title })}
+                  className="learning-recent-delete"
+                  onClick={() =>
+                    setDeleteTarget({
+                      downloadId: item.downloadId,
+                      isLocalSource: item.isLocalSource,
+                      title: item.title
+                    })
+                  }
+                  size="icon"
+                  title={t('learning.deleteDialog.itemLabel', { title: item.title })}
+                  variant="ghost"
+                >
+                  <Trash2 aria-hidden="true" />
+                </Button>
+              </div>
             ))}
           </div>
         )}
       </div>
+      <LearningDeleteDialog
+        onDeleted={(downloadId) =>
+          setNotebooks((current) => current.filter((item) => item.downloadId !== downloadId))
+        }
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        target={deleteTarget}
+      />
     </section>
   )
 }

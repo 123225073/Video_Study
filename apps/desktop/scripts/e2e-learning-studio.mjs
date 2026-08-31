@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import Database from 'better-sqlite3'
 import electronPath from 'electron'
 import { _electron as electron } from 'playwright-core'
 
@@ -48,6 +49,41 @@ const dismissTransientToasts = async (page) => {
 await fs.mkdir(outputPath, { recursive: true })
 const fixtureNow = Date.now()
 await fs.writeFile(
+  path.join(tempRoot, 'ai.json'),
+  `${JSON.stringify(
+    {
+      activeProviderId: 'e2e-local-model',
+      imageProvider: {
+        apiKeyHeader: 'api-key',
+        apiKeySealed: '',
+        authType: 'none',
+        baseUrl: 'http://127.0.0.1:34123/v1',
+        hasApiKey: false,
+        modelId: 'gpt-image-2',
+        provider: 'openai-compatible',
+        updatedAt: fixtureNow
+      },
+      prompts: [],
+      providers: [
+        {
+          apiKeySealed: '',
+          baseUrl: 'http://127.0.0.1:1234/v1',
+          createdAt: fixtureNow,
+          hasApiKey: false,
+          id: 'e2e-local-model',
+          modelId: 'local-study-model',
+          name: '本地测试模型',
+          presetId: 'lmstudio',
+          updatedAt: fixtureNow
+        }
+      ]
+    },
+    null,
+    2
+  )}\n`,
+  'utf8'
+)
+await fs.writeFile(
   path.join(tempRoot, 'learning-notebooks.json'),
   `${JSON.stringify(
     {
@@ -71,11 +107,11 @@ await fs.writeFile(
               attachmentPath: null,
               completed: false,
               content:
-                '```mermaid\nflowchart LR\n  source["原始证据 [00:00:05]"] --> insight["形成可复用洞察"]\n```',
+                '```mermaid\nmindmap\n  root((视频学习))\n    evidence[原始证据 00:00:05]\n    形成可复用洞察\n```',
               createdAt: fixtureNow + 1,
               id: 'validated-learning-diagram',
               kind: 'ai',
-              quote: '学习图谱',
+              quote: '思维导图',
               sourceSegmentIds: ['ai-module:diagram'],
               timestampMs: null,
               updatedAt: fixtureNow + 1
@@ -140,6 +176,107 @@ await fs.writeFile(
   )}\n`,
   'utf8'
 )
+
+const fixtureDatabase = new Database(path.join(tempRoot, 'vidbee.db'))
+fixtureDatabase.exec(`
+  CREATE TABLE transcripts (
+    id TEXT PRIMARY KEY,
+    download_task_id TEXT NOT NULL,
+    transcription_task_id TEXT NOT NULL,
+    result_kind TEXT NOT NULL,
+    model_version TEXT NOT NULL,
+    asr_tier TEXT,
+    language TEXT,
+    source_file_path TEXT,
+    source_kind TEXT,
+    superseded_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE transcript_speakers (
+    id TEXT PRIMARY KEY,
+    transcript_id TEXT NOT NULL REFERENCES transcripts(id) ON DELETE CASCADE,
+    speaker_key TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    sort_index INTEGER NOT NULL
+  );
+  CREATE TABLE transcript_segments (
+    id TEXT PRIMARY KEY,
+    transcript_id TEXT NOT NULL REFERENCES transcripts(id) ON DELETE CASCADE,
+    speaker_id TEXT,
+    start_ms INTEGER NOT NULL,
+    end_ms INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    words_json TEXT,
+    confidence REAL,
+    sort_index INTEGER NOT NULL
+  );
+`)
+fixtureDatabase
+  .prepare(
+    `INSERT INTO transcripts (
+      id, download_task_id, transcription_task_id, result_kind, model_version, asr_tier,
+      language, source_file_path, source_kind, superseded_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  .run(
+    'transcript-fengsha-e2e',
+    'fengsha-e2e-lesson',
+    'transcription-fengsha-e2e',
+    'transcript',
+    'e2e-word-timing-v1',
+    'balanced',
+    'zh',
+    null,
+    'asr',
+    null,
+    fixtureNow,
+    fixtureNow
+  )
+fixtureDatabase
+  .prepare(
+    'INSERT INTO transcript_speakers (id, transcript_id, speaker_key, display_name, sort_index) VALUES (?, ?, ?, ?, ?)'
+  )
+  .run('speaker-1', 'transcript-fengsha-e2e', 'speaker-1', 'Speaker 1', 0)
+const insertFixtureSegment = fixtureDatabase.prepare(
+  `INSERT INTO transcript_segments (
+    id, transcript_id, speaker_id, start_ms, end_ms, text, words_json, confidence, sort_index
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+)
+insertFixtureSegment.run(
+  'segment-1',
+  'transcript-fengsha-e2e',
+  'speaker-1',
+  0,
+  30_000,
+  '学习视频不应该看完就忘，而应该留下可以搜索并跳回原片的逐字稿。',
+  JSON.stringify([
+    { endMs: 5000, startMs: 0, text: '学习视频' },
+    { endMs: 9000, startMs: 5000, text: '不应该' },
+    { endMs: 14_000, startMs: 9000, text: '看完就忘，' },
+    { endMs: 20_000, startMs: 14_000, text: '而应该留下' },
+    { endMs: 30_000, startMs: 20_000, text: '可以搜索并跳回原片的逐字稿。' }
+  ]),
+  0.98,
+  0
+)
+insertFixtureSegment.run(
+  'segment-2',
+  'transcript-fengsha-e2e',
+  'speaker-1',
+  30_000,
+  60_000,
+  '重要概念应由 AI 整理成总结、问题、金句和可视化图解，再由学习者修改。',
+  JSON.stringify([
+    { endMs: 36_000, startMs: 30_000, text: '重要概念' },
+    { endMs: 44_000, startMs: 36_000, text: '应由 AI 整理成' },
+    { endMs: 52_000, startMs: 44_000, text: '总结、问题、金句和可视化图解，' },
+    { endMs: 60_000, startMs: 52_000, text: '再由学习者修改。' }
+  ]),
+  0.97,
+  1
+)
+fixtureDatabase.close()
 
 let app
 let descriptorRemovedOnQuit = false
@@ -209,6 +346,13 @@ try {
   await page.screenshot({ fullPage: true, path: path.join(outputPath, '02-ai-workflows.png') })
 
   await page.evaluate(() => {
+    window.location.hash = '#/settings?tab=providers'
+  })
+  await page.getByText('文字模型', { exact: true }).waitFor({ timeout: 30_000 })
+  await page.getByText('图片模型', { exact: true }).waitFor({ timeout: 30_000 })
+  await page.screenshot({ fullPage: true, path: path.join(outputPath, '03-ai-providers.png') })
+
+  await page.evaluate(() => {
     window.location.hash = '#/settings?tab=companion'
   })
   await page.getByText('浏览器学习助手', { exact: true }).waitFor({ timeout: 30_000 })
@@ -223,7 +367,7 @@ try {
   assert.ok(port >= 27_100 && port <= 27_120)
   const automationDescriptor = JSON.parse(await fs.readFile(descriptorPath, 'utf8'))
   assert.equal(automationDescriptor.port, port)
-  await page.screenshot({ fullPage: true, path: path.join(outputPath, '03-browser-companion.png') })
+  await page.screenshot({ fullPage: true, path: path.join(outputPath, '04-browser-companion.png') })
 
   const baseUrl = `http://127.0.0.1:${port}/companion/v1`
   const forbiddenOrigin = await fetch(`${baseUrl}/status`, {
@@ -304,14 +448,158 @@ try {
       )
     assert.ok(segmentTabStops.length > 0, 'at least one transcript segment should be rendered')
     assert.ok(
-      segmentTabStops.every((count) => count === 1),
-      `each rendered transcript segment should expose one keyboard entry: ${segmentTabStops.join(',')}`
+      segmentTabStops.every((count) => count === 2),
+      `each rendered transcript segment should expose row and edit keyboard entries: ${segmentTabStops.join(',')}`
+    )
+    const firstTimedTokens = page.locator(
+      '[data-segment-id="segment-1"]:visible [data-caption-token="true"]'
+    )
+    assert.ok((await firstTimedTokens.count()) > 1, 'segment-1 must exercise stored word timings')
+    assert.equal(
+      (await firstTimedTokens.allTextContents()).join(''),
+      '学习视频不应该看完就忘，而应该留下可以搜索并跳回原片的逐字稿。'
+    )
+
+    const selectTranscriptOffsets = async (startRow, startOffset, endRow, endOffset) => {
+      await page.locator('[data-testid="transcript-captions-list"]').evaluate((list) => {
+        list.scrollTop = 0
+        list.dispatchEvent(new Event('scroll', { bubbles: true }))
+      })
+      await page.locator('[data-transcript-text="true"]:visible').first().waitFor()
+      await page.evaluate(
+        ({ endOffset, endRow, startOffset, startRow }) => {
+          const rows = [...document.querySelectorAll('[data-transcript-text="true"]')].filter(
+            (row) => row.getClientRects().length > 0
+          )
+          if (!rows[endRow] && endRow === 1 && rows[0]) {
+            const clone = rows[0].cloneNode(true)
+            clone.setAttribute('data-native-selection-test-clone', 'true')
+            document.querySelector('[data-testid="transcript-captions-list"]')?.append(clone)
+            rows.push(clone)
+          }
+          const endpoint = (root, offset) => {
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+            let remaining = offset
+            let node = walker.nextNode()
+            while (node) {
+              if (remaining <= node.textContent.length) {
+                return { node, offset: remaining }
+              }
+              remaining -= node.textContent.length
+              node = walker.nextNode()
+            }
+            throw new Error('Transcript selection offset is outside rendered text')
+          }
+          const start = endpoint(rows[startRow], startOffset)
+          const end = endpoint(rows[endRow], endOffset)
+          const range = document.createRange()
+          range.setStart(start.node, start.offset)
+          range.setEnd(end.node, end.offset)
+          const selection = window.getSelection()
+          selection.removeAllRanges()
+          selection.addRange(range)
+          document
+            .querySelector('[data-testid="transcript-captions-list"]')
+            .dispatchEvent(new PointerEvent('pointerup', { bubbles: true }))
+        },
+        { endOffset, endRow, startOffset, startRow }
+      )
+      await page.locator('[data-testid="transcript-selection-toolbar"]').waitFor()
+    }
+    await selectTranscriptOffsets(0, 2, 0, 5)
+    await page
+      .locator('[data-testid="transcript-selection-toolbar"]')
+      .getByRole('button', { exact: true, name: '复制' })
+      .click()
+    assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), '视频不')
+    await page.waitForTimeout(100)
+    await selectTranscriptOffsets(0, 2, 0, 5)
+    await page
+      .locator('[data-testid="transcript-selection-toolbar"]')
+      .getByRole('button', { exact: true, name: '高亮' })
+      .click()
+    const exactHighlight = page.locator(
+      '[data-segment-id="segment-1"]:visible [data-transcript-highlight="true"]'
+    )
+    await exactHighlight.first().waitFor()
+    assert.equal((await exactHighlight.allTextContents()).join(''), '视频不')
+    const exactHighlightRanges = await exactHighlight.evaluateAll((marks) =>
+      marks.map((mark) => [
+        Number(mark.getAttribute('data-highlight-start')),
+        Number(mark.getAttribute('data-highlight-end'))
+      ])
+    )
+    assert.equal(exactHighlightRanges[0]?.[0], 2)
+    assert.equal(exactHighlightRanges.at(-1)?.[1], 5)
+    assert.ok(
+      exactHighlightRanges.every(
+        (range, index) => index === 0 || exactHighlightRanges[index - 1]?.[1] === range[0]
+      ),
+      'karaoke token highlight slices must cover one continuous source range'
+    )
+    assert.ok(
+      (
+        await page
+          .locator('[data-segment-id="segment-1"]:visible [data-transcript-text="true"]')
+          .innerText()
+      ).length > '视频不'.length,
+      'an exact highlight must not paint the whole transcript row'
+    )
+    await selectTranscriptOffsets(0, 2, 1, 3)
+    await page
+      .locator('[data-testid="transcript-selection-toolbar"]')
+      .getByRole('button', { exact: true, name: '复制' })
+      .click()
+    assert.equal(
+      (await app.evaluate(({ clipboard }) => clipboard.readText())).replaceAll('\r\n', '\n'),
+      '视频不应该看完就忘，而应该留下可以搜索并跳回原片的逐字稿。\n重要概'
+    )
+    await selectTranscriptOffsets(0, 2, 1, 3)
+    await page
+      .locator('[data-testid="transcript-selection-toolbar"]')
+      .getByRole('button', { exact: true, name: '高亮' })
+      .click()
+    const crossLineEndHighlight = page.locator(
+      '[data-segment-id="segment-2"]:visible [data-transcript-highlight="true"]'
+    )
+    await crossLineEndHighlight.first().waitFor()
+    assert.equal((await crossLineEndHighlight.allTextContents()).join(''), '重要概')
+    assert.equal(
+      (
+        await page
+          .locator('[data-segment-id="segment-1"]:visible [data-transcript-highlight="true"]')
+          .allTextContents()
+      ).join(''),
+      '视频不应该看完就忘，而应该留下可以搜索并跳回原片的逐字稿。'
+    )
+    await page.locator('[data-native-selection-test-clone="true"]').evaluateAll((clones) => {
+      for (const clone of clones) {
+        clone.remove()
+      }
+    })
+
+    const firstTranscriptRow = page.locator('[data-segment-id="segment-1"]:visible').first()
+    await firstTranscriptRow
+      .getByTestId('transcript-caption-edit')
+      .evaluate((button) => button.click())
+    const correction = '学习视频要留下可搜索、可跳转的逐字稿。'
+    await firstTranscriptRow.getByTestId('transcript-caption-editor').fill(correction)
+    await firstTranscriptRow.getByTestId('transcript-caption-editor').press('Enter')
+    await firstTranscriptRow.getByText(correction, { exact: true }).waitFor()
+    const correctedTokens = firstTranscriptRow.locator('[data-caption-token="true"]')
+    assert.ok((await correctedTokens.count()) > 1)
+    assert.equal((await correctedTokens.allTextContents()).join(''), correction)
+    assert.equal(
+      await correctedTokens.filter({ hasText: '不应该' }).count(),
+      0,
+      'corrected FollowText must not retain tokens from the original ASR words'
     )
     const personalNote = '立即离开页面也不能丢失这条个人 Markdown 笔记。'
-    await page.getByLabel('我的笔记').fill(personalNote)
-    await page.getByRole('button', { exact: true, name: '预览' }).click()
+    const noteRegion = page.locator('[data-study-region="note"]:visible')
+    await noteRegion.getByLabel('我的笔记').fill(personalNote)
+    await noteRegion.getByRole('button', { exact: true, name: '预览' }).click()
     await page.getByText(personalNote, { exact: true }).waitFor()
-    await page.getByRole('button', { exact: true, name: '编辑' }).click()
+    await noteRegion.getByRole('button', { exact: true, name: '编辑' }).click()
     await page.getByPlaceholder('写下你对这段原文的备注……').fill('这段原文需要保留时间依据。')
     await page.getByRole('button', { name: /保存原文备注/u }).click()
     await page.getByText('这段原文需要保留时间依据。', { exact: true }).waitFor()
@@ -320,7 +608,7 @@ try {
     const outputRegion = page.locator('[data-study-region="output"]:visible')
     await outputRegion.waitFor()
     for (const moduleName of [
-      '学习图谱',
+      '思维导图',
       '精华速览',
       '完整总结',
       '模板总结',
@@ -332,7 +620,7 @@ try {
     ]) {
       await outputRegion.getByRole('button', { exact: true, name: moduleName }).waitFor()
     }
-    await outputRegion.getByRole('button', { exact: true, name: '学习图谱' }).click()
+    await outputRegion.getByRole('button', { exact: true, name: '思维导图' }).click()
     await outputRegion
       .locator('svg')
       .filter({ hasText: /原始证据/u })

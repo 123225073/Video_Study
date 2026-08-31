@@ -194,7 +194,7 @@ export function createTray(): void {
   tray = new Tray(trayIconImage)
 
   // Set tooltip
-  tray.setToolTip('风沙视频学习台')
+  tray.setToolTip('风沙AI学习平台')
 
   // Set context menu
   tray.setContextMenu(createContextMenu())

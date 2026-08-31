@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { APP_PROTOCOL, APP_PROTOCOL_SCHEME } from '../../../shared/constants'
@@ -94,6 +95,41 @@ export class LearningAttachmentStore {
       throw new Error('The learning attachment reference resolves outside its storage directory')
     }
     return realTarget
+  }
+
+  async pruneOrphanedAttachments(document: LearningStoreDocument): Promise<void> {
+    const referencedFiles = new Set<string>()
+    for (const notebook of document.notebooks) {
+      for (const block of notebook.blocks) {
+        if (!block.attachmentPath?.startsWith(APP_PROTOCOL_SCHEME)) {
+          continue
+        }
+        try {
+          referencedFiles.add(path.basename(await this.targetFromReference(block.attachmentPath)))
+        } catch {
+          // Invalid references remain unavailable but must not widen deletion scope.
+        }
+      }
+    }
+    let entries: Dirent[]
+    try {
+      entries = await fs.readdir(this.rootPath, { withFileTypes: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return
+      }
+      throw error
+    }
+    for (const entry of entries) {
+      if (
+        entry.isFile() &&
+        !entry.isSymbolicLink() &&
+        STORED_FILE_NAME.test(entry.name) &&
+        !referencedFiles.has(entry.name)
+      ) {
+        await fs.unlink(path.join(this.rootPath, entry.name))
+      }
+    }
   }
 
   private async materializeBlockAttachment(block: LearningBlock): Promise<string | null> {

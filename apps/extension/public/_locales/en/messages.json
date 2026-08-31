@@ -22,13 +22,13 @@
   "desktopUnreachable": {
     "message": "Cannot reach the desktop learning app. Make sure it is running."
   },
-  "downloadWithVidBee": { "message": "Send to Fengsha Video Learning" },
+  "downloadWithVidBee": { "message": "Send to Fengsha AI Learning Platform" },
   "durationUnknown": { "message": "Duration unknown" },
   "errorGeneric": { "message": "The action failed. Please try again." },
   "extensionDescription": {
-    "message": "Send the active video, playback time, captions, and an optional frame to Fengsha Video Learning."
+    "message": "Send the active video, playback time, captions, and an optional frame to Fengsha AI Learning Platform."
   },
-  "extensionName": { "message": "Fengsha Video Learning Companion" },
+  "extensionName": { "message": "Fengsha AI Learning Companion" },
   "hideButton": { "message": "Hide" },
   "inspectAgain": { "message": "Read this page again" },
   "invalidPairingResponse": {
@@ -60,7 +60,7 @@
   "permission": {
     "message": "This click can read the current page once. Nothing runs in the background."
   },
-  "product": { "message": "Fengsha Video Learning Companion" },
+  "product": { "message": "Fengsha AI Learning Companion" },
   "protocolIncompatible": {
     "message": "The browser companion and desktop app use incompatible protocol versions."
   },

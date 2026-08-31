@@ -641,7 +641,7 @@ const handleCompanionRequest = async (
       return
     }
     writeJson(res, 200, {
-      app: 'Fengsha Video Learning',
+      app: 'Fengsha AI Learning Platform',
       ok: true,
       pairedClientCount: readCompanionPairings().clients.length,
       schemaVersion: COMPANION_SCHEMA_VERSION

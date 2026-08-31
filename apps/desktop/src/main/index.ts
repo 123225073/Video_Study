@@ -32,6 +32,7 @@ import {
   initGlitchTipMain
 } from './lib/glitchtip'
 import { localMediaKind } from './lib/import-local-media'
+import { resolvePlayableMediaUrl } from './lib/playable-media-protocol'
 import { stopPlayerHost } from './lib/player-host'
 import { deferAppQuitIfNeeded, stopActiveAiRunsForQuit } from './lib/quit-confirmation-host'
 import { initializeOptionalTool } from './lib/startup-dependencies'
@@ -900,6 +901,11 @@ function isWithinBase(targetPath: string, basePath: string): boolean {
 }
 
 function resolveVidbeeFilePath(requestUrl: URL, userDataPath: string): string | null {
+  if (requestUrl.hostname === 'media') {
+    const playableMediaPath = resolvePlayableMediaUrl(requestUrl)
+    return playableMediaPath && existsSync(playableMediaPath) ? playableMediaPath : null
+  }
+
   const sanitizedPath = sanitizeRequestPath(requestUrl)
   const [rootSegment, ...restSegments] = sanitizedPath.split('/')
   const rendererPath = restSegments.join('/') || 'index.html'
@@ -1097,7 +1103,7 @@ app.on('open-file', (event, filePath) => {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.vidbee')
+  electronApp.setAppUserModelId('com.fengsha.videolearning')
   settingsManager.applyFreshInstallLocale()
 
   registerVidbeeProtocol()

@@ -44,7 +44,7 @@ const resolveDefaultDownloadPath = () => {
     return getPortableDownloadsPath()
   }
 
-  return path.join(os.homedir(), 'Downloads', '风沙视频学习台')
+  return path.join(os.homedir(), 'Downloads', '风沙AI学习平台')
 }
 
 const DEFAULT_DOWNLOAD_PATH = resolveDefaultDownloadPath()

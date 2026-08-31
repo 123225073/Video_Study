@@ -5,10 +5,12 @@ import { Button } from '@renderer/components/ui/button'
 import { ipcServices } from '@renderer/lib/ipc'
 import { logger } from '@renderer/lib/logger'
 import type { TranscriptSelectionAction } from '@renderer/lib/study-studio/types'
+import { buildTranscriptHighlightMap } from '@renderer/lib/transcript-highlights'
 import type { TranscriptSegmentView, TranscriptSpeakerView } from '@renderer/store/transcripts'
 import type { AiSettingsSnapshot } from '@shared/ai-types'
+import type { LearningNote } from '@shared/learning-types'
 import { AlignLeft, Sparkles } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 interface LearningTranscriptPaneProps {
   correctedSegmentIds?: ReadonlySet<string>
@@ -75,20 +77,16 @@ export function LearningTranscriptPane({
 }: LearningTranscriptPaneProps) {
   const [view, setView] = useState<'original' | 'reading'>('original')
   const [aiSettings, setAiSettings] = useState<AiSettingsSnapshot | null>(null)
-  const [highlightedSegmentIds, setHighlightedSegmentIds] = useState<ReadonlySet<string>>(
-    () => new Set()
+  const [highlightNotes, setHighlightNotes] = useState<LearningNote[]>([])
+  const transcriptHighlightRanges = useMemo(
+    () => buildTranscriptHighlightMap(segments, highlightNotes),
+    [highlightNotes, segments]
   )
 
   const refreshHighlights = useCallback(async (): Promise<void> => {
     try {
       const notebook = await ipcServices.learning.get(downloadId)
-      setHighlightedSegmentIds(
-        new Set(
-          (notebook?.notes ?? [])
-            .filter((note) => Boolean(note.highlightColor))
-            .flatMap((note) => note.sourceSegmentIds ?? [])
-        )
-      )
+      setHighlightNotes((notebook?.notes ?? []).filter((note) => Boolean(note.highlightColor)))
     } catch (loadError) {
       logger.error('Failed to load transcript highlights', loadError)
     }
@@ -188,7 +186,6 @@ export function LearningTranscriptPane({
               embedded
               error={error}
               failed={failed}
-              highlightedSegmentIds={highlightedSegmentIds}
               noSpeech={noSpeech}
               noSpeechDetail={noSpeechDetail}
               onCancel={onCancel}
@@ -210,6 +207,7 @@ export function LearningTranscriptPane({
               stage={stage}
               stageHistory={stageHistory}
               streamLive={streamLive}
+              transcriptHighlightRanges={transcriptHighlightRanges}
             />
           </div>
         </div>

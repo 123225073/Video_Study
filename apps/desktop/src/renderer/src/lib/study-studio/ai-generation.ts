@@ -3,7 +3,7 @@ import type { StudyNoteBlock, StudyNoteBlockKind } from './types'
 
 export const AI_PROMPT_ID_BY_BLOCK_KIND: Record<StudyNoteBlockKind, string> = {
   ai: 'bullet-points',
-  mermaid: 'learning-diagram',
+  mermaid: 'create-mindmap',
   paragraph: 'study-notes',
   question: 'active-recall',
   quote: 'shareable-quote',
@@ -12,7 +12,7 @@ export const AI_PROMPT_ID_BY_BLOCK_KIND: Record<StudyNoteBlockKind, string> = {
 }
 
 const FORBIDDEN_MERMAID_SOURCE = /(?:^|\n)\s*(?:click\s|%%\{|classDef\s|style\s)/iu
-const LEARNING_DIAGRAM_START = /^(?:flowchart|graph)\s+(?:TD|TB|BT|LR|RL)\b/iu
+const LEARNING_MINDMAP_START = /^mindmap(?:\s|$)/iu
 
 export interface AiGenerationContext {
   currentBlock?: StudyNoteBlock
@@ -54,8 +54,8 @@ export const parseGeneratedLearningMermaid = (content: string): string => {
     }
     code = match[1]?.trim() ?? ''
   }
-  if (!LEARNING_DIAGRAM_START.test(code)) {
-    throw new Error('AI 结果不是受支持的 Mermaid flowchart。')
+  if (!LEARNING_MINDMAP_START.test(code)) {
+    throw new Error('AI 结果不是受支持的 Mermaid mindmap 思维导图。')
   }
   if (FORBIDDEN_MERMAID_SOURCE.test(code)) {
     throw new Error('Mermaid 结果包含不允许的交互或样式指令。')

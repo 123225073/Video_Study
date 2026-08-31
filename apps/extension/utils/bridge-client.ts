@@ -156,13 +156,13 @@ export const discoverBridge = async (
 export const pairBridge = async (
   endpoint: BridgeEndpoint,
   code: string,
-  clientName = 'Fengsha Video Learning Companion'
+  clientName = 'Fengsha AI Learning Companion'
 ): Promise<PairingRecord> => {
   const data = await requestJson<PairResponse>(
     `${endpoint.baseUrl}/companion/v1/pair`,
     {
       body: JSON.stringify({
-        clientName: clientName.trim().slice(0, 120) || 'Fengsha Video Learning Companion',
+        clientName: clientName.trim().slice(0, 120) || 'Fengsha AI Learning Companion',
         code: code.trim()
       }),
       headers: { 'Content-Type': 'application/json' },

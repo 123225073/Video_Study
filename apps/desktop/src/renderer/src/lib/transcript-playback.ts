@@ -147,3 +147,18 @@ export const attachPlaybackPlayer = (target: HTMLElement | null): void => {
 export const parkPlaybackPlayer = (): void => {
   rehomePlaybackNode(playerWrapEl, null, parkingEl)
 }
+
+/**
+ * Release Chromium media handles before a downloaded file is removed on Windows.
+ */
+export const releasePlaybackMediaResources = (): void => {
+  const mediaElements = playerWrapEl?.querySelectorAll<HTMLMediaElement>('audio, video') ?? []
+  for (const media of mediaElements) {
+    media.pause()
+    media.removeAttribute('src')
+    for (const source of media.querySelectorAll('source')) {
+      source.removeAttribute('src')
+    }
+    media.load()
+  }
+}

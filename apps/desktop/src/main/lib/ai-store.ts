@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { safeStorage } from 'electron'
+import { app, safeStorage } from 'electron'
 import {
   aiProviderNeedsApiKey,
   getAiProviderPreset,
@@ -130,6 +130,7 @@ class AiStore {
   constructor() {
     const now = Date.now()
     this.store = new Store({
+      cwd: app.getPath('userData'),
       name: 'ai',
       defaults: {
         activeProviderId: null,

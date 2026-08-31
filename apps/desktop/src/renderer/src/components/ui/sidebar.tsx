@@ -25,6 +25,10 @@ export function Sidebar({
 }: SidebarProps) {
   const { t } = useTranslation()
   const updateAvailable = useAtomValue(updateAvailableAtom)
+  const appName = t('learning.appName')
+  const sidebarAppName = appName.includes('AI学习')
+    ? appName.replace('AI学习', 'AI\n学习')
+    : appName.replace('AI Learning', 'AI\nLearning')
 
   const items: AppSidebarItem[] = [
     {
@@ -81,7 +85,7 @@ export function Sidebar({
 
   return (
     <AppSidebar
-      appName={t('learning.appName')}
+      appName={sidebarAppName}
       bottomItems={bottomItems}
       className="fengsha-app-sidebar"
       items={items}

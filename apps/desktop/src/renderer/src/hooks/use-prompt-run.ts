@@ -17,7 +17,7 @@ export const usePromptRun = (
 ): {
   hydrated: boolean
   run: AiPromptRunSnapshot
-  start: (transcriptText: string) => Promise<void>
+  start: (transcriptText: string, promptContent?: string) => Promise<void>
   stop: () => Promise<void>
 } => {
   const { i18n } = useTranslation()
@@ -66,7 +66,7 @@ export const usePromptRun = (
    * @param transcriptText Transcript or sample text.
    */
   const start = useCallback(
-    async (transcriptText: string): Promise<void> => {
+    async (transcriptText: string, promptContent?: string): Promise<void> => {
       if (!promptId) {
         return
       }
@@ -74,6 +74,7 @@ export const usePromptRun = (
         const snapshot = await ipcServices.ai.startPrompt({
           downloadId,
           promptId,
+          promptContent,
           transcriptText,
           uiLanguage: i18n.language
         })

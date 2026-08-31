@@ -188,6 +188,7 @@ const runTests = async (): Promise<void> => {
     const { countActiveAiRunsByKind } =
       require('../src/main/lib/ai-active-runs') as typeof import('../src/main/lib/ai-active-runs')
     const {
+      deleteImageRunForDownload,
       getImageRunSnapshot,
       localizeRemoteImage,
       MAX_REMOTE_IMAGE_BYTES,
@@ -250,6 +251,10 @@ const runTests = async (): Promise<void> => {
       quote: ''
     })
     assert.equal(countActiveAiRunsByKind('image'), 0)
+    assert.equal(deleteImageRunForDownload('stream'), true)
+    const deletedCompleted = getImageRunSnapshot('stream')
+    assert.equal(deletedCompleted.status, 'idle')
+    assert.equal(deletedCompleted.imageDataUrl, null)
     process.stdout.write('AI image test: SSE passed\n')
 
     startImageRun(imageInput('fallback', 'fallback-test'))
@@ -263,6 +268,18 @@ const runTests = async (): Promise<void> => {
     )
     assert.equal(fallback.imageDataUrl, `data:image/png;base64,${imageBase64('fallback')}`)
     process.stdout.write('AI image test: fallback passed\n')
+
+    startImageRun(imageInput('delete-running', 'cancel-test'))
+    await waitFor(
+      () => getImageRunSnapshot('delete-running'),
+      (snapshot) => snapshot.stage === 'generating'
+    )
+    assert.equal(deleteImageRunForDownload('delete-running'), true)
+    assert.equal(countActiveAiRunsByKind('image'), 0)
+    assert.equal(getImageRunSnapshot('delete-running').status, 'idle')
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    assert.equal(getImageRunSnapshot('delete-running').status, 'idle')
+    process.stdout.write('AI image test: running deletion passed\n')
 
     startImageRun(imageInput('cancel', 'cancel-test'))
     await waitFor(

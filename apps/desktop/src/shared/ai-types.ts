@@ -150,6 +150,8 @@ export interface AiPromptRunSnapshot {
 export interface AiPromptRunInput {
   downloadId: string
   promptId: string
+  /** Optional user-maintained instruction for learning workflows. */
+  promptContent?: string
   transcriptText: string
   /** UI language tag; built-in translate prompts resolve {{uiLanguage}} from this. */
   uiLanguage?: string

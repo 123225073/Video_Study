@@ -119,7 +119,7 @@ test('never sends a stored bearer token while scanning unknown localhost ports',
       }
       if (String(url).startsWith('http://127.0.0.1:27108')) {
         return new Response(
-          JSON.stringify({ app: 'Fengsha Video Learning', ok: true, schemaVersion: '1.0.0' }),
+          JSON.stringify({ app: 'Fengsha AI Learning Platform', ok: true, schemaVersion: '1.0.0' }),
           {
             headers: { 'Content-Type': 'application/json' },
             status: 200

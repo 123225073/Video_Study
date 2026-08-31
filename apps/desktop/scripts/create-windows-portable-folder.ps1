@@ -120,10 +120,10 @@ shell.Run command, 0, False
 '@
 
 $Readme = @"
-Fengsha Video Learning portable folder
+Fengsha AI Learning Platform portable folder
 ======================
 
-Run Fengsha Video Learning Portable.lnk from this folder.
+Run Fengsha AI Learning Platform Portable.lnk from this folder.
 
 Do not run app\FengshaVideoLearning.exe directly if you want the app data to stay portable.
 The shortcut starts a hidden WSH launcher, which starts a hidden PowerShell
@@ -134,7 +134,7 @@ Chromium --user-data-dir path.
 Default download folder:
 Downloads
 
-Move this folder only while Fengsha Video Learning is closed. Keep the path reasonably short;
+Move this folder only while Fengsha AI Learning Platform is closed. Keep the path reasonably short;
 very deep Windows paths can fail when browser profile/cache files exist under
 Data.
 "@
@@ -202,20 +202,20 @@ public static class PortableShortcutMaker {
     link.SetWorkingDirectory(workDir);
     link.SetRelativePath(linkPath, 0);
     link.SetIconLocation(iconPath, 0);
-    link.SetDescription("Fengsha Video Learning Portable");
+    link.SetDescription("Fengsha AI Learning Platform Portable");
     ((IPersistFile)link).Save(linkPath, true);
   }
 }
 '@
 
 Add-Type -TypeDefinition $ShellLinkCode
-$ShortcutPath = Join-Path $PortableDir 'Fengsha Video Learning Portable.lnk'
+$ShortcutPath = Join-Path $PortableDir 'Fengsha AI Learning Platform Portable.lnk'
 $VbsPath = Join-Path $PortableDir 'Start-Fengsha-Video-Learning-Portable.vbs'
 $IconPath = 'app\FengshaVideoLearning.exe'
 [PortableShortcutMaker]::Create($ShortcutPath, $VbsPath, $PortableDir, $IconPath)
 
 $RequiredFiles = @(
-  'Fengsha Video Learning Portable.lnk',
+  'Fengsha AI Learning Platform Portable.lnk',
   'Start-Fengsha-Video-Learning-Portable.vbs',
   'Start-Fengsha-Video-Learning-Portable.ps1',
   'README-portable.txt',

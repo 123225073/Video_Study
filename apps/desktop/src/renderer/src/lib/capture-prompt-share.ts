@@ -141,13 +141,13 @@ export const waitForShareCard = async (element: HTMLElement): Promise<void> => {
  * @param title Source title shown on the share card.
  */
 export const shareImageFileName = (title?: string | null): string => {
-  const cleaned = (title?.trim() || 'VidBee')
+  const cleaned = (title?.trim() || '风沙AI学习平台')
     .replace(/[<>:"/\\|?*]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/[. ]+$/g, '')
     .slice(0, 80)
-  return `${cleaned || 'VidBee'}.png`
+  return `${cleaned || '风沙AI学习平台'}.png`
 }
 
 /**

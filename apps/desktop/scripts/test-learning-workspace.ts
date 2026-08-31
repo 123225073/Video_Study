@@ -97,8 +97,8 @@ const main = async (): Promise<void> => {
 
     const beforeSettings = await store.getAiSettings()
     const defaultMindmapPrompt = beforeSettings.prompts.find((prompt) => prompt.id === 'mindmap')
-    assert.equal(defaultMindmapPrompt?.version, 2)
-    assert.match(defaultMindmapPrompt?.systemPrompt ?? '', /Mermaid flowchart/u)
+    assert.equal(defaultMindmapPrompt?.version, 3)
+    assert.match(defaultMindmapPrompt?.systemPrompt ?? '', /Mermaid mindmap/u)
     const editedSettings = await store.saveAiSettings({
       ...beforeSettings,
       prompts: beforeSettings.prompts.map((prompt) =>
@@ -476,6 +476,18 @@ const main = async (): Promise<void> => {
       /outside/iu
     )
     await assert.rejects(fs.stat(path.join(externalPath, 'new')), { code: 'ENOENT' })
+
+    await store.save({
+      blocks: [screenshotBlock(screenshotReference)],
+      downloadId: 'screenshot-shared',
+      title: '共享截图引用'
+    })
+    assert.equal(await store.deleteWorkspace('screenshot-storage'), true)
+    assert.ok((await fs.stat(await store.resolveAttachmentSource(screenshotReference))).isFile())
+    assert.equal(await store.deleteWorkspace('screenshot-shared'), true)
+    await assert.rejects(store.resolveAttachmentSource(screenshotReference), { code: 'ENOENT' })
+    assert.equal(await store.deleteWorkspace('missing-workspace'), false)
+    assert.ok(await store.getAiSettings(), 'Deleting a workspace must preserve global AI settings')
 
     const corruptStorePath = path.join(tempRoot, 'corrupt.json')
     await fs.writeFile(corruptStorePath, '{not-json', 'utf8')

@@ -31,7 +31,11 @@ export type TranscriptSelectionIntent = (typeof TRANSCRIPT_SELECTION_INTENTS)[nu
 
 export interface TranscriptSelection {
   endMs?: number
+  /** Character offset inside the final source segment. */
+  sourceEndOffset?: number
   segmentIds?: string[]
+  /** Character offset inside the first source segment. */
+  sourceStartOffset?: number
   startMs: number
   text: string
 }

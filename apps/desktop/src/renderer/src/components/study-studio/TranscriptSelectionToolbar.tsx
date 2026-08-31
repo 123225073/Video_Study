@@ -5,12 +5,21 @@ import type {
   TranscriptSelectionIntent
 } from '@renderer/lib/study-studio/types'
 import { cn } from '@renderer/lib/utils'
-import { BotMessageSquare, Clipboard, ImageIcon, Lightbulb, NotebookPen, Play } from 'lucide-react'
+import {
+  BotMessageSquare,
+  Clipboard,
+  Highlighter,
+  ImageIcon,
+  Lightbulb,
+  NotebookPen,
+  Play
+} from 'lucide-react'
 import { type KeyboardEvent, useEffect } from 'react'
 
 const TOOLBAR_ACTIONS = [
   { icon: Play, intent: 'seek' },
   { icon: Clipboard, intent: 'copy' },
+  { icon: Highlighter, intent: 'highlight' },
   { icon: NotebookPen, intent: 'note' },
   { icon: Lightbulb, intent: 'reflection' },
   { icon: ImageIcon, intent: 'quote-card' },

@@ -206,6 +206,20 @@ export interface LearningNotebookWriteInput {
   workspaceId?: string
 }
 
+export interface LearningWorkspaceDeleteInput {
+  deleteDownloadedMedia?: boolean
+  downloadId: string
+}
+
+export interface LearningWorkspaceDeleteResult {
+  deletedDownloadedMedia: boolean
+  deletedHistory: boolean
+  deletedNotebook: boolean
+  downloadedMediaDeleteFailed: boolean
+  failedDownloadedMediaPath: string | null
+  preservedLocalSource: boolean
+}
+
 export interface LearningTranscriptCorrectionInput {
   correctedText: string
   downloadId: string

@@ -78,6 +78,12 @@ export const upsertTranscriptAtom = atom(null, (get, set, snapshot: TranscriptSn
   set(transcriptMapAtom, applyTranscriptSnapshot(get(transcriptMapAtom), snapshot))
 })
 
+export const removeTranscriptAtom = atom(null, (get, set, downloadId: string) => {
+  const transcripts = { ...get(transcriptMapAtom) }
+  delete transcripts[downloadId]
+  set(transcriptMapAtom, transcripts)
+})
+
 export const loadTranscriptMapAtom = atom(null, async (get, set) => {
   const map = (await ipcServices.transcript.getStatusMap()) as Record<
     string,

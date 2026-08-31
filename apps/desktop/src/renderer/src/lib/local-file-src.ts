@@ -1,10 +1,10 @@
 /**
  * Convert a local filesystem path into a `file://` URL the renderer can load.
  *
- * App-protocol URLs (`vidbee://...`) are already playable and are returned as-is.
+ * App-protocol URLs are already playable and are returned as-is.
  */
 export const toLocalFileSrc = (filePath: string): string => {
-  if (/^(blob|data|file|https?|vidbee):/i.test(filePath)) {
+  if (/^(blob|data|file|https?|fengsha-video|vidbee):/i.test(filePath)) {
     return filePath
   }
   const normalized = filePath.replace(/\\/g, '/')

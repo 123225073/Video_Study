@@ -5,9 +5,7 @@ import {
   ItemActions,
   ItemContent,
   ItemDescription,
-  ItemGroup,
   ItemMedia,
-  ItemSeparator,
   ItemTitle
 } from '@renderer/components/ui/item'
 import { ipcServices } from '@renderer/lib/ipc'
@@ -21,7 +19,7 @@ import type {
   AiProviderWriteInput,
   AiSettingsSnapshot
 } from '@shared/ai-types'
-import { Check, Plus, Trash2 } from 'lucide-react'
+import { Bot, Check, Plus, Trash2 } from 'lucide-react'
 import { type KeyboardEvent, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -161,71 +159,103 @@ export function AiProvidersPanel() {
   return (
     <div className="space-y-4">
       {snapshot ? (
-        <AiImageProviderPanel onSaved={setSnapshot} value={snapshot.imageProvider} />
-      ) : null}
-      {providers.length > 0 ? (
         <div className="space-y-2">
           <h3 className="px-1 font-medium text-muted-foreground text-sm">
             {t('settings.ai.configured')}
           </h3>
-          <ItemGroup>
-            {providers.map((provider, index) => {
+          <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+            {providers.map((provider) => {
               const inUse = provider.id === activeProviderId
               return (
-                <div key={provider.id}>
-                  {index > 0 ? <ItemSeparator /> : null}
-                  <Item variant="muted">
-                    <ItemMedia className="border-border bg-background" variant="icon">
-                      <AiProviderIcon presetId={provider.presetId} />
-                    </ItemMedia>
-                    <ItemContent>
-                      <ItemTitle>
-                        {provider.name}
-                        {inUse ? (
-                          <Badge variant="secondary">
-                            <Check aria-hidden className="size-3" />
-                            {t('settings.ai.inUse')}
-                          </Badge>
-                        ) : null}
-                      </ItemTitle>
-                      <ItemDescription>{provider.modelId}</ItemDescription>
-                    </ItemContent>
-                    <ItemActions>
-                      {inUse ? null : (
-                        <Button
-                          onClick={() => void handleUse(provider.id)}
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                        >
-                          {t('settings.ai.useProvider')}
-                        </Button>
-                      )}
+                <Item
+                  className="min-h-20 border bg-card shadow-xs"
+                  key={provider.id}
+                  rounded="both"
+                  variant="muted"
+                >
+                  <ItemMedia className="border-border bg-background" variant="icon">
+                    <AiProviderIcon presetId={provider.presetId} />
+                  </ItemMedia>
+                  <ItemContent>
+                    <p className="mb-1 font-medium text-[11px] text-muted-foreground uppercase tracking-[0.14em]">
+                      {t('settings.ai.providerCards.textModel')}
+                    </p>
+                    <ItemTitle>
+                      {provider.name}
+                      <Badge variant={inUse ? 'secondary' : 'outline'}>
+                        {inUse ? <Check aria-hidden className="size-3" /> : null}
+                        {inUse ? t('settings.ai.inUse') : t('settings.ai.configured')}
+                      </Badge>
+                    </ItemTitle>
+                    <ItemDescription>{provider.modelId}</ItemDescription>
+                  </ItemContent>
+                  <ItemActions>
+                    {inUse ? null : (
                       <Button
-                        onClick={() => openEdit(provider)}
+                        onClick={() => void handleUse(provider.id)}
                         size="sm"
                         type="button"
                         variant="outline"
                       >
-                        {t('settings.ai.edit')}
+                        {t('settings.ai.useProvider')}
                       </Button>
-                      <Button
-                        aria-label={t('settings.ai.deleteProvider')}
-                        className="size-8"
-                        onClick={() => void handleDelete(provider.id)}
-                        size="icon"
-                        title={t('settings.ai.deleteProvider')}
-                        type="button"
-                        variant="ghost"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </ItemActions>
-                  </Item>
-                </div>
+                    )}
+                    <Button
+                      onClick={() => openEdit(provider)}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      {t('settings.ai.edit')}
+                    </Button>
+                    <Button
+                      aria-label={t('settings.ai.deleteProvider')}
+                      className="size-8"
+                      onClick={() => void handleDelete(provider.id)}
+                      size="icon"
+                      title={t('settings.ai.deleteProvider')}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </ItemActions>
+                </Item>
               )
             })}
-          </ItemGroup>
+            {providers.length === 0 ? (
+              <Item
+                className="min-h-20 border border-dashed bg-card"
+                rounded="both"
+                variant="muted"
+              >
+                <ItemMedia className="border-border bg-background" variant="icon">
+                  <Bot className="size-4 text-muted-foreground" />
+                </ItemMedia>
+                <ItemContent>
+                  <p className="mb-1 font-medium text-[11px] text-muted-foreground uppercase tracking-[0.14em]">
+                    {t('settings.ai.providerCards.textModel')}
+                  </p>
+                  <ItemTitle>{t('settings.ai.providerCards.notConfigured')}</ItemTitle>
+                  <ItemDescription>
+                    {t('settings.ai.providerCards.addTextDescription')}
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Button
+                    onClick={() => openCreate('custom')}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Plus aria-hidden className="size-3.5" />
+                    {t('settings.ai.providerCards.add')}
+                  </Button>
+                </ItemActions>
+              </Item>
+            ) : null}
+            <AiImageProviderPanel onSaved={setSnapshot} value={snapshot.imageProvider} />
+          </div>
         </div>
       ) : null}
 

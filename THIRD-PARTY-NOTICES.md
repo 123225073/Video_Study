@@ -4,7 +4,7 @@ This file describes separately distributed runtime components. It does not repla
 
 ## FFmpeg and ffprobe
 
-The Windows desktop package includes `ffmpeg.exe` and `ffprobe.exe` as separate command-line programs. They are obtained from the `yt-dlp/FFmpeg-Builds` project and are not linked into the Fengsha Video Learning application.
+The Windows desktop package includes `ffmpeg.exe` and `ffprobe.exe` as separate command-line programs. They are obtained from the `yt-dlp/FFmpeg-Builds` project and are not linked into the Fengsha AI Learning Platform application.
 
 - Binary distribution: `ffmpeg-master-latest-win64-gpl.zip`
 - Distribution page: <https://github.com/yt-dlp/FFmpeg-Builds/releases/tag/latest>
@@ -23,7 +23,7 @@ The FFmpeg project and the included libraries retain their respective copyrights
 
 ## Node.js runtime
 
-The desktop package includes the official Node.js runtime as a separate executable used by yt-dlp's JavaScript challenge solver. It is not linked into the Fengsha Video Learning application.
+The desktop package includes the official Node.js runtime as a separate executable used by yt-dlp's JavaScript challenge solver. It is not linked into the Fengsha AI Learning Platform application.
 
 - Node.js version: `v22.22.3` (Maintenance LTS)
 - Official archive: `node-v22.22.3-win-x64.zip`
