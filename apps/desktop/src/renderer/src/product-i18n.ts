@@ -69,12 +69,46 @@ const en = {
     addLesson: 'Add a lesson',
     addNote: 'Add note',
     appName: 'Fengsha AI Learning Platform',
+    studyChat: {
+      answerFailed: 'The AI answer failed. Please try again.',
+      assistant: 'AI learning companion',
+      configureProvider: 'Configure a default AI model in Settings first',
+      copied: 'Answer copied',
+      copy: 'Copy this answer',
+      emptyDescription:
+        'AI answers from the transcript, your notes, and earlier turns, with timestamps linked to the source video.',
+      emptyTitle: 'Keep asking about this learning material',
+      enterQuestion: 'Enter a question first',
+      inputLabel: 'Ask about the current learning project',
+      loading: 'Loading conversation',
+      memory: 'Recent conversation in this project is remembered',
+      persistFailed:
+        'The answer is complete but could not be saved. It will remain available in this session.',
+      placeholder: 'Ask about this material. Press Ctrl + Enter to send…',
+      quick: {
+        apply: 'Apply it in practice',
+        core: 'Extract key ideas',
+        critical: 'Critical analysis',
+        difficult: 'Explain tricky points',
+        review: 'Create review questions'
+      },
+      saving: 'Saving this answer…',
+      selectedPrompt:
+        'Explain this passage in context, including its evidence and practical use:\n{{text}}',
+      send: 'Send',
+      sendFailed: 'Could not send. Please try again.',
+      stop: 'Stop generating',
+      transcriptPending: 'The transcript is not ready yet',
+      you: 'You'
+    },
     mindmapViewer: {
       collapseAll: 'Collapse all',
       collapseNode: 'Collapse {{label}}',
       expandAll: 'Expand all',
       expandNode: 'Expand {{label}}',
       fit: 'Fit to view',
+      fullscreen: 'Open mind map fullscreen',
+      fullscreenDescription: 'Explore the mind map in a larger draggable and zoomable canvas.',
       hint: 'Select a branch to reveal or hide deeper knowledge.',
       invalid: 'This mind map could not be displayed safely.',
       legacy: 'Interactive view converted from a historical Mermaid flowchart.',
@@ -113,6 +147,17 @@ const en = {
     continue: 'Continue',
     captureFrame: 'Capture frame',
     captureFrameUnavailable: 'A video frame is not available yet',
+    sidebar: {
+      collapse: 'Hide navigation sidebar',
+      expand: 'Show navigation sidebar'
+    },
+    translation: {
+      bilingual: 'Bilingual',
+      label: 'Translation',
+      readingOnly: 'Translation is available in AI Reading view',
+      targetLanguage: 'Target language',
+      toggle: 'Show or hide the translated reading view'
+    },
     corrections: {
       restoreOriginal: 'Restore original transcript',
       restored: 'Original transcript restored; history retained',
@@ -604,12 +649,43 @@ const zh = {
     addLesson: '添加学习视频',
     addNote: '添加笔记',
     appName: '风沙AI学习平台',
+    studyChat: {
+      answerFailed: 'AI 回答失败，请重试',
+      assistant: 'AI 学习助手',
+      configureProvider: '请先在设置中配置默认 AI 模型',
+      copied: '已复制回答',
+      copy: '复制本次回答',
+      emptyDescription: 'AI 会结合逐字稿、你的笔记和此前对话回答，并用时间标记链接回原视频。',
+      emptyTitle: '围绕这份资料继续追问',
+      enterQuestion: '请输入你想了解的问题',
+      inputLabel: '向当前学习项目提问',
+      loading: '正在读取对话',
+      memory: '已记住本项目最近的对话',
+      persistFailed: 'AI 回答已完成但未能保存；本次使用期间仍会保留这轮上下文。',
+      placeholder: '针对这份资料提问，Ctrl + Enter 发送……',
+      quick: {
+        apply: '如何实际应用',
+        core: '提炼核心观点',
+        critical: '批判性分析',
+        difficult: '解释易错难点',
+        review: '生成复习问题'
+      },
+      saving: '正在保存本轮回答…',
+      selectedPrompt: '请结合上下文解释这段内容，并说明它的依据与应用：\n{{text}}',
+      send: '发送',
+      sendFailed: '没有成功发送，请稍后重试',
+      stop: '停止生成',
+      transcriptPending: '逐字稿尚未就绪',
+      you: '我'
+    },
     mindmapViewer: {
       collapseAll: '全部收起',
       collapseNode: '收起“{{label}}”',
       expandAll: '全部展开',
       expandNode: '展开“{{label}}”',
       fit: '适应视图',
+      fullscreen: '全屏查看思维导图',
+      fullscreenDescription: '在更大的画布中拖动、缩放并展开思维导图。',
       hint: '点击分支节点可展开或收起更深层知识。',
       invalid: '这份思维导图无法安全显示。',
       legacy: '已将历史 Mermaid 流程图转换为可交互思维导图。',
@@ -645,6 +721,17 @@ const zh = {
     continue: '继续学习',
     captureFrame: '截取当前画面',
     captureFrameUnavailable: '当前没有可截取的视频画面',
+    sidebar: {
+      collapse: '隐藏导航栏',
+      expand: '显示导航栏'
+    },
+    translation: {
+      bilingual: '双语',
+      label: '译文',
+      readingOnly: '译文仅在 AI 阅读版中可用',
+      targetLanguage: '目标语言',
+      toggle: '显示或隐藏译文'
+    },
     corrections: {
       restoreOriginal: '恢复原始逐字稿',
       restored: '已恢复原文，历史版本仍保留',

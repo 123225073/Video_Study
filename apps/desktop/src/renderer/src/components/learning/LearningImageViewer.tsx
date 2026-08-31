@@ -6,8 +6,9 @@ import {
   DialogTitle
 } from '@renderer/components/ui/dialog'
 import { RemoteImage } from '@renderer/components/ui/remote-image'
+import { usePanZoom } from '@renderer/hooks/use-pan-zoom'
 import { Download, Maximize2, Minus, Plus } from 'lucide-react'
-import { type PointerEvent, useEffect, useRef, useState, type WheelEvent } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const MIN_ZOOM = 0.5
@@ -22,8 +23,6 @@ interface LearningImageViewerProps {
   source: string | null
 }
 
-const clampZoom = (zoom: number): number => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom))
-
 export function LearningImageViewer({
   alt,
   onDownload,
@@ -32,61 +31,18 @@ export function LearningImageViewer({
   source
 }: LearningImageViewerProps) {
   const { t } = useTranslation()
-  const [zoom, setZoom] = useState(1)
-  const [offset, setOffset] = useState({ x: 0, y: 0 })
-  const dragOrigin = useRef<{ offsetX: number; offsetY: number; x: number; y: number } | null>(null)
-
-  const fit = (): void => {
-    setZoom(1)
-    setOffset({ x: 0, y: 0 })
-  }
+  const panZoom = usePanZoom({
+    initialZoom: 1,
+    maxZoom: MAX_ZOOM,
+    minZoom: MIN_ZOOM,
+    zoomStep: ZOOM_STEP
+  })
 
   useEffect(() => {
     if (open && source) {
-      setZoom(1)
-      setOffset({ x: 0, y: 0 })
+      panZoom.reset()
     }
-  }, [open, source])
-
-  const updateZoom = (nextZoom: number): void => {
-    const value = clampZoom(nextZoom)
-    setZoom(value)
-    if (value <= 1) {
-      setOffset({ x: 0, y: 0 })
-    }
-  }
-
-  const onWheel = (event: WheelEvent<HTMLDivElement>): void => {
-    event.preventDefault()
-    updateZoom(zoom + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP))
-  }
-
-  const onPointerDown = (event: PointerEvent<HTMLDivElement>): void => {
-    if (zoom <= 1) {
-      return
-    }
-    event.currentTarget.setPointerCapture(event.pointerId)
-    dragOrigin.current = {
-      offsetX: offset.x,
-      offsetY: offset.y,
-      x: event.clientX,
-      y: event.clientY
-    }
-  }
-
-  const onPointerMove = (event: PointerEvent<HTMLDivElement>): void => {
-    if (!dragOrigin.current) {
-      return
-    }
-    setOffset({
-      x: dragOrigin.current.offsetX + event.clientX - dragOrigin.current.x,
-      y: dragOrigin.current.offsetY + event.clientY - dragOrigin.current.y
-    })
-  }
-
-  const stopDragging = (): void => {
-    dragOrigin.current = null
-  }
+  }, [open, panZoom.reset, source])
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -101,26 +57,26 @@ export function LearningImageViewer({
             <div className="flex items-center gap-1.5">
               <Button
                 aria-label={t('learning.imageStudio.zoomOut')}
-                disabled={zoom <= MIN_ZOOM}
-                onClick={() => updateZoom(zoom - ZOOM_STEP)}
+                disabled={panZoom.zoom <= MIN_ZOOM}
+                onClick={panZoom.zoomOut}
                 size="icon"
                 variant="ghost"
               >
                 <Minus />
               </Button>
               <span className="w-12 text-center font-mono text-stone-300 text-xs">
-                {Math.round(zoom * 100)}%
+                {Math.round(panZoom.zoom * 100)}%
               </span>
               <Button
                 aria-label={t('learning.imageStudio.zoomIn')}
-                disabled={zoom >= MAX_ZOOM}
-                onClick={() => updateZoom(zoom + ZOOM_STEP)}
+                disabled={panZoom.zoom >= MAX_ZOOM}
+                onClick={panZoom.zoomIn}
                 size="icon"
                 variant="ghost"
               >
                 <Plus />
               </Button>
-              <Button onClick={fit} size="sm" variant="ghost">
+              <Button onClick={panZoom.reset} size="sm" variant="ghost">
                 <Maximize2 /> {t('learning.imageStudio.fitWindow')}
               </Button>
               <Button onClick={onDownload} size="sm" variant="secondary">
@@ -130,28 +86,33 @@ export function LearningImageViewer({
           </div>
           <div
             aria-label={t('learning.imageStudio.viewerDescription')}
-            className={`grid min-h-0 flex-1 place-items-center overflow-hidden bg-[radial-gradient(circle_at_center,_#292524_0,_#0c0a09_62%)] p-8 ${
-              zoom > 1 ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in'
+            className={`grid min-h-0 flex-1 touch-none place-items-center overflow-hidden bg-[radial-gradient(circle_at_center,_#292524_0,_#0c0a09_62%)] p-8 ${
+              panZoom.zoom > 1
+                ? panZoom.dragging
+                  ? 'cursor-grabbing'
+                  : 'cursor-grab'
+                : 'cursor-zoom-in'
             }`}
-            onDoubleClick={fit}
-            onPointerCancel={stopDragging}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={stopDragging}
-            onWheel={onWheel}
+            onDoubleClick={panZoom.reset}
+            onDragStart={(event) => event.preventDefault()}
+            onPointerCancel={panZoom.onPointerCancel}
+            onPointerDown={panZoom.onPointerDown}
+            onPointerMove={panZoom.onPointerMove}
+            onPointerUp={panZoom.onPointerUp}
+            onWheel={panZoom.onWheel}
             role="application"
           >
             {source ? (
               <div
                 className="grid max-h-full max-w-full place-items-center"
                 style={{
-                  transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+                  transform: `translate3d(${panZoom.offset.x}px, ${panZoom.offset.y}px, 0) scale(${panZoom.zoom})`,
                   transformOrigin: 'center'
                 }}
               >
                 <RemoteImage
                   alt={alt}
-                  className="max-h-full max-w-full select-none rounded-md object-contain shadow-2xl"
+                  className="pointer-events-none max-h-full max-w-full select-none rounded-md object-contain shadow-2xl"
                   src={source}
                 />
               </div>

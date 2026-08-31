@@ -1,6 +1,6 @@
 {
   "name": "fengsha-video-learning",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "Windows-first local video learning workspace with transcripts, timeline notes, subtitles, and AI study tools",
   "main": "./out/main/index.js",
   "author": "Fengsha, based on VidBee",

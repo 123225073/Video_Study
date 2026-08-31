@@ -10,6 +10,7 @@ import type { CompanionCapturePayload } from '@shared/companion-types'
 import type { SubscriptionRule } from '@shared/types'
 import { Outlet, useNavigate, useRouteContext, useRouterState } from '@tanstack/react-router'
 import { useAtomValue, useSetAtom } from 'jotai'
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import {
   type CSSProperties,
   type ReactNode,
@@ -99,6 +100,9 @@ export function AppLayout() {
   const { platform } = useRouteContext({ from: '__root__' })
   const [appVersion, setAppVersion] = useState<string>('')
   const [titleBarContent, setTitleBarContent] = useState<ReactNode>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => window.localStorage.getItem('fengsha-app-sidebar-collapsed') === '1'
+  )
   const loadSubscriptions = useSetAtom(loadSubscriptionsAtom)
   const setSubscriptions = useSetAtom(setSubscriptionsAtom)
   const loadSettings = useSetAtom(loadSettingsAtom)
@@ -127,6 +131,10 @@ export function AppLayout() {
   const toolsUrl = withDesktopUtm('https://vidbee.org/tools/')
   useDownloadEvents()
   const { applyImportResult } = useImportLocalMedia()
+
+  useEffect(() => {
+    window.localStorage.setItem('fengsha-app-sidebar-collapsed', sidebarCollapsed ? '1' : '0')
+  }, [sidebarCollapsed])
 
   const handlePageChange = useCallback(
     (page: Page) => {
@@ -371,12 +379,41 @@ export function AppLayout() {
           } as CSSProperties
         }
       >
-        <Sidebar
-          currentPage={currentPage}
-          onOpenTools={handleOpenTools}
-          onPageChange={handlePageChange}
-          transcriptsActive={hasActiveTranscripts}
-        />
+        <div className="relative z-50 shrink-0">
+          {sidebarCollapsed ? null : (
+            <Sidebar
+              currentPage={currentPage}
+              onOpenTools={handleOpenTools}
+              onPageChange={handlePageChange}
+              transcriptsActive={hasActiveTranscripts}
+            />
+          )}
+          <button
+            aria-label={
+              sidebarCollapsed
+                ? i18n.t('learning.sidebar.expand')
+                : i18n.t('learning.sidebar.collapse')
+            }
+            className={
+              sidebarCollapsed
+                ? 'fixed top-1/2 left-0 z-50 flex size-7 -translate-y-1/2 items-center justify-center rounded-r-full border border-l-0 bg-background text-muted-foreground shadow-md transition hover:text-foreground'
+                : 'absolute top-1/2 -right-3 z-50 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-md transition hover:border-amber-400 hover:text-foreground'
+            }
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            title={
+              sidebarCollapsed
+                ? i18n.t('learning.sidebar.expand')
+                : i18n.t('learning.sidebar.collapse')
+            }
+            type="button"
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen aria-hidden className="size-3.5" />
+            ) : (
+              <PanelLeftClose aria-hidden className="size-3.5" />
+            )}
+          </button>
+        </div>
 
         <main className="fengsha-app-canvas flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-vt="main">

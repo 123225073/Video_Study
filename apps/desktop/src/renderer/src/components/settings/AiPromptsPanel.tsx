@@ -21,6 +21,8 @@ import { toast } from 'sonner'
 import { AiPromptDialog } from './AiPromptDialog'
 import { AiPromptIcon } from './ai-prompt-icon'
 
+const HIDDEN_LEARNING_PROMPT_IDS = new Set(['learning-outline', 'learning-podcast-script'])
+
 /**
  * Translate a built-in prompt title, falling back to the stored English title.
  *
@@ -144,7 +146,9 @@ export function AiPromptsPanel() {
     }
   }
 
-  const prompts = snapshot?.prompts ?? []
+  const prompts = (snapshot?.prompts ?? []).filter(
+    (prompt) => !HIDDEN_LEARNING_PROMPT_IDS.has(prompt.id)
+  )
 
   return (
     <div className="space-y-4">

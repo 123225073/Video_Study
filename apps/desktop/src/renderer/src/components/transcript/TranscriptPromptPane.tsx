@@ -27,6 +27,8 @@ interface TranscriptPromptPaneProps {
   downloadId: string
   hasProvider: boolean
   prompt: AiPrompt
+  /** Optional mode-specific system instruction, such as a selected translation language. */
+  promptContent?: string
   providerLabel?: string | null
   ready: boolean
   settingsReady: boolean
@@ -68,6 +70,7 @@ export function TranscriptPromptPane({
   downloadId,
   hasProvider,
   prompt,
+  promptContent,
   providerLabel,
   ready,
   settingsReady,
@@ -105,8 +108,17 @@ export function TranscriptPromptPane({
       return
     }
     autoStarted.current = true
-    void start(transcriptText)
-  }, [hasProvider, hydrated, ready, run.status, settingsReady, start, transcriptText])
+    void start(transcriptText, promptContent)
+  }, [
+    hasProvider,
+    hydrated,
+    promptContent,
+    ready,
+    run.status,
+    settingsReady,
+    start,
+    transcriptText
+  ])
 
   /**
    * Copy the current Markdown result.
@@ -172,7 +184,7 @@ export function TranscriptPromptPane({
         ) : (
           <Button
             disabled={!transcriptText.trim()}
-            onClick={() => void start(transcriptText)}
+            onClick={() => void start(transcriptText, promptContent)}
             size="sm"
             type="button"
             variant="outline"
@@ -245,7 +257,7 @@ export function TranscriptPromptPane({
                   <TranscriptPromptGuidance
                     error={run.error}
                     errorCode={guidanceCode}
-                    onRetry={() => void start(transcriptText)}
+                    onRetry={() => void start(transcriptText, promptContent)}
                     providerLabel={providerLabel}
                   />
                 </PromptOutputItem>

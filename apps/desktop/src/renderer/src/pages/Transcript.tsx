@@ -1,5 +1,10 @@
 import { LearningNotebookPane } from '@renderer/components/learning/LearningNotebookPane'
-import { LearningTranscriptPane } from '@renderer/components/learning/LearningTranscriptPane'
+import {
+  LEARNING_TRANSLATION_LANGUAGES,
+  LearningTranscriptPane,
+  type LearningTranscriptView,
+  type LearningTranslationLanguage
+} from '@renderer/components/learning/LearningTranscriptPane'
 import { LearningWorkbenchPane } from '@renderer/components/learning/LearningWorkbenchPane'
 import { StudyStudio } from '@renderer/components/study-studio/StudyStudio'
 import { AsrUpgradeDialog } from '@renderer/components/transcript/AsrUpgradeDialog'
@@ -14,6 +19,7 @@ import { TranscriptPlaybackStandby } from '@renderer/components/transcript/Trans
 import { TranscriptSourceSwitch } from '@renderer/components/transcript/TranscriptSourceSwitch'
 import { TranscriptSpeakersPane } from '@renderer/components/transcript/TranscriptSpeakersPane'
 import { Button } from '@renderer/components/ui/button'
+import { Switch } from '@renderer/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
 import { DesktopChromeContext, useTitleBar } from '@renderer/desktop-chrome'
 import { useCachedThumbnail } from '@renderer/hooks/use-cached-thumbnail'
@@ -87,6 +93,7 @@ import {
   Camera,
   Captions,
   ChevronLeft,
+  Languages,
   PanelRightClose,
   PanelRightOpen,
   RotateCw,
@@ -390,6 +397,19 @@ export function TranscriptPage() {
   const [outputSelectionIntent, setOutputSelectionIntent] = useState<
     'quote-card' | 'reflection' | null
   >(null)
+  const [outputSelectionDownloadId, setOutputSelectionDownloadId] = useState<string | null>(null)
+  const [learningTranscriptView, setLearningTranscriptView] =
+    useState<LearningTranscriptView>('original')
+  const [translationEnabled, setTranslationEnabled] = useState(false)
+  const [translationLanguage, setTranslationLanguage] = useState<LearningTranslationLanguage>(
+    () => {
+      const saved = window.localStorage.getItem('fengsha-learning-translation-language')
+      return saved && saved in LEARNING_TRANSLATION_LANGUAGES
+        ? (saved as LearningTranslationLanguage)
+        : 'zh-CN'
+    }
+  )
+  const [bilingualTranslation, setBilingualTranslation] = useState(true)
   const [, setCompanionCapture] = useState<CompanionCapturePayload | null>(null)
   const session = useAtomValue(playbackSessionAtom)
   const clock = useAtomValue(playbackClockAtom)
@@ -401,6 +421,19 @@ export function TranscriptPage() {
   const hadListedTranscript = useRef(false)
   const handledCompanionCapturesRef = useRef(new Set<string>())
   const automaticAiRunKeysRef = useRef(new Set<string>())
+
+  useEffect(() => {
+    window.localStorage.setItem('fengsha-learning-translation-language', translationLanguage)
+  }, [translationLanguage])
+
+  useEffect(() => {
+    if (downloadId) {
+      setOutputSelection(null)
+      setOutputSelectionIntent(null)
+      setOutputSelectionDownloadId(null)
+      setLearningTranscriptView('original')
+    }
+  }, [downloadId])
   const selectStudyScene = useCallback(
     (scene: StudyScene) => {
       setStudyScene(scene)
@@ -1148,12 +1181,14 @@ export function TranscriptPage() {
       if (action.intent === 'reflection' || action.intent === 'quote-card') {
         setOutputSelection(action.selection)
         setOutputSelectionIntent(action.intent)
+        setOutputSelectionDownloadId(downloadId)
         selectStudyScene('output')
         return
       }
       if (action.intent === 'ask-ai') {
         setOutputSelection(action.selection)
         setOutputSelectionIntent('reflection')
+        setOutputSelectionDownloadId(downloadId)
         selectStudyScene('output')
       }
     },
@@ -1304,6 +1339,61 @@ export function TranscriptPage() {
 
   const mediaPane = (
     <div className="flex h-full min-h-0 flex-col bg-background">
+      <div className="flex h-9 shrink-0 items-center justify-end gap-1.5 border-border/60 border-b px-2">
+        <Button
+          aria-pressed={translationEnabled}
+          disabled={learningTranscriptView !== 'reading'}
+          onClick={() => setTranslationEnabled((enabled) => !enabled)}
+          size="sm"
+          title={
+            learningTranscriptView === 'reading'
+              ? t('learning.translation.toggle')
+              : t('learning.translation.readingOnly')
+          }
+          variant={translationEnabled ? 'secondary' : 'ghost'}
+        >
+          <Languages className="size-3.5" />
+          {t('learning.translation.label')}
+        </Button>
+        <select
+          aria-label={t('learning.translation.targetLanguage')}
+          className="h-7 max-w-28 rounded-md border border-border/70 bg-background px-1.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-45"
+          disabled={learningTranscriptView !== 'reading'}
+          onChange={(event) => {
+            setTranslationLanguage(event.target.value as LearningTranslationLanguage)
+            setTranslationEnabled(true)
+          }}
+          value={translationLanguage}
+        >
+          {Object.entries(LEARNING_TRANSLATION_LANGUAGES).map(([language, label]) => (
+            <option key={language} value={language}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+          <Switch
+            checked={bilingualTranslation}
+            disabled={learningTranscriptView !== 'reading'}
+            onToggle={() => {
+              setBilingualTranslation((enabled) => !enabled)
+              setTranslationEnabled(true)
+            }}
+          />
+          {t('learning.translation.bilingual')}
+        </div>
+        <span className="mx-0.5 h-4 w-px bg-border" />
+        <Button
+          disabled={isAudio}
+          onClick={captureCurrentFrame}
+          size="sm"
+          title={isAudio ? t('learning.captureFrameUnavailable') : t('learning.captureFrame')}
+          variant="ghost"
+        >
+          <Camera className="size-3.5" />
+          {t('learning.captureFrame')}
+        </Button>
+      </div>
       <div
         className={
           isAudio
@@ -1387,6 +1477,7 @@ export function TranscriptPage() {
 
   const transcriptPane = (
     <LearningTranscriptPane
+      bilingual={bilingualTranslation}
       correctedSegmentIds={correctedSegmentIds}
       currentSegmentId={currentSegment?.id ?? null}
       currentTimeMs={currentTimeMs}
@@ -1401,6 +1492,7 @@ export function TranscriptPage() {
       onRetry={failed ? () => void handleRetry() : undefined}
       onSeek={seek}
       onSelectionIntent={(action) => void handleSelectionIntent(action)}
+      onViewChange={setLearningTranscriptView}
       ready={Boolean(ready) || segments.length > 0}
       resolveColorIndex={speakerColorIndex}
       resolveSpeaker={speakerName}
@@ -1429,6 +1521,9 @@ export function TranscriptPage() {
       stageHistory={snapshot?.stageHistory ?? []}
       streamLive={streamLive}
       transcriptText={buildPromptTranscriptText(segments, speakerName)}
+      translationEnabled={translationEnabled}
+      translationLanguage={translationLanguage}
+      view={learningTranscriptView}
     />
   )
 
@@ -1440,18 +1535,6 @@ export function TranscriptPage() {
         </DragRegion>
       )}
       <StudyStudio
-        actions={
-          <Button
-            disabled={isAudio}
-            onClick={captureCurrentFrame}
-            size="sm"
-            title={isAudio ? t('learning.captureFrameUnavailable') : t('learning.captureFrame')}
-            variant="outline"
-          >
-            <Camera className="size-4" />
-            {t('learning.captureFrame')}
-          </Button>
-        }
         labels={studioLabels}
         note={
           <LearningNotebookPane
@@ -1467,8 +1550,10 @@ export function TranscriptPage() {
           <LearningWorkbenchPane
             downloadId={downloadId}
             onSeek={seek}
-            selectedQuote={outputSelection}
-            selectionIntent={outputSelectionIntent}
+            selectedQuote={outputSelectionDownloadId === downloadId ? outputSelection : null}
+            selectionIntent={
+              outputSelectionDownloadId === downloadId ? outputSelectionIntent : null
+            }
             sourceTitle={download?.title ?? title}
             transcriptText={buildPromptTranscriptText(segments, speakerName)}
           />

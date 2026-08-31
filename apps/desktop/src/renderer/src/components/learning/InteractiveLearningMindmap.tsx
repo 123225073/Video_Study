@@ -1,5 +1,12 @@
 import { Button } from '@renderer/components/ui/button'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle
+} from '@renderer/components/ui/dialog'
+import { usePanZoom } from '@renderer/hooks/use-pan-zoom'
+import {
   collectCollapsibleMindmapNodeIds,
   collectDefaultCollapsedMindmapNodeIds,
   layoutLearningMindmap,
@@ -11,7 +18,8 @@ import {
   ChevronsDown,
   ChevronsUp,
   Clock3,
-  Maximize2,
+  Expand,
+  Scan,
   ZoomIn,
   ZoomOut
 } from 'lucide-react'
@@ -39,14 +47,22 @@ const branchEdgeClass = [
 ] as const
 
 interface InteractiveLearningMindmapProps {
+  allowFullscreen?: boolean
   className?: string
+  initialCollapsed?: ReadonlySet<string>
+  initialOffset?: { x: number; y: number }
+  initialZoom?: number
   onSeek?: (seconds: number) => void
   source: string
 }
 
 /** Interactive, inert tree view for AI-generated Mermaid learning mindmaps. */
 export function InteractiveLearningMindmap({
+  allowFullscreen = true,
   className,
+  initialCollapsed,
+  initialOffset,
+  initialZoom = 1,
   onSeek,
   source
 }: InteractiveLearningMindmapProps) {
@@ -69,9 +85,20 @@ export function InteractiveLearningMindmap({
         : new Set<string>(),
     [parsed.document]
   )
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => defaultCollapsed)
-  const [zoom, setZoom] = useState(1)
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
+    () => initialCollapsed ?? defaultCollapsed
+  )
+  const [fullscreen, setFullscreen] = useState(false)
   const [viewport, setViewport] = useState({ height: 480, width: 900 })
+  const previousSourceRef = useRef(source)
+  const panZoom = usePanZoom({
+    baselineZoom: 1,
+    initialOffset,
+    initialZoom,
+    maxZoom: MAX_ZOOM,
+    minZoom: MIN_ZOOM,
+    zoomStep: 0.2
+  })
 
   useEffect(() => {
     const element = viewportRef.current
@@ -89,9 +116,13 @@ export function InteractiveLearningMindmap({
   }, [])
 
   useEffect(() => {
+    if (previousSourceRef.current === source) {
+      return
+    }
+    previousSourceRef.current = source
     setCollapsed(defaultCollapsed)
-    setZoom(1)
-  }, [defaultCollapsed])
+    panZoom.reset()
+  }, [defaultCollapsed, panZoom.reset, source])
 
   const layout = useMemo(
     () =>
@@ -105,7 +136,7 @@ export function InteractiveLearningMindmap({
     Math.max(0.2, (viewport.width - 24) / layout.width),
     Math.max(0.2, (viewport.height - 24) / layout.height)
   )
-  const scale = fitScale * zoom
+  const scale = fitScale * panZoom.zoom
 
   const toggleNode = (id: string): void => {
     setCollapsed((current) => {
@@ -128,6 +159,7 @@ export function InteractiveLearningMindmap({
   if (!parsed.document) {
     return (
       <div
+        aria-label={t('learning.mindmapViewer.hint')}
         className={cn(
           'rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-destructive text-sm',
           className
@@ -150,6 +182,7 @@ export function InteractiveLearningMindmap({
       )}
       data-source-format={parsed.document.sourceFormat}
       data-testid="interactive-learning-mindmap"
+      data-zoom={panZoom.zoom}
     >
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-border/60 border-b bg-background/80 px-3 py-2">
         <div className="min-w-0">
@@ -184,8 +217,8 @@ export function InteractiveLearningMindmap({
           <span className="mx-1 h-5 w-px bg-border" />
           <Button
             aria-label={t('learning.mindmapViewer.zoomOut')}
-            disabled={zoom <= MIN_ZOOM}
-            onClick={() => setZoom((current) => Math.max(MIN_ZOOM, current / ZOOM_STEP))}
+            disabled={panZoom.zoom <= MIN_ZOOM}
+            onClick={() => panZoom.setZoom(Math.max(MIN_ZOOM, panZoom.zoom / ZOOM_STEP))}
             size="icon"
             title={t('learning.mindmapViewer.zoomOut')}
             type="button"
@@ -198,8 +231,8 @@ export function InteractiveLearningMindmap({
           </span>
           <Button
             aria-label={t('learning.mindmapViewer.zoomIn')}
-            disabled={zoom >= MAX_ZOOM}
-            onClick={() => setZoom((current) => Math.min(MAX_ZOOM, current * ZOOM_STEP))}
+            disabled={panZoom.zoom >= MAX_ZOOM}
+            onClick={() => panZoom.setZoom(Math.min(MAX_ZOOM, panZoom.zoom * ZOOM_STEP))}
             size="icon"
             title={t('learning.mindmapViewer.zoomIn')}
             type="button"
@@ -209,26 +242,52 @@ export function InteractiveLearningMindmap({
           </Button>
           <Button
             aria-label={t('learning.mindmapViewer.fit')}
-            onClick={() => setZoom(1)}
+            onClick={panZoom.reset}
             size="icon"
             title={t('learning.mindmapViewer.fit')}
             type="button"
             variant="ghost"
           >
-            <Maximize2 />
+            <Scan />
           </Button>
+          {allowFullscreen ? (
+            <Button
+              aria-label={t('learning.mindmapViewer.fullscreen')}
+              onClick={() => setFullscreen(true)}
+              size="icon"
+              title={t('learning.mindmapViewer.fullscreen')}
+              type="button"
+              variant="ghost"
+            >
+              <Expand />
+            </Button>
+          ) : null}
         </div>
       </div>
 
       <div
-        className="relative min-h-[300px] flex-1 overflow-hidden bg-[radial-gradient(circle_at_center,color-mix(in_oklab,var(--border)_45%,transparent)_1px,transparent_1px)] bg-[size:20px_20px]"
+        className={cn(
+          'relative min-h-[300px] flex-1 touch-none overflow-hidden bg-[radial-gradient(circle_at_center,color-mix(in_oklab,var(--border)_45%,transparent)_1px,transparent_1px)] bg-[size:20px_20px]',
+          panZoom.zoom > 1
+            ? panZoom.dragging
+              ? 'cursor-grabbing'
+              : 'cursor-grab'
+            : 'cursor-default'
+        )}
+        onDragStart={(event) => event.preventDefault()}
+        onPointerCancel={panZoom.onPointerCancel}
+        onPointerDown={panZoom.onPointerDown}
+        onPointerMove={panZoom.onPointerMove}
+        onPointerUp={panZoom.onPointerUp}
+        onWheel={panZoom.onWheel}
         ref={viewportRef}
+        role="application"
       >
         <div
           className="absolute top-1/2 left-1/2 transition-transform duration-300 ease-out motion-reduce:transition-none"
           style={{
             height: layout.height,
-            transform: `translate(-50%, -50%) scale(${scale})`,
+            transform: `translate(calc(-50% + ${panZoom.offset.x}px), calc(-50% + ${panZoom.offset.y}px)) scale(${scale})`,
             transformOrigin: 'center',
             width: layout.width
           }}
@@ -329,6 +388,25 @@ export function InteractiveLearningMindmap({
           })}
         </div>
       </div>
+      {allowFullscreen ? (
+        <Dialog onOpenChange={setFullscreen} open={fullscreen}>
+          <DialogContent className="h-[92vh] max-w-[96vw] overflow-hidden p-3 sm:max-w-[96vw]">
+            <DialogTitle className="sr-only">{t('learning.mindmapViewer.fullscreen')}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {t('learning.mindmapViewer.fullscreenDescription')}
+            </DialogDescription>
+            <InteractiveLearningMindmap
+              allowFullscreen={false}
+              className="h-full min-h-0"
+              initialCollapsed={collapsed}
+              initialOffset={panZoom.offset}
+              initialZoom={panZoom.zoom}
+              onSeek={onSeek}
+              source={source}
+            />
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </section>
   )
 }

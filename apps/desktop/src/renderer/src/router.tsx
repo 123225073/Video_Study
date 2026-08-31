@@ -65,7 +65,6 @@ const HomeRoute = () => {
   }
   return (
     <Home
-      onOpenCookiesSettings={chrome.onOpenCookiesSettings}
       onOpenLearning={chrome.onOpenLearning}
       onOpenSettings={chrome.onOpenSettings}
       onOpenSupportedSites={chrome.onOpenSupportedSites}

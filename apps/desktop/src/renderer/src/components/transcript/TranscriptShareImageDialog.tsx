@@ -1,6 +1,7 @@
 import { SHARE_CARD_WIDTH } from '@renderer/components/transcript/TranscriptShareCardChrome'
 import { Button } from '@renderer/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@renderer/components/ui/dialog'
+import { usePanZoom } from '@renderer/hooks/use-pan-zoom'
 import {
   captureShareImageBlob,
   copyShareImageBlob,
@@ -9,7 +10,7 @@ import {
 import { ipcServices } from '@renderer/lib/ipc'
 import { logger } from '@renderer/lib/logger'
 import { cn } from '@renderer/lib/utils'
-import { Copy, Download, Loader2, Share2 } from 'lucide-react'
+import { Copy, Download, Loader2, Maximize2, Minus, Plus, Share2 } from 'lucide-react'
 import { type ReactNode, type Ref, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -52,13 +53,16 @@ export function TranscriptShareImageDialog({
   const [platform, setPlatform] = useState(() =>
     MAC_SHARE_UA.test(navigator.userAgent) ? 'darwin' : ''
   )
+  const panZoom = usePanZoom({ initialZoom: 1, maxZoom: 3, minZoom: 0.5, zoomStep: 0.25 })
   const canNativeShare = platform === 'darwin'
   useEffect(() => {
     if (!open) {
       blobRef.current = null
       setBusy(null)
+      return
     }
-  }, [open])
+    panZoom.reset()
+  }, [open, panZoom.reset])
 
   useEffect(() => {
     if (!open) {
@@ -190,11 +194,67 @@ export function TranscriptShareImageDialog({
         style={{ width: `min(${SHARE_CARD_WIDTH}px, calc(100% - 2rem))` }}
       >
         <DialogTitle className="sr-only">{t('transcript.promptShareTitle')}</DialogTitle>
-        <div
-          className="min-h-0 w-full overflow-auto rounded-md shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
-          data-testid="transcript-share-image-preview"
-        >
-          {children(cardRef)}
+        <div className="relative min-h-0 w-full flex-1 overflow-hidden rounded-md shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+          <div className="absolute top-2 right-2 z-20 flex items-center gap-1 rounded-full border border-white/15 bg-stone-950/85 p-1 text-white shadow-lg backdrop-blur">
+            <Button
+              aria-label={t('learning.imageStudio.zoomOut')}
+              disabled={panZoom.zoom <= 0.5}
+              onClick={panZoom.zoomOut}
+              size="icon"
+              variant="ghost"
+            >
+              <Minus />
+            </Button>
+            <span className="w-10 text-center font-mono text-[10px]">
+              {Math.round(panZoom.zoom * 100)}%
+            </span>
+            <Button
+              aria-label={t('learning.imageStudio.zoomIn')}
+              disabled={panZoom.zoom >= 3}
+              onClick={panZoom.zoomIn}
+              size="icon"
+              variant="ghost"
+            >
+              <Plus />
+            </Button>
+            <Button
+              aria-label={t('learning.imageStudio.fitWindow')}
+              onClick={panZoom.reset}
+              size="icon"
+              variant="ghost"
+            >
+              <Maximize2 />
+            </Button>
+          </div>
+          <div
+            aria-label={t('learning.imageStudio.viewerDescription')}
+            className={cn(
+              'grid size-full touch-none place-items-start overflow-hidden',
+              panZoom.zoom > 1
+                ? panZoom.dragging
+                  ? 'cursor-grabbing'
+                  : 'cursor-grab'
+                : 'cursor-default'
+            )}
+            data-testid="transcript-share-image-preview"
+            onDoubleClick={panZoom.reset}
+            onDragStart={(event) => event.preventDefault()}
+            onPointerCancel={panZoom.onPointerCancel}
+            onPointerDown={panZoom.onPointerDown}
+            onPointerMove={panZoom.onPointerMove}
+            onPointerUp={panZoom.onPointerUp}
+            onWheel={panZoom.onWheel}
+            role="application"
+          >
+            <div
+              className="pointer-events-none origin-top select-none"
+              style={{
+                transform: `translate3d(${panZoom.offset.x}px, ${panZoom.offset.y}px, 0) scale(${panZoom.zoom})`
+              }}
+            >
+              {children(cardRef)}
+            </div>
+          </div>
         </div>
         <div
           className={cn(

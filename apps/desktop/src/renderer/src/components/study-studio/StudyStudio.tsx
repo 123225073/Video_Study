@@ -124,7 +124,7 @@ function StudioRegion({
     <section
       aria-label={label}
       className={cn(
-        'study-studio-region relative min-h-0 min-w-0 scroll-mt-20 overflow-hidden rounded-xl border border-stone-300/70 bg-background shadow-[0_18px_48px_-34px_rgba(15,15,12,.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70 focus-visible:ring-inset dark:border-white/10',
+        'study-studio-region relative min-h-0 min-w-0 scroll-mt-20 overflow-hidden rounded-lg border border-stone-300/60 bg-background shadow-[0_12px_32px_-28px_rgba(15,15,12,.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70 focus-visible:ring-inset dark:border-white/10',
         hidden && 'hidden',
         collapsedOnDesktop && 'xl:!hidden',
         className
@@ -187,7 +187,7 @@ function LayoutHandle({
       <span className="mt-12 h-[calc(100%-6rem)] w-px rounded-full bg-stone-300/70 transition group-hover:w-0.5 group-hover:bg-amber-400 dark:bg-white/12" />
       <button
         aria-label={collapsed ? expandLabel : collapseLabel}
-        className="absolute top-2 flex size-7 cursor-pointer items-center justify-center rounded-full border border-stone-300/80 bg-background text-stone-500 shadow-sm transition hover:border-amber-400 hover:bg-amber-50 hover:text-stone-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-white/12 dark:hover:bg-amber-300"
+        className="absolute top-1.5 flex size-7 cursor-pointer items-center justify-center rounded-full border border-stone-300/80 bg-background text-stone-500 shadow-sm transition hover:border-amber-400 hover:bg-amber-50 hover:text-stone-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-white/12 dark:hover:bg-amber-300"
         onClick={(event) => {
           event.stopPropagation()
           onToggle()
@@ -291,7 +291,7 @@ export function StudyStudio({
         setLayout((current) => {
           const otherWidth = side === 'left' ? current.rightWidth : current.leftWidth
           const otherVisible = side === 'left' ? !current.rightCollapsed : !current.leftCollapsed
-          const maximum = rect.width - (otherVisible ? otherWidth : 0) - 500 - 42
+          const maximum = rect.width - (otherVisible ? otherWidth : 0) - 480 - 36
           const requested =
             side === 'left' ? moveEvent.clientX - rect.left : rect.right - moveEvent.clientX
           const width = clampStudySideWidth(requested, maximum)
@@ -313,7 +313,7 @@ export function StudyStudio({
 
   const desktopGridStyle: CSSProperties | undefined = isDesktop
     ? {
-        gridTemplateColumns: `${layout.leftCollapsed ? 0 : layout.leftWidth}px 12px minmax(460px, 1fr) 12px ${layout.rightCollapsed ? 0 : layout.rightWidth}px`
+        gridTemplateColumns: `${layout.leftCollapsed ? 0 : layout.leftWidth}px 10px minmax(460px, 1fr) 10px ${layout.rightCollapsed ? 0 : layout.rightWidth}px`
       }
     : undefined
 
@@ -327,7 +327,7 @@ export function StudyStudio({
       data-study-scene={activeScene}
       ref={shellRef}
     >
-      <header className="study-studio-header sticky top-0 z-20 flex min-h-16 shrink-0 flex-wrap items-center gap-3 border-stone-300/55 border-b bg-background/92 px-4 py-2.5 backdrop-blur-xl dark:border-white/8">
+      <header className="study-studio-header sticky top-0 z-20 flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-stone-300/55 border-b bg-background/92 px-3 py-1.5 backdrop-blur-xl dark:border-white/8">
         <div className="min-w-0 flex-1">
           {title ? (
             <div className="truncate font-semibold font-serif text-base">{title}</div>
@@ -344,14 +344,14 @@ export function StudyStudio({
 
       <div
         className={cn(
-          'grid min-h-0 flex-none gap-2 p-2 sm:gap-3 sm:p-3 xl:flex-1',
+          'grid min-h-0 flex-none gap-2 p-1.5 sm:p-2 xl:flex-1',
           activeScene === 'watch' && 'grid-cols-1 grid-rows-[minmax(280px,56vh)_minmax(260px,1fr)]',
           activeScene === 'note' &&
             'grid-cols-1 grid-rows-[minmax(260px,44vh)_minmax(240px,40vh)_minmax(320px,1fr)] lg:grid-cols-[minmax(340px,.88fr)_minmax(420px,1.12fr)] lg:grid-rows-[minmax(220px,.68fr)_minmax(220px,.52fr)]',
           activeScene === 'output' &&
             'grid-cols-1 grid-rows-[minmax(220px,36vh)_minmax(220px,34vh)_minmax(420px,1fr)] lg:grid-cols-[minmax(300px,.55fr)_minmax(520px,1.45fr)] lg:grid-rows-[minmax(220px,.54fr)_minmax(220px,.46fr)]',
-          'xl:gap-x-0 xl:gap-y-3',
-          'xl:grid-cols-[minmax(310px,.86fr)_12px_minmax(560px,1.55fr)_12px_minmax(300px,.78fr)] xl:grid-rows-[minmax(240px,.46fr)_minmax(280px,.54fr)]'
+          'xl:gap-x-0 xl:gap-y-2',
+          'xl:grid-cols-[minmax(300px,.82fr)_10px_minmax(540px,1.62fr)_10px_minmax(286px,.74fr)] xl:grid-rows-[minmax(230px,.44fr)_minmax(280px,.56fr)]'
         )}
         ref={gridRef}
         style={desktopGridStyle}

@@ -382,6 +382,13 @@ try {
   await page.screenshot({ fullPage: true, path: path.join(outputPath, '03-ai-providers.png') })
 
   await page.evaluate(() => {
+    window.location.hash = '#/settings?tab=prompts'
+  })
+  await page.getByText('生成思维导图', { exact: true }).first().waitFor({ timeout: 30_000 })
+  assert.equal(await page.getByText('文字大纲', { exact: true }).count(), 0)
+  assert.equal(await page.getByText('AI 学习播客', { exact: true }).count(), 0)
+
+  await page.evaluate(() => {
     window.location.hash = '#/settings?tab=companion'
   })
   await page.getByText('浏览器学习助手', { exact: true }).waitFor({ timeout: 30_000 })
@@ -465,6 +472,10 @@ try {
 
     const outputRegion = page.locator('[data-study-region="output"]:visible')
     const noteRegion = page.locator('[data-study-region="note"]:visible')
+    await page.getByRole('button', { exact: true, name: '隐藏导航栏' }).click()
+    await page.getByRole('button', { exact: true, name: '显示导航栏' }).waitFor()
+    await page.getByRole('button', { exact: true, name: '显示导航栏' }).click()
+    await page.getByRole('button', { exact: true, name: '隐藏导航栏' }).waitFor()
     await page.getByRole('button', { exact: true, name: '隐藏学习笔记' }).click()
     await page.locator('[data-study-region="note"]:visible').waitFor({ state: 'hidden' })
     await page.getByRole('button', { exact: true, name: '展开学习笔记' }).click()
@@ -520,6 +531,21 @@ try {
         : outputWidthAfterNudge <= outputWidthBeforeNudge,
       'keyboard resizing must visually follow the requested direction'
     )
+
+    const translationButton = page.getByRole('button', { exact: true, name: '译文' })
+    const translationLanguage = page.getByRole('combobox', { exact: true, name: '目标语言' })
+    assert.equal(await translationButton.isDisabled(), true)
+    assert.equal(await translationLanguage.isDisabled(), true)
+    await page.getByRole('button', { exact: true, name: 'AI 阅读版' }).click()
+    await translationButton.waitFor()
+    assert.equal(await translationButton.isEnabled(), true)
+    assert.equal(await translationLanguage.isEnabled(), true)
+    await translationButton.click()
+    assert.equal(await translationButton.getAttribute('aria-pressed'), 'true')
+    await translationLanguage.selectOption('en')
+    assert.equal(await translationButton.getAttribute('aria-pressed'), 'true')
+    await page.getByRole('button', { exact: true, name: '原文' }).click()
+    assert.equal(await translationButton.isDisabled(), true)
 
     const tokenTabStops = await page
       .locator('[data-caption-token="true"]')
@@ -746,13 +772,23 @@ try {
       '完整总结',
       '模板总结',
       'AI 学习',
-      '文字大纲',
-      'AI 播客',
-      '翻译润色',
       '一图胜千言'
     ]) {
       await outputRegion.getByRole('button', { exact: true, name: moduleName }).waitFor()
     }
+    for (const removedModuleName of ['文字大纲', 'AI 播客', '翻译润色']) {
+      assert.equal(
+        await outputRegion.getByRole('button', { exact: true, name: removedModuleName }).count(),
+        0,
+        `${removedModuleName} should stay out of the focused learning workspace`
+      )
+    }
+    await outputRegion.getByRole('button', { exact: true, name: 'AI 学习' }).click()
+    const projectQuestion = outputRegion.getByRole('textbox', { name: '向当前学习项目提问' })
+    await projectQuestion.waitFor()
+    await outputRegion.getByRole('button', { exact: true, name: '批判性分析' }).click()
+    assert.equal(await projectQuestion.inputValue(), '批判性分析')
+    await outputRegion.getByText('已记住本项目最近的对话', { exact: true }).waitFor()
     await outputRegion.getByRole('button', { exact: true, name: '思维导图' }).click()
     const mindmap = outputRegion.getByTestId('interactive-learning-mindmap')
     await mindmap.waitFor({ timeout: 15_000 })
@@ -778,6 +814,47 @@ try {
     )
     await mindmap.getByRole('button', { exact: true, name: '展开“证据链”' }).click()
     await mindmap.getByText('深层结论', { exact: true }).waitFor()
+    await mindmap.getByRole('button', { exact: true, name: '放大' }).click()
+    const parentMindmapZoom = await mindmap.getAttribute('data-zoom')
+    await mindmap.getByRole('button', { exact: true, name: '全屏查看思维导图' }).click()
+    const fullscreenMindmap = page.getByRole('dialog')
+    await fullscreenMindmap.waitFor()
+    const fullscreenMindmapCanvas = fullscreenMindmap.getByTestId('interactive-learning-mindmap')
+    await fullscreenMindmapCanvas.waitFor()
+    await fullscreenMindmapCanvas.getByText('深层结论', { exact: true }).waitFor()
+    assert.equal(
+      await fullscreenMindmapCanvas.getAttribute('data-zoom'),
+      parentMindmapZoom,
+      'fullscreen mind-map should inherit the current zoom state'
+    )
+    const fullscreenMindmapViewport = fullscreenMindmapCanvas.getByRole('application')
+    const fullscreenMindmapTransform = fullscreenMindmapViewport.locator(':scope > div').first()
+    const mindmapTransformBeforeDrag = await fullscreenMindmapTransform.evaluate(
+      (element) => element.style.transform
+    )
+    const fullscreenMindmapViewportBox = await fullscreenMindmapViewport.boundingBox()
+    assert.ok(fullscreenMindmapViewportBox, 'fullscreen mind-map viewport must be measurable')
+    await page.mouse.move(fullscreenMindmapViewportBox.x + 24, fullscreenMindmapViewportBox.y + 24)
+    await page.mouse.down()
+    await page.mouse.move(
+      fullscreenMindmapViewportBox.x + 104,
+      fullscreenMindmapViewportBox.y + 64,
+      { steps: 4 }
+    )
+    await page.mouse.up()
+    assert.notEqual(
+      await fullscreenMindmapTransform.evaluate((element) => element.style.transform),
+      mindmapTransformBeforeDrag,
+      'fullscreen mind-map should remain draggable at the inherited zoom level'
+    )
+    await fullscreenMindmapCanvas.getByRole('button', { exact: true, name: '适应视图' }).click()
+    assert.equal(
+      await fullscreenMindmapCanvas.getAttribute('data-zoom'),
+      '1',
+      'fit should restore the normal mind-map zoom baseline'
+    )
+    await page.keyboard.press('Escape')
+    await fullscreenMindmap.waitFor({ state: 'hidden' })
     await page.screenshot({ fullPage: true, path: path.join(outputPath, '04b-mindmap.png') })
     await outputRegion.getByRole('button', { exact: true, name: '一图胜千言' }).click()
     await outputRegion.getByLabel('这张图需要表达什么？').fill('黑金编辑风，留出中文排版安全区。')
@@ -794,6 +871,28 @@ try {
     await imageViewer.waitFor()
     await imageViewer.getByRole('button', { exact: true, name: '放大' }).click()
     await imageViewer.getByText('125%', { exact: true }).waitFor()
+    const imageViewport = imageViewer.getByRole('application')
+    const imageTransform = imageViewport.locator(':scope > div').first()
+    const transformBeforeDrag = await imageTransform.evaluate((element) => element.style.transform)
+    const imageViewportBox = await imageViewport.boundingBox()
+    assert.ok(imageViewportBox, 'image viewer viewport must be measurable')
+    await page.mouse.move(
+      imageViewportBox.x + imageViewportBox.width / 2,
+      imageViewportBox.y + imageViewportBox.height / 2
+    )
+    await page.mouse.down()
+    await page.mouse.move(
+      imageViewportBox.x + imageViewportBox.width / 2 + 80,
+      imageViewportBox.y + imageViewportBox.height / 2 + 40,
+      { steps: 4 }
+    )
+    await page.mouse.up()
+    const transformAfterDrag = await imageTransform.evaluate((element) => element.style.transform)
+    assert.notEqual(
+      transformAfterDrag,
+      transformBeforeDrag,
+      'zoomed image should be draggable in the unified viewer'
+    )
     await page.screenshot({ fullPage: true, path: path.join(outputPath, '05-image-viewer.png') })
     await page.keyboard.press('Escape')
     await imageViewer.waitFor({ state: 'hidden' })

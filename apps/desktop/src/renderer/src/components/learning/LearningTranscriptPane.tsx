@@ -7,12 +7,13 @@ import { logger } from '@renderer/lib/logger'
 import type { TranscriptSelectionAction } from '@renderer/lib/study-studio/types'
 import { buildTranscriptHighlightMap } from '@renderer/lib/transcript-highlights'
 import type { TranscriptSegmentView, TranscriptSpeakerView } from '@renderer/store/transcripts'
-import type { AiSettingsSnapshot } from '@shared/ai-types'
+import type { AiPrompt, AiSettingsSnapshot } from '@shared/ai-types'
 import type { LearningNote } from '@shared/learning-types'
 import { AlignLeft, Sparkles } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 interface LearningTranscriptPaneProps {
+  bilingual?: boolean
   correctedSegmentIds?: ReadonlySet<string>
   currentSegmentId: string | null
   currentTimeMs: number
@@ -27,6 +28,7 @@ interface LearningTranscriptPaneProps {
   onRetry?: () => void
   onSeek: (seconds: number) => void
   onSelectionIntent?: (action: TranscriptSelectionAction) => void
+  onViewChange: (view: LearningTranscriptView) => void
   ready: boolean
   resolveColorIndex: (speakerId: string | null) => number | null
   resolveSpeaker: (speakerId: string | null) => string
@@ -42,10 +44,41 @@ interface LearningTranscriptPaneProps {
   stageHistory?: Array<{ stage: string; startedAt: number }>
   streamLive?: boolean
   transcriptText: string
+  translationEnabled?: boolean
+  translationLanguage?: LearningTranslationLanguage
+  view: LearningTranscriptView
 }
+
+export type LearningTranscriptView = 'original' | 'reading'
+export type LearningTranslationLanguage = 'de' | 'en' | 'es' | 'fr' | 'ja' | 'ko' | 'zh-CN'
+
+export const LEARNING_TRANSLATION_LANGUAGES: Record<LearningTranslationLanguage, string> = {
+  'zh-CN': '中文',
+  en: 'English',
+  ja: '日本語',
+  ko: '한국어',
+  fr: 'Français',
+  de: 'Deutsch',
+  es: 'Español'
+}
+
+const buildTranslationInstruction = (
+  language: LearningTranslationLanguage,
+  bilingual: boolean
+): string => `You are the translation layer for a video learning transcript.
+Translate the complete timestamped transcript into ${LEARNING_TRANSLATION_LANGUAGES[language]}.
+${
+  bilingual
+    ? 'For every timestamped paragraph, show the original text first and the translated text immediately below it.'
+    : 'Show only the translated text.'
+}
+Preserve every existing [MM:SS] or [HH:MM:SS] timestamp exactly so it remains clickable.
+Use natural, accurate study-oriented wording. Keep names and technical terms consistent.
+Output clean Markdown only. Do not omit content and do not invent timestamps.`
 
 /** Original transcript first, with an optional non-destructive AI reading view. */
 export function LearningTranscriptPane({
+  bilingual = false,
   correctedSegmentIds,
   currentSegmentId,
   currentTimeMs,
@@ -60,6 +93,7 @@ export function LearningTranscriptPane({
   onRetry,
   onSeek,
   onSelectionIntent,
+  onViewChange,
   ready,
   resolveColorIndex,
   resolveSpeaker,
@@ -73,9 +107,11 @@ export function LearningTranscriptPane({
   stage = null,
   stageHistory = [],
   streamLive = running,
-  transcriptText
+  transcriptText,
+  translationEnabled = false,
+  translationLanguage = 'zh-CN',
+  view
 }: LearningTranscriptPaneProps) {
-  const [view, setView] = useState<'original' | 'reading'>('original')
   const [aiSettings, setAiSettings] = useState<AiSettingsSnapshot | null>(null)
   const [highlightNotes, setHighlightNotes] = useState<LearningNote[]>([])
   const transcriptHighlightRanges = useMemo(
@@ -120,6 +156,19 @@ export function LearningTranscriptPane({
   }, [])
 
   const readingPrompt = aiSettings?.prompts.find((prompt) => prompt.id === 'improve-grammar')
+  const translationPrompt = useMemo<AiPrompt | null>(() => {
+    if (!readingPrompt) {
+      return null
+    }
+    return {
+      ...readingPrompt,
+      content: buildTranslationInstruction(translationLanguage, bilingual),
+      id: `learning-translation-${translationLanguage}-${bilingual ? 'bilingual' : 'single'}`,
+      isPreset: false,
+      title: bilingual ? '双语译文' : `${LEARNING_TRANSLATION_LANGUAGES[translationLanguage]}译文`
+    }
+  }, [bilingual, readingPrompt, translationLanguage])
+  const activeReadingPrompt = translationEnabled ? translationPrompt : readingPrompt
   const activeProvider = aiSettings?.providers.find(
     (provider) => provider.id === aiSettings.activeProviderId
   )
@@ -130,7 +179,7 @@ export function LearningTranscriptPane({
         <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
           <Button
             aria-pressed={view === 'original'}
-            onClick={() => setView('original')}
+            onClick={() => onViewChange('original')}
             size="sm"
             variant={view === 'original' ? 'secondary' : 'ghost'}
           >
@@ -139,7 +188,7 @@ export function LearningTranscriptPane({
           <Button
             aria-pressed={view === 'reading'}
             disabled={!readingPrompt}
-            onClick={() => setView('reading')}
+            onClick={() => onViewChange('reading')}
             size="sm"
             variant={view === 'reading' ? 'secondary' : 'ghost'}
           >
@@ -149,12 +198,13 @@ export function LearningTranscriptPane({
         <span className="text-muted-foreground text-xs">点击时间或正文即可回到视频</span>
       </div>
 
-      {view === 'reading' && readingPrompt ? (
+      {view === 'reading' && activeReadingPrompt ? (
         <div className="min-h-0 flex-1">
           <TranscriptPromptPane
             downloadId={downloadId}
             hasProvider={Boolean(aiSettings?.activeProviderId)}
-            prompt={readingPrompt}
+            prompt={activeReadingPrompt}
+            promptContent={translationEnabled ? activeReadingPrompt.content : undefined}
             providerLabel={
               activeProvider ? `${activeProvider.name} · ${activeProvider.modelId}` : null
             }

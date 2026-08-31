@@ -1,12 +1,16 @@
 import { InteractiveLearningMindmap } from '@renderer/components/learning/InteractiveLearningMindmap'
 import { LearningImageStudio } from '@renderer/components/learning/LearningImageStudio'
+import { LearningStudyChat } from '@renderer/components/learning/LearningStudyChat'
 import { TranscriptPromptThinking } from '@renderer/components/transcript/TranscriptPromptThinking'
 import { Button } from '@renderer/components/ui/button'
 import { Response } from '@renderer/components/ui/response'
-import { Textarea } from '@renderer/components/ui/textarea'
 import { usePromptRun } from '@renderer/hooks/use-prompt-run'
 import { validateGeneratedLearningMermaid } from '@renderer/lib/beautiful-mermaid-plugin'
 import { ipcServices } from '@renderer/lib/ipc'
+import {
+  learningTimestampFromTarget,
+  linkifyLearningTimestamps
+} from '@renderer/lib/learning-timestamps'
 import { logger } from '@renderer/lib/logger'
 import { decideMermaidRecoveryAction } from '@renderer/lib/strict-mermaid-parser'
 import { parseGeneratedLearningMermaid } from '@renderer/lib/study-studio/ai-generation'
@@ -27,14 +31,9 @@ import {
   FileText,
   GitBranch,
   ImageIcon,
-  Languages,
   LayoutTemplate,
-  ListTree,
   Loader2,
   MessageCircleQuestion,
-  Pause,
-  Play,
-  Podcast,
   RefreshCw,
   ScanText,
   Settings2,
@@ -44,16 +43,7 @@ import {
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-type LearningModuleId =
-  | 'diagram'
-  | 'digest'
-  | 'image'
-  | 'outline'
-  | 'podcast'
-  | 'question'
-  | 'summary'
-  | 'template'
-  | 'translation'
+type LearningModuleId = 'diagram' | 'digest' | 'image' | 'question' | 'summary' | 'template'
 
 interface LearningModuleDefinition {
   description: string
@@ -100,29 +90,7 @@ const MODULES: LearningModuleDefinition[] = [
     icon: MessageCircleQuestion,
     id: 'question',
     label: 'AI 学习',
-    promptId: 'learning-question'
-  },
-  {
-    description: '按主题整理章节层级',
-    icon: ListTree,
-    id: 'outline',
-    label: '文字大纲',
-    promptId: 'learning-outline'
-  },
-  {
-    description: '双人复盘脚本与朗读',
-    icon: Podcast,
-    id: 'podcast',
-    label: 'AI 播客',
-    promptId: 'learning-podcast-script'
-  },
-  {
-    description: '生成 AI 润色阅读版',
-    icon: Languages,
-    id: 'translation',
-    label: '翻译润色',
-    promptId: 'translate',
-    workflowId: 'translation'
+    promptId: null
   },
   {
     description: '按用途、风格和比例生成一张可直接使用的图片',
@@ -161,50 +129,6 @@ interface LearningWorkbenchPaneProps {
   selectionIntent?: 'quote-card' | 'reflection' | null
   sourceTitle: string
   transcriptText: string
-}
-
-const clockSeconds = (clock: string): number => {
-  const values = clock.split(':').map(Number)
-  if (values.some((value) => !Number.isFinite(value))) {
-    return 0
-  }
-  if (values.length === 3) {
-    return values[0] * 3600 + values[1] * 60 + values[2]
-  }
-  return values[0] * 60 + values[1]
-}
-
-/** Turn source clocks into seek links without touching fenced Mermaid or code blocks. */
-const linkifyTimestamps = (markdown: string): string => {
-  let fenced = false
-  return markdown
-    .split('\n')
-    .map((line) => {
-      if (line.trimStart().startsWith('```')) {
-        fenced = !fenced
-        return line
-      }
-      if (fenced) {
-        return line
-      }
-      return line.replace(/(?<!\[)\[((?:\d{1,2}:)?\d{2}:\d{2})\](?!\()/gu, (match, clock) => {
-        return `[${match}](#t=${clockSeconds(clock)})`
-      })
-    })
-    .join('\n')
-}
-
-const readTimestampFromTarget = (target: HTMLElement): number | null => {
-  const anchor = target.closest('a')
-  const href = anchor?.getAttribute('href') ?? ''
-  const seekMatch = href.match(/^#t=(\d+)$/u)
-  if (seekMatch) {
-    return Number(seekMatch[1])
-  }
-  const clock = target
-    .closest('a, button, g, foreignObject')
-    ?.textContent?.match(/\[((?:\d{1,2}:)?\d{2}:\d{2})\]/u)
-  return clock ? clockSeconds(clock[1]) : null
 }
 
 const moduleMarker = (moduleId: LearningModuleId): string => `ai-module:${moduleId}`
@@ -281,9 +205,7 @@ const sourceArtifactForModule = (
       ? 'mindmap'
       : moduleId === 'summary' || moduleId === 'digest'
         ? 'summary'
-        : moduleId === 'translation'
-          ? 'translation'
-          : null
+        : null
   return (
     [...(notebook?.aiArtifacts ?? [])]
       .filter((artifact) => artifact.kind === artifactKind)
@@ -293,15 +215,11 @@ const sourceArtifactForModule = (
 
 const buildRunInput = ({
   moduleId,
-  notebook,
-  question,
   selectedQuote,
   templateId,
   transcriptText
 }: {
   moduleId: LearningModuleId
-  notebook: LearningNotebook | null
-  question: string
   selectedQuote?: TranscriptSelection | null
   templateId: TemplateId
   transcriptText: string
@@ -312,9 +230,6 @@ const buildRunInput = ({
   if (moduleId === 'template') {
     const template = TEMPLATE_OPTIONS[templateId]
     return `TEMPLATE: ${template.label}\nTEMPLATE_REQUIREMENTS: ${template.requirements}\n\nVIDEO_TRANSCRIPT:\n${transcriptText}${selectedContext}`
-  }
-  if (moduleId === 'question') {
-    return `QUESTION: ${question.trim()}\n\nPERSONAL_NOTES:\n${notebook?.personalNote?.trim() || '(none)'}\n\nVIDEO_TRANSCRIPT:\n${transcriptText}${selectedContext}`
   }
   return `${transcriptText}${selectedContext}`
 }
@@ -342,11 +257,9 @@ export function LearningWorkbenchPane({
   const navigate = useNavigate()
   const [moduleId, setModuleId] = useState<LearningModuleId>('diagram')
   const [templateId, setTemplateId] = useState<TemplateId>('course')
-  const [question, setQuestion] = useState('')
   const [notebook, setNotebook] = useState<LearningNotebook | null>(null)
   const [aiSettings, setAiSettings] = useState<AiSettingsSnapshot | null>(null)
   const [workflowSettings, setWorkflowSettings] = useState<LearningAiWorkflowSettings | null>(null)
-  const [speaking, setSpeaking] = useState(false)
   const [validatedDiagramOutput, setValidatedDiagramOutput] = useState('')
   const [diagramValidationError, setDiagramValidationError] = useState<string | null>(null)
   const diagramRepairAttempted = useRef(readDiagramRepairAttempted(downloadId))
@@ -390,7 +303,6 @@ export function LearningWorkbenchPane({
       return
     }
     setModuleId('question')
-    setQuestion(`请解释这段内容的核心含义、依据和可应用之处：\n${selectedQuote.text.trim()}`)
   }, [selectedQuote, selectionIntent])
 
   useEffect(() => {
@@ -461,13 +373,6 @@ export function LearningWorkbenchPane({
     })()
   }, [downloadId, promptRun.run, promptRun.start, transcriptText, workflowSettings])
 
-  useEffect(
-    () => () => {
-      globalThis.speechSynthesis?.cancel()
-    },
-    []
-  )
-
   const fallbackOutput = useMemo(
     () => sourceArtifactForModule(notebook, moduleId),
     [moduleId, notebook]
@@ -479,7 +384,7 @@ export function LearningWorkbenchPane({
         ? promptRun.run.text
         : validatedDiagramOutput || fallbackOutput
       : promptRun.run.text || fallbackOutput
-  const displayOutput = moduleId === 'diagram' ? output : linkifyTimestamps(output)
+  const displayOutput = moduleId === 'diagram' ? output : linkifyLearningTimestamps(output)
   const activeProvider = aiSettings?.providers.find(
     (provider) => provider.id === aiSettings.activeProviderId
   )
@@ -490,7 +395,7 @@ export function LearningWorkbenchPane({
       return
     }
     const seekFromOutput = (event: globalThis.MouseEvent): void => {
-      const seconds = readTimestampFromTarget(event.target as HTMLElement)
+      const seconds = learningTimestampFromTarget(event.target as HTMLElement)
       if (seconds === null) {
         return
       }
@@ -507,10 +412,6 @@ export function LearningWorkbenchPane({
       void navigate({ search: { tab: 'providers' }, to: '/settings' })
       return
     }
-    if (moduleId === 'question' && !question.trim()) {
-      toast.warning('请先输入你想追问的问题')
-      return
-    }
     if (!transcriptText.trim()) {
       toast.warning('逐字稿尚未就绪')
       return
@@ -522,7 +423,7 @@ export function LearningWorkbenchPane({
       setValidatedDiagramOutput('')
     }
     await promptRun.start(
-      buildRunInput({ moduleId, notebook, question, selectedQuote, templateId, transcriptText }),
+      buildRunInput({ moduleId, selectedQuote, templateId, transcriptText }),
       module.workflowId
         ? workflowSettings?.prompts.find((item) => item.id === module.workflowId)?.systemPrompt
         : undefined
@@ -577,28 +478,9 @@ export function LearningWorkbenchPane({
     }
   }
 
-  const toggleSpeech = (): void => {
-    if (!('speechSynthesis' in globalThis && output.trim())) {
-      toast.warning('当前系统不支持语音朗读')
-      return
-    }
-    if (speaking) {
-      globalThis.speechSynthesis.cancel()
-      setSpeaking(false)
-      return
-    }
-    const utterance = new SpeechSynthesisUtterance(output.replace(/[#*_`>[\]()~-]/gu, ' '))
-    utterance.lang = 'zh-CN'
-    utterance.rate = 1
-    utterance.onend = () => setSpeaking(false)
-    utterance.onerror = () => setSpeaking(false)
-    globalThis.speechSynthesis.speak(utterance)
-    setSpeaking(true)
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="shrink-0 border-border/60 border-b px-3 py-3">
+      <div className="shrink-0 border-border/60 border-b px-2.5 py-2">
         <div className="flex items-start justify-between gap-2">
           <div>
             <h2 className="font-semibold text-sm">AI 学习拓展</h2>
@@ -629,14 +511,14 @@ export function LearningWorkbenchPane({
             </Button>
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-1.5">
+        <div className="mt-2 grid grid-cols-3 gap-1.5">
           {MODULES.map((item) => {
             const Icon = item.icon
             const active = item.id === moduleId
             return (
               <button
                 aria-pressed={active}
-                className={`min-h-14 rounded-xl border px-2 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
+                className={`min-h-12 rounded-lg border px-2 py-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                   active
                     ? 'border-stone-900 bg-stone-950 text-stone-50 shadow-sm dark:border-amber-300 dark:bg-amber-300 dark:text-stone-950'
                     : 'border-border/70 bg-background hover:border-amber-400/70 hover:bg-amber-50/70 dark:hover:bg-amber-950/20'
@@ -666,6 +548,18 @@ export function LearningWorkbenchPane({
             transcriptText={transcriptText}
           />
         </div>
+      ) : moduleId === 'question' ? (
+        <div className="min-h-0 flex-1">
+          <LearningStudyChat
+            aiSettings={aiSettings}
+            downloadId={downloadId}
+            key={downloadId}
+            onSeek={onSeek}
+            selectedQuote={selectionIntent === 'reflection' ? selectedQuote : null}
+            sourceTitle={sourceTitle}
+            transcriptText={transcriptText}
+          />
+        </div>
       ) : (
         <>
           <div className="shrink-0 space-y-2 border-border/60 border-b px-3 py-3">
@@ -685,15 +579,6 @@ export function LearningWorkbenchPane({
                 </select>
               </label>
             ) : null}
-            {moduleId === 'question' ? (
-              <Textarea
-                aria-label="向本节内容提问"
-                className="min-h-20 resize-y"
-                onChange={(event) => setQuestion(event.target.value)}
-                placeholder="例如：作者的核心论证是什么？它在哪些情况下不成立？"
-                value={question}
-              />
-            ) : null}
             <div className="flex flex-wrap items-center gap-2">
               {running ? (
                 <Button onClick={() => void promptRun.stop()} size="sm" variant="outline">
@@ -708,12 +593,6 @@ export function LearningWorkbenchPane({
               {output ? (
                 <Button onClick={() => void copyOutput()} size="sm" variant="ghost">
                   <ClipboardCopy /> 复制
-                </Button>
-              ) : null}
-              {moduleId === 'podcast' && output ? (
-                <Button onClick={toggleSpeech} size="sm" variant="ghost">
-                  {speaking ? <Pause /> : <Play />}
-                  {speaking ? '停止朗读' : '朗读脚本'}
                 </Button>
               ) : null}
               {running ? (

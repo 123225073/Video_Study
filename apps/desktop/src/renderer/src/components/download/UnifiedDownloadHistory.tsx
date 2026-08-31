@@ -27,7 +27,7 @@ import { useListMarqueeSelection } from '@vidbee/ui/lib/use-list-marquee'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Layers } from 'lucide-react'
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   buildFilePathCandidates,
@@ -104,14 +104,12 @@ interface UnifiedDownloadHistoryProps {
   topContent?: ReactNode
   onOpenSupportedSites?: () => void
   onOpenSettings?: () => void
-  onOpenCookiesSettings?: () => void
 }
 
 export function UnifiedDownloadHistory({
   topContent,
   onOpenSupportedSites,
-  onOpenSettings,
-  onOpenCookiesSettings
+  onOpenSettings
 }: UnifiedDownloadHistoryProps) {
   const { t } = useTranslation()
   const allRecords = useAtomValue(downloadsArrayAtom)
@@ -132,17 +130,6 @@ export function UnifiedDownloadHistory({
   const [confirmBusy, setConfirmBusy] = useState(false)
   const [alsoDeleteFiles, setAlsoDeleteFiles] = useState(false)
   const alsoDeleteFilesId = useId()
-  const hasCookieConfig = useMemo(() => {
-    const cookiesPath = settings.cookiesPath?.trim()
-    if (cookiesPath) {
-      return true
-    }
-    const browserSetting = settings.browserForCookies?.trim()
-    return Boolean(browserSetting && browserSetting !== 'none')
-  }, [settings.browserForCookies, settings.cookiesPath])
-  const showCookiesTip = !hasCookieConfig
-  const canOpenCookiesSettings = Boolean(onOpenCookiesSettings ?? onOpenSettings)
-
   useHistorySync()
 
   const historyRecords = useMemo(
@@ -503,42 +490,6 @@ export function UnifiedDownloadHistory({
       <ScrollArea className="flex-1 overflow-y-auto">
         <CardContent className="w-full space-y-3 overflow-x-hidden p-0">
           {topContent}
-          {showCookiesTip && (
-            <div className="mx-6 mt-4 rounded-xl bg-muted/40 px-6 py-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-col items-start gap-2.5">
-                  <div className="space-y-1">
-                    <p className="font-bold text-[10px] text-muted-foreground/70 uppercase tracking-wider">
-                      {t('history.cookiesTipTitle')}
-                    </p>
-                    <p className="max-w-[540px] text-foreground/85 text-sm leading-relaxed">
-                      <Trans
-                        components={{
-                          strong: <strong className="font-semibold text-foreground" />
-                        }}
-                        i18nKey="history.cookiesTipDescription"
-                      />
-                    </p>
-                  </div>
-                  <Button
-                    className="h-8 rounded-lg px-4 font-medium text-xs"
-                    disabled={!canOpenCookiesSettings}
-                    onClick={() => {
-                      if (onOpenCookiesSettings) {
-                        onOpenCookiesSettings()
-                        return
-                      }
-                      onOpenSettings?.()
-                    }}
-                    size="sm"
-                    variant="secondary"
-                  >
-                    {t('history.cookiesTipCta')}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
           {filteredRecords.length === 0 ? (
             <DownloadEmptyState
               hint={t('download.ingestEmptyHint')}
