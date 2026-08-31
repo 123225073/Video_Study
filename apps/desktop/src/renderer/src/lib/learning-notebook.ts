@@ -15,6 +15,79 @@ export const formatLearningClock = (milliseconds: number): string => {
     : `${minutes}:${String(remainder).padStart(2, '0')}`
 }
 
+const quoteAsMarkdown = (quote: string): string =>
+  quote
+    .trim()
+    .split(/\r?\n/u)
+    .map((line) => `> ${line}`)
+    .join('\n')
+
+export const appendTranscriptQuoteToNotebook = (
+  markdown: string,
+  quote: string,
+  timestampMs: number
+): string => {
+  const normalizedQuote = quoteAsMarkdown(quote)
+  if (!normalizedQuote) {
+    return markdown
+  }
+  const reference = `[▶ ${formatLearningClock(timestampMs)}](#fengsha-seek-${Math.max(0, Math.round(timestampMs))})`
+  const excerpt = `${reference}\n\n${normalizedQuote}`
+  return markdown.trim() ? `${markdown.trimEnd()}\n\n${excerpt}\n` : `${excerpt}\n`
+}
+
+const LEGACY_NOTE_MARKER_PATTERN = /^[\t ]*<!-- fengsha-legacy-note:([^>]+) -->[\t ]*\r?\n?/gmu
+const LEGACY_AREA_MARKER_PATTERN =
+  /^[\t ]*<!-- fengsha-legacy-notes:(?:start|end) -->[\t ]*\r?\n?/gmu
+
+export interface LegacyNoteMigrationResult {
+  markdown: string
+  migratedNoteIds: string[]
+}
+
+const decodeLegacyNoteId = (value: string): string => {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+export const migrateLegacyNotesToNotebook = (
+  markdown: string,
+  notes: LearningNote[],
+  migratedNoteIds: string[],
+  sectionTitle: string
+): LegacyNoteMigrationResult => {
+  const migratedIds = new Set(migratedNoteIds.filter(Boolean))
+  for (const match of markdown.matchAll(LEGACY_NOTE_MARKER_PATTERN)) {
+    if (match[1]) {
+      migratedIds.add(decodeLegacyNoteId(match[1]))
+    }
+  }
+  const cleanedMarkdown = markdown
+    .replace(LEGACY_NOTE_MARKER_PATTERN, '')
+    .replace(LEGACY_AREA_MARKER_PATTERN, '')
+  const missingNotes = notes.filter((note) => note.text.trim() && !migratedIds.has(note.id))
+  if (missingNotes.length === 0) {
+    return { markdown: cleanedMarkdown, migratedNoteIds: [...migratedIds] }
+  }
+  const additions = missingNotes
+    .map((note) => {
+      migratedIds.add(note.id)
+      const timeLink = `[▶ ${formatLearningClock(note.timestampMs)}](#fengsha-seek-${Math.max(0, Math.round(note.timestampMs))})`
+      const quote = quoteAsMarkdown(note.quote)
+      return [`### ${timeLink}`, quote, note.text.trim()].filter(Boolean).join('\n\n')
+    })
+    .join('\n\n')
+  const heading = `## ${sectionTitle}`
+  const section = cleanedMarkdown.includes(heading) ? additions : `${heading}\n\n${additions}`
+  const nextMarkdown = cleanedMarkdown.trim()
+    ? `${cleanedMarkdown.trimEnd()}\n\n${section}\n`
+    : `${section}\n`
+  return { markdown: nextMarkdown, migratedNoteIds: [...migratedIds] }
+}
+
 export const createLearningNote = (input: {
   highlightColor?: LearningNoteHighlight | null
   kind: LearningNoteKind

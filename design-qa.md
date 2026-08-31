@@ -1,4 +1,4 @@
-# 风沙AI学习平台 3.3.0 · Design QA
+# 风沙AI学习平台 3.4.0 · Design QA
 
 ## Visual target
 
@@ -12,8 +12,9 @@
 | --- | ---: | --- | --- |
 | Create/import home | 900 × 700 | `output/e2e-learning-studio/00-home-900.png` | Passed: no clipping or horizontal overflow; real and reserved actions are visually distinct. |
 | Learning library | 1200 × 800 | `output/e2e-learning-studio/01-learning-center.png` | Passed: search, filters and list/card switch share one clear hierarchy. |
-| Three-column study | 1800 × 1000 | `output/e2e-learning-studio/04-note-scene.png` | Passed: AI outcomes, media/transcript and both note layers remain visible together. |
-| AI image studio | 1800 × 1000 | `output/e2e-learning-studio/05-output-scene.png` | Passed: source context remains visible; prompt optimization and generation form fit the left rail. |
+| Three-column study | 1800 × 1000 | `output/e2e-learning-studio/04-note-scene.png` | Passed: resizable AI workspace, media/transcript and one continuous notebook remain visible together; both side panels can be collapsed and restored. |
+| Interactive mind map | 1800 × 1000 | `output/e2e-learning-studio/04b-mindmap.png` | Passed: central topic, colored branches, deeper-level collapse/expand, zoom and timestamp evidence stay inside the AI workspace. |
+| AI image studio | 1800 × 1000 | `output/e2e-learning-studio/05-output-scene.png` | Passed: one brief, purpose/style/ratio choices, optional advanced optimization and generated-image viewer replace the former stacked image modes. |
 | Compact study | 900 × 700 | `output/e2e-learning-studio/09-output-scene-compact.png` | Passed: scene switch replaces the wide layout without horizontal overflow. |
 
 ## Senior visual review
@@ -27,9 +28,10 @@
 
 ## Functional visual checks
 
-- Personal Markdown notes and timestamped transcript annotations are visually and structurally separate; the E2E reopens the lesson and verifies the personal note is restored.
+- One continuous Markdown notebook accepts free writing and timestamped transcript excerpts; the E2E leaves immediately, reopens the lesson and verifies the newest draft is restored.
 - All nine AI module entry points are reachable in the three-column workspace.
-- The image studio exposes image kind, quote source, prompt requirement and prompt-optimization controls without clipping.
+- The image studio exposes purpose, style, ratio and one visible brief; prompt optimization stays collapsed until requested, and the viewer supports zoom and drag.
+- Transcript selection is word-range accurate; its toolbar is draggable, dismisses on blank-space clicks and appends evidence directly to the notebook.
 - Compact and wide layouts keep the active task reachable without horizontal overflow.
 
 Streaming AI transport, image partial/final state, cancellation/replacement, Mermaid validation,

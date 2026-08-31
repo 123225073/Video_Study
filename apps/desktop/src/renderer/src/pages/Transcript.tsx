@@ -1359,6 +1359,14 @@ export function TranscriptPage() {
   )
 
   const studioLabels: StudyStudioLabels = {
+    layout: {
+      collapseNote: t('learning.studio.layout.collapseNote'),
+      collapseOutput: t('learning.studio.layout.collapseOutput'),
+      expandNote: t('learning.studio.layout.expandNote'),
+      expandOutput: t('learning.studio.layout.expandOutput'),
+      resizeNote: t('learning.studio.layout.resizeNote'),
+      resizeOutput: t('learning.studio.layout.resizeOutput')
+    },
     regions: {
       note: t('learning.studio.regions.note'),
       output: t('learning.studio.regions.output'),
@@ -1448,11 +1456,8 @@ export function TranscriptPage() {
         note={
           <LearningNotebookPane
             capture={pendingNoteCapture}
-            currentSegmentId={currentSegment?.id ?? null}
-            currentTimeMs={currentTimeMs}
             downloadId={downloadId}
             onSeek={seek}
-            segments={segments}
             sourceTitle={download?.title ?? title}
             sourceUrl={download?.url ?? null}
           />

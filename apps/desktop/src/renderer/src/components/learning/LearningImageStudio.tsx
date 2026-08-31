@@ -1,30 +1,55 @@
+import { LearningImageViewer } from '@renderer/components/learning/LearningImageViewer'
 import { TranscriptPromptThinking } from '@renderer/components/transcript/TranscriptPromptThinking'
 import { Button } from '@renderer/components/ui/button'
 import { RemoteImage } from '@renderer/components/ui/remote-image'
-import { Response } from '@renderer/components/ui/response'
 import { Textarea } from '@renderer/components/ui/textarea'
 import { useImageRun } from '@renderer/hooks/use-image-run'
 import { usePromptRun } from '@renderer/hooks/use-prompt-run'
 import { ipcServices } from '@renderer/lib/ipc'
+import { cropLearningImageToAspect } from '@renderer/lib/learning-image-processing'
 import { logger } from '@renderer/lib/logger'
+import {
+  formatGenerationElapsed,
+  imageApiSizeForAspect,
+  isFreshImagePromptOptimization,
+  type LearningImageAspectRatio,
+  type LearningImagePurpose,
+  type LearningImageStyle
+} from '@shared/learning-image'
 import type { LearningBlock, LearningNotebook } from '@shared/learning-types'
-import { Download, ImageIcon, Loader2, Sparkles, Square, WandSparkles } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  Download,
+  Expand,
+  ImageIcon,
+  Loader2,
+  Sparkles,
+  Square,
+  WandSparkles
+} from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-
-type LearningImageKind = 'cover' | 'logic' | 'quote'
 
 const IMAGE_PROMPT_ID = 'image-prompt-optimizer'
 const IMAGE_MARKER = 'generated-image:'
-const IMAGE_LABELS: Record<LearningImageKind, string> = {
-  cover: '封面图',
-  logic: '学习逻辑图',
-  quote: '金句图'
-}
-const IMAGE_SIZES: Record<LearningImageKind, '1024x1536' | '1536x1024'> = {
-  cover: '1536x1024',
-  logic: '1536x1024',
-  quote: '1024x1536'
+const IMAGE_DRAFT_VERSION = 1
+
+const PURPOSES: LearningImagePurpose[] = ['explain', 'share', 'cover']
+const STYLES: LearningImageStyle[] = ['infographic', 'minimal', 'editorial', 'cinematic']
+const ASPECT_RATIOS: LearningImageAspectRatio[] = ['1:1', '4:5', '3:4', '16:9', '9:16']
+
+interface LearningImageDraft {
+  aspectRatio: LearningImageAspectRatio
+  optimizedPrompt: string
+  optimizedSignature: string
+  pendingStartedAfter: number
+  pendingSignature: string
+  purpose: LearningImagePurpose
+  request: string
+  style: LearningImageStyle
+  version: number
 }
 
 interface LearningImageStudioProps {
@@ -34,86 +59,96 @@ interface LearningImageStudioProps {
   transcriptText: string
 }
 
-const imageKindForBlock = (block: LearningBlock): LearningImageKind | null => {
-  const marker = block.sourceSegmentIds.find((id) => id.startsWith(IMAGE_MARKER))
-  const value = marker?.slice(IMAGE_MARKER.length)
-  return value === 'cover' || value === 'logic' || value === 'quote' ? value : null
+interface ProcessedGeneratedImage {
+  dataUrl: string
+  ratio: LearningImageAspectRatio
+  runId: string
+  source: string
 }
 
-const safeImageName = (title: string, kind: LearningImageKind): string => {
+const defaultDraft = (): LearningImageDraft => ({
+  aspectRatio: '4:5',
+  optimizedPrompt: '',
+  optimizedSignature: '',
+  pendingStartedAfter: 0,
+  pendingSignature: '',
+  purpose: 'explain',
+  request: '',
+  style: 'infographic',
+  version: IMAGE_DRAFT_VERSION
+})
+
+const draftStorageKey = (downloadId: string): string => `fengsha.learning.image-draft:${downloadId}`
+
+const isPurpose = (value: unknown): value is LearningImagePurpose =>
+  typeof value === 'string' && PURPOSES.includes(value as LearningImagePurpose)
+const isStyle = (value: unknown): value is LearningImageStyle =>
+  typeof value === 'string' && STYLES.includes(value as LearningImageStyle)
+const isAspectRatio = (value: unknown): value is LearningImageAspectRatio =>
+  typeof value === 'string' && ASPECT_RATIOS.includes(value as LearningImageAspectRatio)
+
+const readDraft = (downloadId: string): LearningImageDraft => {
+  const fallback = defaultDraft()
+  try {
+    const parsed = JSON.parse(
+      globalThis.localStorage?.getItem(draftStorageKey(downloadId)) ?? '{}'
+    ) as Partial<LearningImageDraft> | undefined
+    return {
+      ...fallback,
+      aspectRatio: isAspectRatio(parsed?.aspectRatio) ? parsed.aspectRatio : fallback.aspectRatio,
+      optimizedPrompt:
+        typeof parsed?.optimizedPrompt === 'string' ? parsed.optimizedPrompt.slice(0, 32_000) : '',
+      optimizedSignature:
+        typeof parsed?.optimizedSignature === 'string' ? parsed.optimizedSignature : '',
+      pendingStartedAfter:
+        typeof parsed?.pendingStartedAfter === 'number' ? parsed.pendingStartedAfter : 0,
+      pendingSignature: typeof parsed?.pendingSignature === 'string' ? parsed.pendingSignature : '',
+      purpose: isPurpose(parsed?.purpose) ? parsed.purpose : fallback.purpose,
+      request: typeof parsed?.request === 'string' ? parsed.request.slice(0, 8000) : '',
+      style: isStyle(parsed?.style) ? parsed.style : fallback.style
+    }
+  } catch {
+    return fallback
+  }
+}
+
+const imageDraftSignature = (draft: LearningImageDraft): string =>
+  [draft.request.trim(), draft.purpose, draft.style, draft.aspectRatio].join('\n')
+
+const isGeneratedImageBlock = (block: LearningBlock): boolean =>
+  block.kind === 'screenshot' && block.sourceSegmentIds.some((id) => id.startsWith(IMAGE_MARKER))
+
+const safeImageName = (title: string): string => {
   const name =
     title
       .replace(/[<>:"/\\|?*]+/gu, '-')
       .trim()
       .slice(0, 56) || '学习图片'
-  return `${name}-${IMAGE_LABELS[kind]}.png`
+  return `${name}-AI图片.png`
 }
 
-const wrapCanvasText = (
-  context: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number
-): string[] => {
-  const characters = [...text.trim()]
-  const lines: string[] = []
-  let current = ''
-  for (const character of characters) {
-    const next = `${current}${character}`
-    if (current && context.measureText(next).width > maxWidth) {
-      lines.push(current)
-      current = character
-    } else {
-      current = next
-    }
-  }
-  if (current) {
-    lines.push(current)
-  }
-  return lines
-}
-
-const quotePosterBytes = async (source: string, quote: string): Promise<ArrayBuffer> => {
-  const response = await fetch(source)
-  if (!response.ok) {
-    throw new Error(`Image request failed (${response.status})`)
-  }
-  const bitmap = await createImageBitmap(await response.blob())
-  const canvas = document.createElement('canvas')
-  canvas.width = bitmap.width
-  canvas.height = bitmap.height
-  const context = canvas.getContext('2d')
-  if (!context) {
-    bitmap.close()
-    throw new Error('Canvas is unavailable')
-  }
-  context.drawImage(bitmap, 0, 0)
-  bitmap.close()
-  const padding = Math.round(canvas.width * 0.11)
-  const fontSize = Math.max(34, Math.round(canvas.width * 0.055))
-  context.font = `600 ${fontSize}px "Noto Serif SC", "Microsoft YaHei", serif`
-  context.textAlign = 'center'
-  context.textBaseline = 'middle'
-  const lines = wrapCanvasText(context, quote, canvas.width - padding * 2).slice(0, 8)
-  const lineHeight = Math.round(fontSize * 1.55)
-  const panelHeight = Math.max(lineHeight * (lines.length + 1), Math.round(canvas.height * 0.34))
-  const panelTop = Math.round((canvas.height - panelHeight) / 2)
-  context.fillStyle = 'rgba(16, 15, 13, 0.72)'
-  context.fillRect(padding / 2, panelTop, canvas.width - padding, panelHeight)
-  context.fillStyle = '#fffaf0'
-  context.shadowColor = 'rgba(0,0,0,.45)'
-  context.shadowBlur = 18
-  const startY = canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2
-  lines.forEach((line, index) => {
-    context.fillText(line, canvas.width / 2, startY + index * lineHeight)
-  })
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (value) => (value ? resolve(value) : reject(new Error('PNG render failed'))),
-      'image/png'
-    )
-  })
-  return blob.arrayBuffer()
-}
+const buildImagePrompt = ({
+  aspectRatio,
+  purpose,
+  request,
+  sourceTitle,
+  style
+}: {
+  aspectRatio: string
+  purpose: string
+  request: string
+  sourceTitle: string
+  style: string
+}): string =>
+  [
+    '为视频学习内容创作一张可直接使用的图片。',
+    `来源标题：${sourceTitle}`,
+    `使用场景：${purpose}`,
+    `视觉风格：${style}`,
+    `目标画幅：${aspectRatio}。构图必须适应该画幅，并保留安全边距。`,
+    `用户需求：${request}`,
+    '画面保持清晰、克制、有明确视觉层级；不要添加水印、品牌 Logo、二维码或无关元素。'
+  ].join('\n')
 
 export function LearningImageStudio({
   downloadId,
@@ -121,27 +156,56 @@ export function LearningImageStudio({
   sourceTitle,
   transcriptText
 }: LearningImageStudioProps) {
-  const [kind, setKind] = useState<LearningImageKind>('logic')
-  const [request, setRequest] = useState('')
-  const [quote, setQuote] = useState('')
-  const [optimizedPrompt, setOptimizedPrompt] = useState('')
+  const { t } = useTranslation()
+  const [draft, setDraft] = useState<LearningImageDraft>(() => readDraft(downloadId))
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [clock, setClock] = useState(Date.now())
   const [notebook, setNotebook] = useState<LearningNotebook | null>(null)
+  const [processedImage, setProcessedImage] = useState<ProcessedGeneratedImage | null>(null)
+  const [processingError, setProcessingError] = useState<string | null>(null)
   const persistedRunIds = useRef(new Set<string>())
   const optimizer = usePromptRun(downloadId, IMAGE_PROMPT_ID)
   const imageRun = useImageRun(downloadId)
+
+  const purposeOptions = PURPOSES.map((id) => ({
+    id,
+    label: t(`learning.imageStudio.purposes.${id}`)
+  }))
+  const styleOptions = STYLES.map((id) => ({
+    id,
+    label: t(`learning.imageStudio.styles.${id}`)
+  }))
+  const signature = imageDraftSignature(draft)
+  const optimizedPrompt = draft.optimizedSignature === signature ? draft.optimizedPrompt.trim() : ''
+  const optimizing = optimizer.run.status === 'running'
+  const generating = imageRun.run.status === 'running'
+  const elapsedMs = imageRun.run.startedAt
+    ? Math.max(0, (generating ? clock : imageRun.run.updatedAt || clock) - imageRun.run.startedAt)
+    : 0
+
+  useEffect(() => {
+    try {
+      globalThis.localStorage?.setItem(draftStorageKey(downloadId), JSON.stringify(draft))
+    } catch {
+      // A disabled storage partition must not prevent image generation.
+    }
+  }, [downloadId, draft])
 
   useEffect(() => {
     if (!selectedQuote?.text.trim()) {
       return
     }
-    setKind('quote')
-    setQuote(selectedQuote.text.trim())
-    setRequest(
-      `为这句学习摘录设计一张克制、高级、适合分享的金句卡片背景。内容来自 ${Math.floor(
-        selectedQuote.startMs / 1000
-      )} 秒附近，保留充足的中文排版安全区。`
-    )
-  }, [selectedQuote])
+    setDraft((current) => ({
+      ...current,
+      aspectRatio: '4:5',
+      purpose: 'share',
+      request: t('learning.imageStudio.selectedQuoteRequest', {
+        quote: selectedQuote.text.trim(),
+        seconds: Math.floor(selectedQuote.startMs / 1000)
+      })
+    }))
+  }, [selectedQuote?.startMs, selectedQuote?.text, t])
 
   useEffect(() => {
     let active = true
@@ -159,10 +223,71 @@ export function LearningImageStudio({
   }, [downloadId])
 
   useEffect(() => {
-    if (optimizer.run.status === 'completed' && optimizer.run.text.trim()) {
-      setOptimizedPrompt(optimizer.run.text.trim())
+    if (
+      optimizer.run.status !== 'completed' ||
+      !optimizer.run.text.trim() ||
+      !draft.pendingSignature ||
+      !isFreshImagePromptOptimization(draft.pendingStartedAfter, optimizer.run.startedAt)
+    ) {
+      return
     }
-  }, [optimizer.run.status, optimizer.run.text])
+    setDraft((current) => ({
+      ...current,
+      optimizedPrompt: optimizer.run.text.trim(),
+      optimizedSignature: current.pendingSignature,
+      pendingStartedAfter: 0,
+      pendingSignature: ''
+    }))
+  }, [
+    draft.pendingSignature,
+    draft.pendingStartedAfter,
+    optimizer.run.startedAt,
+    optimizer.run.status,
+    optimizer.run.text
+  ])
+
+  useEffect(() => {
+    if (!generating) {
+      return
+    }
+    setClock(Date.now())
+    const timer = globalThis.setInterval(() => setClock(Date.now()), 1000)
+    return () => globalThis.clearInterval(timer)
+  }, [generating])
+
+  useEffect(() => {
+    const source = imageRun.run.imageDataUrl
+    const runId = imageRun.run.runId
+    if (!(source && runId)) {
+      return
+    }
+    const ratio = imageRun.run.context?.aspectRatio ?? draft.aspectRatio
+    let active = true
+    setProcessingError(null)
+    void cropLearningImageToAspect(source, ratio)
+      .then((dataUrl) => {
+        if (active) {
+          setProcessedImage({ dataUrl, ratio, runId, source })
+        }
+      })
+      .catch((error) => {
+        logger.error('Failed to crop generated image', error)
+        if (active) {
+          setProcessingError(
+            error instanceof Error ? error.message : t('learning.imageStudio.cropFailed')
+          )
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [
+    draft.aspectRatio,
+    imageRun.run.context?.aspectRatio,
+    imageRun.run.imageDataUrl,
+    imageRun.run.runId,
+    t
+  ])
 
   useEffect(() => {
     const snapshot = imageRun.run
@@ -172,6 +297,9 @@ export function LearningImageStudio({
       !snapshot.imageDataUrl ||
       !snapshot.runId ||
       !runContext ||
+      processedImage?.runId !== snapshot.runId ||
+      processedImage.source !== snapshot.imageDataUrl ||
+      processedImage.ratio !== (runContext.aspectRatio ?? draft.aspectRatio) ||
       persistedRunIds.current.has(snapshot.runId)
     ) {
       return
@@ -181,233 +309,406 @@ export function LearningImageStudio({
       try {
         const now = Date.now()
         const block: LearningBlock = {
-          attachmentPath: snapshot.imageDataUrl,
+          attachmentPath: processedImage.dataUrl,
           completed: false,
           content: runContext.optimizedPrompt,
           createdAt: now,
           id: `ai-image-${snapshot.runId}`,
           kind: 'screenshot',
-          quote: runContext.kind === 'quote' ? runContext.quote : IMAGE_LABELS[runContext.kind],
-          sourceSegmentIds: [`${IMAGE_MARKER}${runContext.kind}`],
+          quote: t('learning.imageStudio.generatedImage'),
+          sourceSegmentIds: [`${IMAGE_MARKER}visual`],
           timestampMs: null,
           updatedAt: now
         }
-        const saved = await ipcServices.learning.upsertBlock({
-          block,
-          downloadId
-        })
+        const saved = await ipcServices.learning.upsertBlock({ block, downloadId })
         setNotebook(saved)
-        toast.success(`${IMAGE_LABELS[runContext.kind]}已生成并保存`)
+        toast.success(t('learning.imageStudio.generatedAndSaved'))
       } catch (error) {
         persistedRunIds.current.delete(snapshot.runId)
         logger.error('Failed to persist generated image', error)
-        toast.error('图片已生成，但保存失败')
+        toast.error(t('learning.imageStudio.saveFailed'))
       }
     })()
-  }, [downloadId, imageRun.run])
+  }, [downloadId, draft.aspectRatio, imageRun.run, processedImage, t])
 
   const generatedImages = useMemo(
     () =>
       [...(notebook?.blocks ?? [])]
-        .filter((block) => block.kind === 'screenshot' && imageKindForBlock(block))
+        .filter(isGeneratedImageBlock)
         .sort((left, right) => right.createdAt - left.createdAt),
     [notebook?.blocks]
   )
-  const savedImage = generatedImages.find((block) => imageKindForBlock(block) === kind)
-  const activeImageMatchesKind = imageRun.run.context?.kind === kind
-  const visibleImage =
-    (activeImageMatchesKind ? imageRun.run.imageDataUrl : null) ??
-    savedImage?.attachmentPath ??
-    null
-  const visibleQuote =
-    kind === 'quote'
-      ? activeImageMatchesKind
-        ? (imageRun.run.context?.quote ?? quote.trim())
-        : (savedImage?.quote ?? quote.trim())
-      : ''
-  const optimizing = optimizer.run.status === 'running'
-  const generating = imageRun.run.status === 'running'
+  const activeProcessedImage =
+    processedImage?.runId === imageRun.run.runId &&
+    processedImage.source === imageRun.run.imageDataUrl
+      ? processedImage.dataUrl
+      : null
+  const visibleImage = activeProcessedImage ?? generatedImages[0]?.attachmentPath ?? null
+  const visibleImageIsPartial = generating && Boolean(activeProcessedImage)
 
   const optimizePrompt = async (): Promise<void> => {
-    if (!request.trim()) {
-      toast.warning('请先描述你希望图片表达什么')
+    if (!draft.request.trim()) {
+      toast.warning(t('learning.imageStudio.requestRequired'))
       return
     }
-    const noTextRule =
-      kind === 'quote'
-        ? 'Generate a refined background with a generous central text-safe area. Do not render any letters, words, logos, or watermarks; the app will typeset the exact quote afterward.'
-        : ''
+    const currentSignature = imageDraftSignature(draft)
+    const requestedAt = Math.max(Date.now(), optimizer.run.startedAt + 1)
+    setAdvancedOpen(true)
+    setDraft((current) => ({
+      ...current,
+      pendingSignature: currentSignature,
+      pendingStartedAfter: requestedAt
+    }))
     await optimizer.start(
       [
-        `IMAGE_TYPE: ${IMAGE_LABELS[kind]}`,
+        'IMAGE_TYPE: 一图胜千言',
         `SOURCE_TITLE: ${sourceTitle}`,
-        `USER_REQUEST: ${request.trim()}`,
-        quote.trim() ? `EXACT_QUOTE_FOR_LAYOUT_REFERENCE: ${quote.trim()}` : '',
-        noTextRule,
+        `USE_CASE: ${t(`learning.imageStudio.purposes.${draft.purpose}`)}`,
+        `VISUAL_STYLE: ${t(`learning.imageStudio.styles.${draft.style}`)}`,
+        `ASPECT_RATIO: ${draft.aspectRatio}`,
+        `USER_REQUEST: ${draft.request.trim()}`,
         `VIDEO_CONTEXT:\n${transcriptText.slice(0, 12_000)}`
-      ]
-        .filter(Boolean)
-        .join('\n\n')
+      ].join('\n\n')
     )
   }
 
   const generateImage = async (): Promise<void> => {
-    if (!optimizedPrompt.trim()) {
-      toast.warning('请先让 AI 优化提示词')
+    if (!draft.request.trim()) {
+      toast.warning(t('learning.imageStudio.requestRequired'))
       return
     }
-    if (kind === 'quote' && !quote.trim()) {
-      toast.warning('请输入需要准确排版的金句原文')
-      return
-    }
+    const finalPrompt =
+      optimizedPrompt ||
+      buildImagePrompt({
+        aspectRatio: draft.aspectRatio,
+        purpose: t(`learning.imageStudio.purposes.${draft.purpose}`),
+        request: draft.request.trim(),
+        sourceTitle,
+        style: t(`learning.imageStudio.styles.${draft.style}`)
+      })
     await imageRun.start({
       context: {
-        kind,
-        optimizedPrompt,
-        quote: kind === 'quote' ? quote.trim() : ''
+        aspectRatio: draft.aspectRatio,
+        kind: 'logic',
+        optimizedPrompt: finalPrompt,
+        quote: ''
       },
       quality: 'high',
-      size: IMAGE_SIZES[kind]
+      size: imageApiSizeForAspect(draft.aspectRatio)
     })
   }
 
   const exportImage = async (source: string): Promise<void> => {
     try {
-      const data =
-        kind === 'quote' && visibleQuote
-          ? await quotePosterBytes(source, visibleQuote)
-          : await (await fetch(source)).arrayBuffer()
+      const data = await (await fetch(source)).arrayBuffer()
       const saved = await ipcServices.fs.saveBinaryFile({
         data,
-        defaultFileName: safeImageName(sourceTitle, kind)
+        defaultFileName: safeImageName(sourceTitle)
       })
       if (saved) {
-        toast.success('图片已导出')
+        toast.success(t('learning.imageStudio.exported'))
       }
     } catch (error) {
       logger.error('Failed to export generated image', error)
-      toast.error('图片导出失败')
+      toast.error(t('learning.imageStudio.exportFailed'))
     }
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="space-y-3 border-border/60 border-b p-3">
-        <div className="grid grid-cols-3 gap-1.5" role="tablist">
-          {(Object.keys(IMAGE_LABELS) as LearningImageKind[]).map((item) => (
-            <Button
-              aria-selected={kind === item}
-              key={item}
-              onClick={() => setKind(item)}
-              role="tab"
-              size="sm"
-              variant={kind === item ? 'default' : 'outline'}
-            >
-              {IMAGE_LABELS[item]}
-            </Button>
-          ))}
-        </div>
-        {kind === 'quote' ? (
-          <Textarea
-            aria-label="金句原文"
-            className="min-h-16 resize-y"
-            onChange={(event) => setQuote(event.target.value)}
-            placeholder="粘贴需要准确排版的金句原文"
-            value={quote}
-          />
-        ) : null}
-        <Textarea
-          aria-label="图片需求"
-          className="min-h-20 resize-y"
-          onChange={(event) => setRequest(event.target.value)}
-          placeholder="描述构图、风格、重点和使用场景……"
-          value={request}
-        />
-        <Button disabled={optimizing || !request.trim()} onClick={() => void optimizePrompt()}>
-          {optimizing ? <Loader2 className="animate-spin" /> : <Sparkles />}
-          {optimizing ? '正在流式优化…' : 'AI 优化提示词'}
-        </Button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {optimizer.run.thinking.trim() || optimizing ? (
-          <TranscriptPromptThinking
-            running={optimizing}
-            thinking={optimizer.run.thinking}
-            thinkingMs={optimizer.run.thinkingMs}
-          />
-        ) : null}
-        {optimizer.run.text ? (
-          <div className="mt-3 rounded-xl border bg-muted/20 p-3">
-            <Response className="text-xs leading-5" isAnimating={optimizing}>
-              {optimizer.run.text}
-            </Response>
-          </div>
-        ) : null}
-        {optimizedPrompt ? (
-          <Textarea
-            aria-label="优化后的图片提示词"
-            className="mt-3 min-h-28 resize-y font-mono text-xs leading-5"
-            onChange={(event) => setOptimizedPrompt(event.target.value)}
-            value={optimizedPrompt}
-          />
-        ) : null}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {generating ? (
-            <Button onClick={() => void imageRun.stop()} variant="outline">
-              <Square /> 停止
-            </Button>
-          ) : (
-            <Button disabled={!optimizedPrompt.trim()} onClick={() => void generateImage()}>
-              <WandSparkles /> 生成{IMAGE_LABELS[kind]}
-            </Button>
-          )}
-          <span className="text-muted-foreground text-xs">
-            {imageRun.run.modelId || 'gpt-image-2'}
-          </span>
-        </div>
-        {imageRun.run.progressText ? (
-          <p className="mt-2 flex items-center gap-2 text-muted-foreground text-xs">
-            {generating ? <Loader2 className="size-3.5 animate-spin" /> : null}
-            {imageRun.run.progressText}
-          </p>
-        ) : null}
-        {imageRun.run.status === 'error' ? (
-          <p className="mt-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-destructive text-xs">
-            {imageRun.run.error}
-          </p>
-        ) : null}
-
-        <div className="relative mt-4 grid min-h-64 place-items-center overflow-hidden rounded-xl border border-dashed bg-stone-950/95 p-3">
-          {visibleImage ? (
-            <>
-              <RemoteImage
-                alt={`AI 生成的${IMAGE_LABELS[kind]}`}
-                className="max-h-96 max-w-full rounded-lg object-contain"
-                src={visibleImage}
-              />
-              {kind === 'quote' && visibleQuote ? (
-                <div className="pointer-events-none absolute inset-x-[9%] top-1/2 -translate-y-1/2 rounded-xl bg-stone-950/70 px-6 py-8 text-center font-semibold font-serif text-lg text-stone-50 leading-8 shadow-2xl backdrop-blur-sm">
-                  {visibleQuote}
-                </div>
-              ) : null}
-              <Button
-                className="absolute right-3 bottom-3"
-                onClick={() => void exportImage(visibleImage)}
-                size="sm"
-                variant="secondary"
-              >
-                <Download /> 导出 PNG
-              </Button>
-            </>
-          ) : (
-            <div className="text-center text-stone-400">
-              <ImageIcon className="mx-auto size-8 text-amber-400" />
-              <p className="mt-2 text-sm">生成过程和结果会显示在这里</p>
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="space-y-5 p-4">
+          <header>
+            <div className="flex items-center gap-2">
+              <span className="grid size-8 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
+                <ImageIcon className="size-4" />
+              </span>
+              <div>
+                <h3 className="font-semibold text-sm">{t('learning.imageStudio.title')}</h3>
+                <p className="text-muted-foreground text-xs">
+                  {t('learning.imageStudio.description')}
+                </p>
+              </div>
             </div>
-          )}
+          </header>
+
+          <section className="space-y-2">
+            <p className="font-medium text-xs">{t('learning.imageStudio.purpose')}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {purposeOptions.map((option) => (
+                <Button
+                  aria-pressed={draft.purpose === option.id}
+                  key={option.id}
+                  onClick={() => setDraft((current) => ({ ...current, purpose: option.id }))}
+                  size="sm"
+                  variant={draft.purpose === option.id ? 'default' : 'outline'}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-2">
+            <p className="font-medium text-xs">{t('learning.imageStudio.style')}</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {styleOptions.map((option) => (
+                <button
+                  aria-pressed={draft.style === option.id}
+                  className={`rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
+                    draft.style === option.id
+                      ? 'border-amber-500 bg-amber-500/10 font-medium text-amber-800 dark:text-amber-200'
+                      : 'border-border/70 bg-background hover:border-amber-400/70'
+                  }`}
+                  key={option.id}
+                  onClick={() => setDraft((current) => ({ ...current, style: option.id }))}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-medium text-xs">{t('learning.imageStudio.aspectRatio')}</p>
+              <span className="text-[10px] text-muted-foreground">
+                {t('learning.imageStudio.ratioMappingHint')}
+              </span>
+            </div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {ASPECT_RATIOS.map((ratio) => {
+                const [width, height] = ratio.split(':').map(Number)
+                return (
+                  <button
+                    aria-label={t('learning.imageStudio.ratioLabel', { ratio })}
+                    aria-pressed={draft.aspectRatio === ratio}
+                    className={`grid min-h-14 place-items-center rounded-xl border px-1 py-1.5 transition-colors ${
+                      draft.aspectRatio === ratio
+                        ? 'border-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                        : 'border-border/70 hover:border-amber-400/70'
+                    }`}
+                    key={ratio}
+                    onClick={() => setDraft((current) => ({ ...current, aspectRatio: ratio }))}
+                    type="button"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="block max-h-6 max-w-8 rounded-sm border border-current/60"
+                      style={{
+                        aspectRatio: `${width} / ${height}`,
+                        height: width > height ? '18px' : '24px',
+                        width: width > height ? '30px' : 'auto'
+                      }}
+                    />
+                    <span className="font-medium text-[10px]">{ratio}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+
+          <section className="space-y-2">
+            <label className="font-medium text-xs" htmlFor="learning-image-request">
+              {t('learning.imageStudio.request')}
+            </label>
+            <Textarea
+              className="min-h-28 resize-y rounded-xl bg-muted/15 leading-6"
+              id="learning-image-request"
+              maxLength={8000}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, request: event.target.value }))
+              }
+              placeholder={t('learning.imageStudio.requestPlaceholder')}
+              value={draft.request}
+            />
+          </section>
+
+          <section className="overflow-hidden rounded-xl border border-border/70">
+            <button
+              aria-expanded={advancedOpen}
+              className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-muted/30"
+              onClick={() => setAdvancedOpen((open) => !open)}
+              type="button"
+            >
+              <span>
+                <span className="flex items-center gap-1.5 font-medium text-xs">
+                  <Sparkles className="size-3.5 text-amber-600" />
+                  {t('learning.imageStudio.promptOptimization')}
+                </span>
+                <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                  {optimizedPrompt
+                    ? t('learning.imageStudio.optimizedReady')
+                    : t('learning.imageStudio.promptOptimizationHint')}
+                </span>
+              </span>
+              {advancedOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+            </button>
+            {advancedOpen ? (
+              <div className="space-y-3 border-border/70 border-t p-3">
+                {optimizer.run.thinking.trim() || optimizing ? (
+                  <TranscriptPromptThinking
+                    running={optimizing}
+                    thinking={optimizer.run.thinking}
+                    thinkingMs={optimizer.run.thinkingMs}
+                  />
+                ) : null}
+                <Button
+                  disabled={optimizing || !draft.request.trim()}
+                  onClick={() => void optimizePrompt()}
+                  size="sm"
+                  variant="outline"
+                >
+                  {optimizing ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                  {optimizing
+                    ? t('learning.imageStudio.optimizing')
+                    : t('learning.imageStudio.optimize')}
+                </Button>
+                {optimizer.run.error ? (
+                  <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-destructive text-xs">
+                    {optimizer.run.error}
+                  </p>
+                ) : null}
+                {optimizing || optimizedPrompt ? (
+                  <Textarea
+                    aria-label={t('learning.imageStudio.optimizedPrompt')}
+                    className="min-h-32 resize-y font-mono text-xs leading-5"
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        optimizedPrompt: event.target.value,
+                        optimizedSignature: imageDraftSignature(current)
+                      }))
+                    }
+                    readOnly={optimizing}
+                    value={optimizing ? optimizer.run.text : draft.optimizedPrompt}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+          </section>
+
+          <div className="flex items-center gap-2">
+            {generating ? (
+              <Button className="flex-1" onClick={() => void imageRun.stop()} variant="outline">
+                <Square /> {t('learning.imageStudio.stop')}
+              </Button>
+            ) : (
+              <Button
+                className="flex-1"
+                disabled={!draft.request.trim() || optimizing}
+                onClick={() => void generateImage()}
+              >
+                <WandSparkles /> {t('learning.imageStudio.generate')}
+              </Button>
+            )}
+            <span className="max-w-28 truncate text-[10px] text-muted-foreground">
+              {imageRun.run.modelId || 'gpt-image-2'}
+            </span>
+          </div>
+
+          {generating ? (
+            <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+              <div className="absolute inset-y-0 left-0 w-1/3 animate-[pulse_1.8s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-amber-400/15 to-transparent" />
+              <div className="relative flex items-center gap-3">
+                <span className="relative grid size-10 shrink-0 place-items-center rounded-full border border-amber-400/40 bg-background">
+                  <span className="absolute inset-1 animate-ping rounded-full bg-amber-400/20" />
+                  <Loader2 className="size-4 animate-spin text-amber-600" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-sm">
+                    {t(`learning.imageStudio.stages.${imageRun.run.stage}`)}
+                  </p>
+                  <p className="truncate text-muted-foreground text-xs">
+                    {imageRun.run.progressText || t('learning.imageStudio.generatingHint')}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-mono font-semibold text-lg tabular-nums">
+                    {formatGenerationElapsed(elapsedMs)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {t('learning.imageStudio.elapsed')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {imageRun.run.status === 'error' ? (
+            <p className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-destructive text-xs">
+              {imageRun.run.error}
+            </p>
+          ) : null}
+
+          {processingError ? (
+            <p className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-destructive text-xs">
+              {t('learning.imageStudio.cropFailed')}: {processingError}
+            </p>
+          ) : null}
+
+          <section className="relative grid min-h-64 place-items-center overflow-hidden rounded-2xl border border-stone-800 bg-stone-950 p-3">
+            {visibleImage ? (
+              <>
+                <button
+                  aria-label={t('learning.imageStudio.openViewer')}
+                  className="group grid w-full place-items-center"
+                  onClick={() => setViewerOpen(true)}
+                  type="button"
+                >
+                  <RemoteImage
+                    alt={t('learning.imageStudio.generatedImage')}
+                    className="max-h-[26rem] max-w-full rounded-xl object-contain shadow-2xl transition duration-200 group-hover:brightness-90"
+                    src={visibleImage}
+                  />
+                  <span className="absolute inset-0 grid place-items-center bg-black/0 opacity-0 transition group-hover:bg-black/20 group-hover:opacity-100">
+                    <span className="flex items-center gap-1.5 rounded-full bg-black/75 px-3 py-2 text-white text-xs shadow-xl">
+                      <Expand className="size-3.5" /> {t('learning.imageStudio.clickToView')}
+                    </span>
+                  </span>
+                </button>
+                <div className="absolute right-3 bottom-3 flex items-center gap-2">
+                  {visibleImageIsPartial ? (
+                    <span className="rounded-full bg-black/75 px-2.5 py-1 text-[10px] text-white">
+                      {t('learning.imageStudio.partialPreview')}
+                    </span>
+                  ) : null}
+                  <Button
+                    onClick={() => void exportImage(visibleImage)}
+                    size="sm"
+                    variant="secondary"
+                  >
+                    <Download /> {t('learning.imageStudio.downloadPng')}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="max-w-52 text-center text-stone-400">
+                <ImageIcon className="mx-auto size-8 text-amber-400" />
+                <p className="mt-3 font-medium text-sm text-stone-200">
+                  {t('learning.imageStudio.emptyTitle')}
+                </p>
+                <p className="mt-1 text-xs leading-5">
+                  {t('learning.imageStudio.emptyDescription')}
+                </p>
+              </div>
+            )}
+          </section>
         </div>
       </div>
+
+      <LearningImageViewer
+        alt={t('learning.imageStudio.generatedImage')}
+        onDownload={() => {
+          if (visibleImage) {
+            void exportImage(visibleImage)
+          }
+        }}
+        onOpenChange={setViewerOpen}
+        open={viewerOpen}
+        source={visibleImage}
+      />
     </div>
   )
 }

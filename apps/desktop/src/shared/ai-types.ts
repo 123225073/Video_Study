@@ -168,6 +168,8 @@ export type AiImageRunStage = 'idle' | 'requesting' | 'generating' | 'partial' |
 
 /** Immutable user intent captured when an image run starts. */
 export interface AiImageRunContext {
+  /** Exact user-facing ratio; the renderer crops the compatible API size to this ratio. */
+  aspectRatio?: '1:1' | '3:4' | '4:5' | '9:16' | '16:9'
   kind: 'cover' | 'logic' | 'quote'
   optimizedPrompt: string
   quote: string

@@ -435,7 +435,13 @@ const emit = (run: ActiveImageRun, update: Partial<AiImageRunSnapshot>): void =>
 /** Start an image request and return immediately; progress arrives on `ai:image-run`. */
 export const startImageRun = (input: AiImageRunInput): AiImageRunSnapshot => {
   const prompt = input.context.optimizedPrompt.trim().slice(0, MAX_PROMPT_CHARS)
+  const aspectRatio = ['1:1', '3:4', '4:5', '9:16', '16:9'].includes(
+    input.context.aspectRatio ?? ''
+  )
+    ? input.context.aspectRatio
+    : undefined
   const context: AiImageRunContext = Object.freeze({
+    ...(aspectRatio ? { aspectRatio } : {}),
     kind: input.context.kind,
     optimizedPrompt: prompt,
     quote: input.context.quote.trim().slice(0, MAX_QUOTE_CHARS)

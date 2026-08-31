@@ -5,6 +5,14 @@ export const STUDY_SCENES = ['watch', 'note', 'output'] as const
 export type StudyScene = (typeof STUDY_SCENES)[number]
 
 export interface StudyStudioLabels {
+  layout: {
+    collapseNote: string
+    collapseOutput: string
+    expandNote: string
+    expandOutput: string
+    resizeNote: string
+    resizeOutput: string
+  }
   regions: Record<'note' | 'output' | 'transcript' | 'video', string>
   sceneDescriptions: Record<StudyScene, string>
   scenes: Record<StudyScene, string>

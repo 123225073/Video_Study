@@ -343,11 +343,8 @@ export function TranscriptSidePanel({
       <div className="flex min-h-0 flex-1 flex-col" data-vt="transcript-tab">
         {tab === 'learning' ? (
           <LearningNotebookPane
-            currentSegmentId={currentSegmentId}
-            currentTimeMs={currentTimeMs}
             downloadId={downloadId}
             onSeek={onSeek}
-            segments={segments}
             sourceTitle={sourceTitle}
             sourceUrl={sourceUrl}
           />

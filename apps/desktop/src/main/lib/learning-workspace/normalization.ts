@@ -354,6 +354,7 @@ export const normalizeNotebook = (value: unknown): LearningWorkspace | null => {
     createdAt,
     downloadId,
     goal: normalizedText(candidate.goal),
+    migratedLegacyNoteIds: normalizedStringList(candidate.migratedLegacyNoteIds),
     notes: uniqueById(
       Array.isArray(candidate.notes)
         ? candidate.notes

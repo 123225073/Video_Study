@@ -221,6 +221,7 @@ export class LearningStore {
         createdAt: existing?.createdAt ?? now,
         downloadId: id,
         goal: input.goal ?? existing?.goal ?? '',
+        migratedLegacyNoteIds: input.migratedLegacyNoteIds ?? existing?.migratedLegacyNoteIds ?? [],
         notes: input.notes ?? existing?.notes ?? [],
         personalNote: input.personalNote ?? existing?.personalNote ?? '',
         obsidian: input.obsidian ?? existing?.obsidian,

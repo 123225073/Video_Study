@@ -1,3 +1,4 @@
+import { InteractiveLearningMindmap } from '@renderer/components/learning/InteractiveLearningMindmap'
 import { LearningImageStudio } from '@renderer/components/learning/LearningImageStudio'
 import { TranscriptPromptThinking } from '@renderer/components/transcript/TranscriptPromptThinking'
 import { Button } from '@renderer/components/ui/button'
@@ -124,10 +125,10 @@ const MODULES: LearningModuleDefinition[] = [
     workflowId: 'translation'
   },
   {
-    description: '封面、逻辑图与金句图',
+    description: '按用途、风格和比例生成一张可直接使用的图片',
     icon: ImageIcon,
     id: 'image',
-    label: 'AI 生图',
+    label: '一图胜千言',
     promptId: null
   }
 ]
@@ -659,6 +660,7 @@ export function LearningWorkbenchPane({
         <div className="min-h-0 flex-1">
           <LearningImageStudio
             downloadId={downloadId}
+            key={downloadId}
             selectedQuote={selectionIntent === 'quote-card' ? selectedQuote : null}
             sourceTitle={sourceTitle}
             transcriptText={transcriptText}
@@ -741,7 +743,9 @@ export function LearningWorkbenchPane({
               </div>
             ) : null}
             <div ref={outputRef}>
-              {output ? (
+              {moduleId === 'diagram' && output && !running && !diagramValidationError ? (
+                <InteractiveLearningMindmap onSeek={onSeek} source={output} />
+              ) : output ? (
                 <div className="learning-ai-output rounded-xl border border-border/70 bg-background p-4 shadow-sm [&_a]:cursor-pointer [&_a]:text-amber-700 [&_a]:underline-offset-4 hover:[&_a]:underline">
                   <Response className="text-sm leading-6" isAnimating={running}>
                     {displayOutput}

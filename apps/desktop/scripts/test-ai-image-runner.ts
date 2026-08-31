@@ -17,9 +17,10 @@ const imageInput = (
   downloadId: string,
   prompt: string,
   kind: AiImageRunInput['context']['kind'] = 'logic',
-  quote = ''
+  quote = '',
+  aspectRatio?: NonNullable<AiImageRunInput['context']['aspectRatio']>
 ): AiImageRunInput => ({
-  context: { kind, optimizedPrompt: prompt, quote },
+  context: { ...(aspectRatio ? { aspectRatio } : {}), kind, optimizedPrompt: prompt, quote },
   downloadId
 })
 const resolvePublicHost = async (): Promise<readonly string[]> => ['93.184.216.34']
@@ -231,7 +232,7 @@ const runTests = async (): Promise<void> => {
     assert.equal(publicSnapshot.activeProviderId, provider.id)
     assert.equal(JSON.stringify(publicSnapshot).includes(TEST_API_KEY), false)
 
-    const streamStart = startImageRun(imageInput('stream', 'stream-test', 'cover'))
+    const streamStart = startImageRun(imageInput('stream', 'stream-test', 'cover', '', '16:9'))
     assert.equal(streamStart.status, 'running')
     assert.equal(countActiveAiRunsByKind('image'), 1)
     const partial = await waitFor(
@@ -246,6 +247,7 @@ const runTests = async (): Promise<void> => {
     assert.equal(streamed.partialImageIndex, 1)
     assert.equal(streamed.imageDataUrl, `data:image/png;base64,${imageBase64('final')}`)
     assert.deepEqual(streamed.context, {
+      aspectRatio: '16:9',
       kind: 'cover',
       optimizedPrompt: 'stream-test',
       quote: ''

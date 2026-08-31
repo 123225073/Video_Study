@@ -51,7 +51,7 @@ export function About() {
           </div>
           <div className="text-right">
             <p className="text-muted-foreground text-xs">{t('about.version')}</p>
-            <p className="mt-1 font-mono font-semibold text-lg">v{version || '3.3.0'}</p>
+            <p className="mt-1 font-mono font-semibold text-lg">v{version || '3.4.0'}</p>
           </div>
         </div>
       </section>

@@ -5,6 +5,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { LearningStore } from '../src/main/lib/learning-store'
 import { ObsidianExporter } from '../src/main/lib/learning-workspace/obsidian-exporter'
+import { migrateLegacyNotesToNotebook } from '../src/renderer/src/lib/learning-notebook'
 
 const ONE_PIXEL_PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
@@ -79,6 +80,111 @@ const main = async (): Promise<void> => {
     assert.equal(legacyNoteNotebook.personalNote, '')
     assert.equal(legacyNoteNotebook.notes[0]?.highlightColor, null)
     assert.deepEqual(legacyNoteNotebook.notes[0]?.sourceSegmentIds, [])
+
+    const legacyMergeNotes = [
+      legacyNoteNotebook.notes[0],
+      {
+        completed: false,
+        createdAt: Date.now(),
+        highlightColor: 'amber' as const,
+        id: 'highlight-only',
+        kind: 'bookmark' as const,
+        quote: '只高亮、不应迁移成笔记',
+        sourceEndOffset: 5,
+        sourceSegmentIds: ['segment-highlight'],
+        sourceStartOffset: 0,
+        text: '',
+        timestampMs: 3000,
+        updatedAt: Date.now()
+      }
+    ].filter((note) => note !== undefined)
+    const mergedLegacyNotes = migrateLegacyNotesToNotebook(
+      '## 用户原有内容\n\n必须完整保留。',
+      legacyMergeNotes,
+      [],
+      '旧版原文备注'
+    )
+    assert.match(mergedLegacyNotes.markdown, /## 用户原有内容\n\n必须完整保留。/u)
+    assert.match(mergedLegacyNotes.markdown, /\[▶ 0:02\]\(#fengsha-seek-2500\)/u)
+    assert.match(mergedLegacyNotes.markdown, /> 旧版原文/u)
+    assert.match(mergedLegacyNotes.markdown, /旧版备注/u)
+    assert.doesNotMatch(mergedLegacyNotes.markdown, /只高亮、不应迁移成笔记/u)
+    assert.doesNotMatch(mergedLegacyNotes.markdown, /fengsha-legacy/u)
+    assert.deepEqual(mergedLegacyNotes.migratedNoteIds, ['legacy-note-1'])
+    assert.deepEqual(
+      migrateLegacyNotesToNotebook(
+        mergedLegacyNotes.markdown,
+        legacyMergeNotes,
+        mergedLegacyNotes.migratedNoteIds,
+        '旧版原文备注'
+      ),
+      mergedLegacyNotes,
+      'Legacy note migration must be idempotent and marker-free'
+    )
+    const incrementallyMerged = migrateLegacyNotesToNotebook(
+      mergedLegacyNotes.markdown,
+      [
+        ...legacyMergeNotes,
+        {
+          completed: false,
+          createdAt: Date.now(),
+          id: 'legacy-note-2',
+          kind: 'insight' as const,
+          quote: '后来发现的旧摘录',
+          text: '**补充理解**',
+          timestampMs: 61_000,
+          updatedAt: Date.now()
+        }
+      ],
+      mergedLegacyNotes.migratedNoteIds,
+      '旧版原文备注'
+    )
+    assert.equal(incrementallyMerged.markdown.match(/旧版备注/gu)?.length, 1)
+    assert.match(incrementallyMerged.markdown, /\[▶ 1:01\]\(#fengsha-seek-61000\)/u)
+    assert.match(incrementallyMerged.markdown, /\*\*补充理解\*\*/u)
+    assert.deepEqual(incrementallyMerged.migratedNoteIds, ['legacy-note-1', 'legacy-note-2'])
+    const afterUserDeletion = migrateLegacyNotesToNotebook(
+      '## 用户主动删除了迁移内容',
+      legacyMergeNotes,
+      mergedLegacyNotes.migratedNoteIds,
+      '旧版原文备注'
+    )
+    assert.equal(afterUserDeletion.markdown, '## 用户主动删除了迁移内容')
+
+    const developmentMarkerMigration = migrateLegacyNotesToNotebook(
+      [
+        '## 用户内容',
+        '',
+        '<!-- fengsha-legacy-notes:start -->',
+        '',
+        '## 旧版原文备注',
+        '',
+        '<!-- fengsha-legacy-note:legacy-note-1 -->',
+        '',
+        '### [▶ 0:02](#fengsha-seek-2500)',
+        '',
+        '> 旧版原文',
+        '',
+        '旧版备注',
+        '',
+        '<!-- fengsha-legacy-notes:end -->',
+        ''
+      ].join('\n'),
+      legacyMergeNotes,
+      [],
+      '旧版原文备注'
+    )
+    assert.doesNotMatch(developmentMarkerMigration.markdown, /<!--/u)
+    assert.equal(developmentMarkerMigration.markdown.match(/旧版备注/gu)?.length, 1)
+    assert.deepEqual(developmentMarkerMigration.migratedNoteIds, ['legacy-note-1'])
+
+    const persistedMigration = await store.save({
+      downloadId: 'legacy-note',
+      migratedLegacyNoteIds: incrementallyMerged.migratedNoteIds,
+      personalNote: incrementallyMerged.markdown
+    })
+    assert.deepEqual(persistedMigration.migratedLegacyNoteIds, ['legacy-note-1', 'legacy-note-2'])
+    assert.doesNotMatch(persistedMigration.personalNote, /<!--/u)
 
     const corrected = await store.applyCorrection({
       correctedText: '这是人工校对后的逐字稿',

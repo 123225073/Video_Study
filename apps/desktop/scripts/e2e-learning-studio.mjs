@@ -38,12 +38,28 @@ const assertContained = async (child, parent, label) => {
 }
 
 const dismissTransientToasts = async (page) => {
-  await page.locator('[data-sonner-toast]').evaluateAll((toasts) => {
-    for (const toast of toasts) {
-      toast.querySelector('[data-close-button]')?.click()
-      toast.remove()
+  const closeButtons = page.locator('[data-sonner-toast] [data-close-button]')
+  for (let index = (await closeButtons.count()) - 1; index >= 0; index -= 1) {
+    await closeButtons.nth(index).click({ force: true })
+  }
+  await page
+    .locator('[data-sonner-toast][data-visible="true"]')
+    .first()
+    .waitFor({ state: 'hidden', timeout: 5000 })
+    .catch(() => undefined)
+}
+
+const waitForClipboardText = async (app, expected) => {
+  const deadline = Date.now() + 2000
+  let actual = ''
+  while (Date.now() < deadline) {
+    actual = (await app.evaluate(({ clipboard }) => clipboard.readText())).replaceAll('\r\n', '\n')
+    if (actual === expected) {
+      return actual
     }
-  })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  return actual
 }
 
 await fs.mkdir(outputPath, { recursive: true })
@@ -107,7 +123,7 @@ await fs.writeFile(
               attachmentPath: null,
               completed: false,
               content:
-                '```mermaid\nmindmap\n  root((视频学习))\n    evidence[原始证据 00:00:05]\n    形成可复用洞察\n```',
+                '```mermaid\nmindmap\n  root((视频学习))\n    证据链\n      原始证据 00:00:05\n      深层结论\n    形成可复用洞察\n```',
               createdAt: fixtureNow + 1,
               id: 'validated-learning-diagram',
               kind: 'ai',
@@ -115,6 +131,19 @@ await fs.writeFile(
               sourceSegmentIds: ['ai-module:diagram'],
               timestampMs: null,
               updatedAt: fixtureNow + 1
+            },
+            {
+              attachmentPath:
+                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+              completed: false,
+              content: '端到端测试生成图',
+              createdAt: fixtureNow + 2,
+              id: 'generated-learning-image',
+              kind: 'screenshot',
+              quote: 'AI 生成的学习图片',
+              sourceSegmentIds: ['generated-image:visual'],
+              timestampMs: null,
+              updatedAt: fixtureNow + 2
             }
           ],
           createdAt: fixtureNow,
@@ -434,6 +463,64 @@ try {
     await page.locator('[data-study-region="note"]:visible').waitFor()
     await page.locator('[data-study-region="output"]:visible').waitFor()
 
+    const outputRegion = page.locator('[data-study-region="output"]:visible')
+    const noteRegion = page.locator('[data-study-region="note"]:visible')
+    await page.getByRole('button', { exact: true, name: '隐藏学习笔记' }).click()
+    await page.locator('[data-study-region="note"]:visible').waitFor({ state: 'hidden' })
+    await page.getByRole('button', { exact: true, name: '展开学习笔记' }).click()
+    await noteRegion.waitFor()
+    await page.getByRole('button', { exact: true, name: '隐藏 AI 工作区' }).click()
+    await page.locator('[data-study-region="output"]:visible').waitFor({ state: 'hidden' })
+    await page.getByRole('button', { exact: true, name: '展开 AI 工作区' }).click()
+    await outputRegion.waitFor()
+    const outputWidthBeforeNudge = (await outputRegion.boundingBox())?.width ?? 0
+    const storedOutputWidthBeforeNudge = await page.evaluate(() => {
+      const value = JSON.parse(
+        window.localStorage.getItem('fengsha-study-studio-layout-v1') ?? '{}'
+      )
+      return Number(value.leftWidth)
+    })
+    const outputResizeHandle = page.getByRole('button', {
+      exact: true,
+      name: '调整 AI 工作区宽度'
+    })
+    await outputResizeHandle.focus()
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.getAttribute('aria-label')),
+      '调整 AI 工作区宽度'
+    )
+    const outputResizeKey = storedOutputWidthBeforeNudge >= 600 ? 'ArrowLeft' : 'ArrowRight'
+    await page.keyboard.press(outputResizeKey)
+    await page.waitForFunction(
+      (before) => {
+        const value = JSON.parse(
+          window.localStorage.getItem('fengsha-study-studio-layout-v1') ?? '{}'
+        )
+        return Number(value.leftWidth) !== before
+      },
+      storedOutputWidthBeforeNudge,
+      { timeout: 2000 }
+    )
+    const outputWidthAfterNudge = (await outputRegion.boundingBox())?.width ?? 0
+    const storedOutputWidthAfterNudge = await page.evaluate(() => {
+      const value = JSON.parse(
+        window.localStorage.getItem('fengsha-study-studio-layout-v1') ?? '{}'
+      )
+      return Number(value.leftWidth)
+    })
+    assert.ok(
+      outputResizeKey === 'ArrowRight'
+        ? storedOutputWidthAfterNudge > storedOutputWidthBeforeNudge
+        : storedOutputWidthAfterNudge < storedOutputWidthBeforeNudge,
+      'keyboard resizing should persist the requested AI workspace width'
+    )
+    assert.ok(
+      outputResizeKey === 'ArrowRight'
+        ? outputWidthAfterNudge >= outputWidthBeforeNudge
+        : outputWidthAfterNudge <= outputWidthBeforeNudge,
+      'keyboard resizing must visually follow the requested direction'
+    )
+
     const tokenTabStops = await page
       .locator('[data-caption-token="true"]')
       .evaluateAll(
@@ -506,12 +593,34 @@ try {
       )
       await page.locator('[data-testid="transcript-selection-toolbar"]').waitFor()
     }
+    await selectTranscriptOffsets(0, 0, 0, 4)
+    const movableToolbar = page.locator('[data-testid="transcript-selection-toolbar"]')
+    const toolbarBeforeDrag = await movableToolbar.boundingBox()
+    assert.ok(toolbarBeforeDrag, 'selection toolbar should have visible bounds before dragging')
+    const viewportSize = await page.evaluate(() => ({ height: innerHeight, width: innerWidth }))
+    const dragX = toolbarBeforeDrag.x > viewportSize.width / 2 ? -80 : 80
+    const dragY = toolbarBeforeDrag.y > viewportSize.height / 2 ? -40 : 40
+    await page.mouse.move(toolbarBeforeDrag.x + 12, toolbarBeforeDrag.y + 18)
+    await page.mouse.down()
+    await page.mouse.move(toolbarBeforeDrag.x + 12 + dragX, toolbarBeforeDrag.y + 18 + dragY, {
+      steps: 5
+    })
+    await page.mouse.up()
+    const toolbarAfterDrag = await movableToolbar.boundingBox()
+    assert.ok(toolbarAfterDrag, 'selection toolbar should remain visible after dragging')
+    assert.ok(
+      Math.abs(toolbarAfterDrag.x - toolbarBeforeDrag.x) > 30 ||
+        Math.abs(toolbarAfterDrag.y - toolbarBeforeDrag.y) > 20,
+      'selection toolbar should move when dragged'
+    )
+    await page.locator('.study-studio-header').click({ position: { x: 20, y: 20 } })
+    await movableToolbar.waitFor({ state: 'detached' })
     await selectTranscriptOffsets(0, 2, 0, 5)
     await page
       .locator('[data-testid="transcript-selection-toolbar"]')
       .getByRole('button', { exact: true, name: '复制' })
       .click()
-    assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), '视频不')
+    assert.equal(await waitForClipboardText(app, '视频不'), '视频不')
     await page.waitForTimeout(100)
     await selectTranscriptOffsets(0, 2, 0, 5)
     await page
@@ -551,7 +660,10 @@ try {
       .getByRole('button', { exact: true, name: '复制' })
       .click()
     assert.equal(
-      (await app.evaluate(({ clipboard }) => clipboard.readText())).replaceAll('\r\n', '\n'),
+      await waitForClipboardText(
+        app,
+        '视频不应该看完就忘，而应该留下可以搜索并跳回原片的逐字稿。\n重要概'
+      ),
       '视频不应该看完就忘，而应该留下可以搜索并跳回原片的逐字稿。\n重要概'
     )
     await selectTranscriptOffsets(0, 2, 1, 3)
@@ -595,17 +707,38 @@ try {
       'corrected FollowText must not retain tokens from the original ASR words'
     )
     const personalNote = '立即离开页面也不能丢失这条个人 Markdown 笔记。'
-    const noteRegion = page.locator('[data-study-region="note"]:visible')
     await noteRegion.getByLabel('我的笔记').fill(personalNote)
+    await dismissTransientToasts(page)
+    await selectTranscriptOffsets(0, 0, 0, 4)
+    await page
+      .locator('[data-testid="transcript-selection-toolbar"]')
+      .getByRole('button', { exact: true, name: '加入笔记' })
+      .click()
+    const visibleNotebookEditor = noteRegion.getByTestId('learning-notebook-editor')
+    const noteDeadline = Date.now() + 10_000
+    let capturedNotebookValue = ''
+    while (Date.now() < noteDeadline) {
+      capturedNotebookValue = await visibleNotebookEditor.inputValue()
+      if (
+        capturedNotebookValue.includes('立即离开页面') &&
+        capturedNotebookValue.includes('[▶ 0:00]') &&
+        capturedNotebookValue.includes('> 学习视频')
+      ) {
+        break
+      }
+      await page.waitForTimeout(100)
+    }
+    assert.ok(
+      capturedNotebookValue.includes('立即离开页面') &&
+        capturedNotebookValue.includes('[▶ 0:00]') &&
+        capturedNotebookValue.includes('> 学习视频'),
+      `visible notebook did not receive the selected transcript quote: ${capturedNotebookValue}`
+    )
     await noteRegion.getByRole('button', { exact: true, name: '预览' }).click()
     await page.getByText(personalNote, { exact: true }).waitFor()
-    await noteRegion.getByRole('button', { exact: true, name: '编辑' }).click()
-    await page.getByPlaceholder('写下你对这段原文的备注……').fill('这段原文需要保留时间依据。')
-    await page.getByRole('button', { name: /保存原文备注/u }).click()
-    await page.getByText('这段原文需要保留时间依据。', { exact: true }).waitFor()
+    await page.getByText('学习视频', { exact: true }).waitFor()
     await page.screenshot({ fullPage: true, path: path.join(outputPath, '04-note-scene.png') })
 
-    const outputRegion = page.locator('[data-study-region="output"]:visible')
     await outputRegion.waitFor()
     for (const moduleName of [
       '思维导图',
@@ -616,21 +749,54 @@ try {
       '文字大纲',
       'AI 播客',
       '翻译润色',
-      'AI 生图'
+      '一图胜千言'
     ]) {
       await outputRegion.getByRole('button', { exact: true, name: moduleName }).waitFor()
     }
     await outputRegion.getByRole('button', { exact: true, name: '思维导图' }).click()
-    await outputRegion
-      .locator('svg')
-      .filter({ hasText: /原始证据/u })
-      .waitFor({ timeout: 15_000 })
-    await outputRegion.getByRole('button', { exact: true, name: 'AI 生图' }).click()
-    await outputRegion.getByLabel('图片需求').waitFor()
-    await outputRegion.getByRole('tab', { exact: true, name: '金句图' }).click()
-    await outputRegion.getByLabel('金句原文').fill('真正的学习，是随时能回到原始证据。')
-    await outputRegion.getByLabel('图片需求').fill('黑金编辑风，留出中文排版安全区。')
-    await outputRegion.getByRole('button', { exact: true, name: 'AI 优化提示词' }).waitFor()
+    const mindmap = outputRegion.getByTestId('interactive-learning-mindmap')
+    await mindmap.waitFor({ timeout: 15_000 })
+    await mindmap.getByRole('button', { exact: true, name: '展开“证据链”' }).waitFor()
+    const collapsedNodeCount = await mindmap.locator('[data-mindmap-node-id]').count()
+    assert.equal(
+      await mindmap.getByText('深层结论', { exact: true }).count(),
+      0,
+      'deeper nodes should stay hidden until the learner expands a branch'
+    )
+    await mindmap.getByRole('button', { exact: true, name: '展开“证据链”' }).click()
+    await mindmap.getByText('深层结论', { exact: true }).waitFor()
+    const expandedNodeCount = await mindmap.locator('[data-mindmap-node-id]').count()
+    assert.ok(
+      expandedNodeCount > collapsedNodeCount,
+      'expanding a mind-map branch should reveal deeper nodes'
+    )
+    await mindmap.getByRole('button', { exact: true, name: '收起“证据链”' }).click()
+    await page.waitForTimeout(100)
+    assert.ok(
+      (await mindmap.locator('[data-mindmap-node-id]').count()) < expandedNodeCount,
+      'collapsing a mind-map branch should hide deeper nodes'
+    )
+    await mindmap.getByRole('button', { exact: true, name: '展开“证据链”' }).click()
+    await mindmap.getByText('深层结论', { exact: true }).waitFor()
+    await page.screenshot({ fullPage: true, path: path.join(outputPath, '04b-mindmap.png') })
+    await outputRegion.getByRole('button', { exact: true, name: '一图胜千言' }).click()
+    await outputRegion.getByLabel('这张图需要表达什么？').fill('黑金编辑风，留出中文排版安全区。')
+    await outputRegion.getByRole('button', { exact: true, name: '16:9 画面比例' }).click()
+    assert.equal(
+      await outputRegion
+        .getByRole('button', { exact: true, name: '16:9 画面比例' })
+        .getAttribute('aria-pressed'),
+      'true'
+    )
+    await outputRegion.getByRole('button', { name: /AI 提示词优化/u }).waitFor()
+    await outputRegion.getByRole('button', { exact: true, name: '打开生成图片查看器' }).click()
+    const imageViewer = page.getByRole('dialog')
+    await imageViewer.waitFor()
+    await imageViewer.getByRole('button', { exact: true, name: '放大' }).click()
+    await imageViewer.getByText('125%', { exact: true }).waitFor()
+    await page.screenshot({ fullPage: true, path: path.join(outputPath, '05-image-viewer.png') })
+    await page.keyboard.press('Escape')
+    await imageViewer.waitFor({ state: 'hidden' })
     await page.screenshot({ fullPage: true, path: path.join(outputPath, '05-output-scene.png') })
 
     await page.evaluate(() => {
@@ -642,8 +808,13 @@ try {
       .first()
       .click()
     await page.locator('[data-study-scene]').waitFor({ timeout: 30_000 })
+    const reopenedNoteRegion = page.locator('[data-study-region="note"]:visible')
+    await reopenedNoteRegion.getByLabel('我的笔记').waitFor({ timeout: 10_000 })
+    assert.match(await reopenedNoteRegion.getByLabel('我的笔记').inputValue(), /立即离开页面/u)
+    assert.match(await reopenedNoteRegion.getByLabel('我的笔记').inputValue(), /> 学习视频/u)
+    await reopenedNoteRegion.getByRole('button', { exact: true, name: '预览' }).click()
     await page.getByText(personalNote, { exact: true }).waitFor({ timeout: 10_000 })
-    await page.getByText('这段原文需要保留时间依据。', { exact: true }).waitFor({ timeout: 10_000 })
+    await page.getByText('学习视频', { exact: true }).waitFor({ timeout: 10_000 })
     await page.evaluate(() => document.documentElement.classList.add('dark'))
     await page.waitForTimeout(100)
     await page.screenshot({
@@ -672,7 +843,9 @@ try {
   await page.evaluate(() => document.documentElement.classList.remove('dark'))
 
   await app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0]?.setSize(900, 700)
+    const window = BrowserWindow.getAllWindows()[0]
+    window?.unmaximize()
+    window?.setSize(900, 700)
   })
   await page.waitForTimeout(250)
   const compactOverflow = await page.evaluate(
@@ -690,8 +863,8 @@ try {
     await compactContinue.click()
     await page.locator('[data-study-scene]').waitFor({ timeout: 30_000 })
     const compactShell = page.locator('[data-study-scene]')
-    const compactWatch = page.locator('[data-scene="watch"]')
-    const compactNoteScene = page.locator('[data-scene="note"]')
+    const compactWatch = page.locator('[data-scene="watch"]:visible')
+    const compactNoteScene = page.locator('[data-scene="note"]:visible')
     await compactWatch.click()
     await compactShell.evaluate((element) => {
       element.scrollTop = 0
@@ -708,7 +881,7 @@ try {
       fullPage: true,
       path: path.join(outputPath, '08-note-scene-compact.png')
     })
-    await page.locator('[data-scene="output"]').click()
+    await page.locator('[data-scene="output"]:visible').click()
     const compactOutput = page.locator('[data-study-region="output"]:visible')
     await compactOutput.waitFor()
     await page.waitForFunction(
@@ -725,8 +898,8 @@ try {
       path: path.join(outputPath, '09-output-scene-compact.png')
     })
 
-    await compactOutput.getByRole('button', { exact: true, name: 'AI 生图' }).click()
-    await compactOutput.getByLabel('图片需求').waitFor()
+    await compactOutput.getByRole('button', { exact: true, name: '一图胜千言' }).click()
+    await compactOutput.getByLabel('这张图需要表达什么？').waitFor()
   }
 
   assert.deepEqual(pageErrors, [])

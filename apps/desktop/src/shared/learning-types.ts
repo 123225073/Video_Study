@@ -162,6 +162,8 @@ export interface LearningNotebook {
   createdAt: number
   downloadId: string
   goal: string
+  /** Legacy timestamped notes already copied into the unified notebook. */
+  migratedLegacyNoteIds?: string[]
   notes: LearningNote[]
   /** Free-form Markdown written by the learner, independent from timestamped transcript notes. */
   personalNote?: string
@@ -179,6 +181,7 @@ export interface LearningNotebook {
 export interface LearningWorkspace extends LearningNotebook {
   aiArtifacts: LearningAiArtifact[]
   blocks: LearningBlock[]
+  migratedLegacyNoteIds: string[]
   obsidian: LearningObsidianState
   personalNote: string
   scene: LearningScene
@@ -194,6 +197,8 @@ export interface LearningNotebookWriteInput {
   downloadId: string
   /** Patch semantics: omitted fields retain the latest persisted value. */
   goal?: string
+  /** Patch semantics: omitted fields retain the latest persisted value. */
+  migratedLegacyNoteIds?: string[]
   notes?: LearningNote[]
   /** Patch semantics: omitted fields retain the latest persisted value. */
   personalNote?: string

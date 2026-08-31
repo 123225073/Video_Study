@@ -1,11 +1,34 @@
+import {
+  clampStudySideWidth,
+  parseStudyStudioLayout,
+  STUDY_STUDIO_LAYOUT_KEY,
+  type StudyStudioLayout
+} from '@renderer/lib/study-studio/layout'
 import type {
   StudyScene,
   StudyStudioLabels,
   StudyStudioSlots
 } from '@renderer/lib/study-studio/types'
 import { cn } from '@renderer/lib/utils'
-import { BookOpenText, Clapperboard, PenLine } from 'lucide-react'
-import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import {
+  BookOpenText,
+  Clapperboard,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  PenLine
+} from 'lucide-react'
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+  useState
+} from 'react'
 
 interface StudySceneSwitcherProps {
   labels: StudyStudioLabels
@@ -83,18 +106,27 @@ export function StudySceneSwitcher({ labels, onChange, scene }: StudySceneSwitch
 interface StudioRegionProps {
   children: ReactNode
   className?: string
+  collapsedOnDesktop?: boolean
   hidden?: boolean
   label: string
   region: keyof StudyStudioSlots
 }
 
-function StudioRegion({ children, className, hidden = false, label, region }: StudioRegionProps) {
+function StudioRegion({
+  children,
+  className,
+  collapsedOnDesktop = false,
+  hidden = false,
+  label,
+  region
+}: StudioRegionProps) {
   return (
     <section
       aria-label={label}
       className={cn(
         'study-studio-region relative min-h-0 min-w-0 scroll-mt-20 overflow-hidden rounded-xl border border-stone-300/70 bg-background shadow-[0_18px_48px_-34px_rgba(15,15,12,.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70 focus-visible:ring-inset dark:border-white/10',
         hidden && 'hidden',
+        collapsedOnDesktop && 'xl:!hidden',
         className
       )}
       data-study-region={region}
@@ -102,6 +134,71 @@ function StudioRegion({ children, className, hidden = false, label, region }: St
     >
       <div className="size-full min-h-0">{children}</div>
     </section>
+  )
+}
+
+interface LayoutHandleProps {
+  collapsed: boolean
+  collapseLabel: string
+  expandLabel: string
+  onDrag: (event: PointerEvent<HTMLButtonElement>) => void
+  onNudge: (delta: number) => void
+  onToggle: () => void
+  resizeLabel: string
+  side: 'left' | 'right'
+}
+
+function LayoutHandle({
+  collapsed,
+  collapseLabel,
+  expandLabel,
+  onDrag,
+  onNudge,
+  onToggle,
+  resizeLabel,
+  side
+}: LayoutHandleProps) {
+  const CollapseIcon = side === 'left' ? PanelLeftClose : PanelRightClose
+  const ExpandIcon = side === 'left' ? PanelLeftOpen : PanelRightOpen
+  const Icon = collapsed ? ExpandIcon : CollapseIcon
+  return (
+    <div
+      className={cn(
+        'group relative z-10 hidden min-h-0 items-start justify-center xl:flex',
+        side === 'left' ? 'xl:col-start-2' : 'xl:col-start-4',
+        'xl:row-span-2 xl:row-start-1'
+      )}
+      data-study-resizer={side}
+    >
+      <button
+        aria-label={resizeLabel}
+        className="absolute inset-0 cursor-col-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70"
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+            event.preventDefault()
+            const visualDirection = event.key === 'ArrowRight' ? 1 : -1
+            onNudge(side === 'left' ? visualDirection : -visualDirection)
+          }
+        }}
+        onPointerDown={onDrag}
+        title={resizeLabel}
+        type="button"
+      />
+      <span className="mt-12 h-[calc(100%-6rem)] w-px rounded-full bg-stone-300/70 transition group-hover:w-0.5 group-hover:bg-amber-400 dark:bg-white/12" />
+      <button
+        aria-label={collapsed ? expandLabel : collapseLabel}
+        className="absolute top-2 flex size-7 cursor-pointer items-center justify-center rounded-full border border-stone-300/80 bg-background text-stone-500 shadow-sm transition hover:border-amber-400 hover:bg-amber-50 hover:text-stone-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-white/12 dark:hover:bg-amber-300"
+        onClick={(event) => {
+          event.stopPropagation()
+          onToggle()
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+        title={collapsed ? expandLabel : collapseLabel}
+        type="button"
+      >
+        <Icon aria-hidden className="size-3.5" />
+      </button>
+    </div>
   )
 }
 
@@ -132,7 +229,24 @@ export function StudyStudio({
   const [localScene, setLocalScene] = useState<StudyScene>(defaultScene)
   const focusRegionOnChangeRef = useRef(false)
   const shellRef = useRef<HTMLElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [isDesktop, setIsDesktop] = useState(false)
+  const [layout, setLayout] = useState<StudyStudioLayout>(() =>
+    parseStudyStudioLayout(window.localStorage.getItem(STUDY_STUDIO_LAYOUT_KEY))
+  )
   const activeScene = scene ?? localScene
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1280px)')
+    const update = (): void => setIsDesktop(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem(STUDY_STUDIO_LAYOUT_KEY, JSON.stringify(layout))
+  }, [layout])
 
   useEffect(() => {
     const focusRegion = focusRegionOnChangeRef.current
@@ -160,6 +274,48 @@ export function StudyStudio({
     }
     onSceneChange?.(nextScene)
   }
+
+  const beginResize =
+    (side: 'left' | 'right') =>
+    (event: PointerEvent<HTMLButtonElement>): void => {
+      if (event.button !== 0) {
+        return
+      }
+      const grid = gridRef.current
+      if (!grid) {
+        return
+      }
+      event.currentTarget.setPointerCapture(event.pointerId)
+      const rect = grid.getBoundingClientRect()
+      const resize = (moveEvent: globalThis.PointerEvent): void => {
+        setLayout((current) => {
+          const otherWidth = side === 'left' ? current.rightWidth : current.leftWidth
+          const otherVisible = side === 'left' ? !current.rightCollapsed : !current.leftCollapsed
+          const maximum = rect.width - (otherVisible ? otherWidth : 0) - 500 - 42
+          const requested =
+            side === 'left' ? moveEvent.clientX - rect.left : rect.right - moveEvent.clientX
+          const width = clampStudySideWidth(requested, maximum)
+          return side === 'left'
+            ? { ...current, leftCollapsed: false, leftWidth: width }
+            : { ...current, rightCollapsed: false, rightWidth: width }
+        })
+      }
+      const finish = (): void => {
+        window.removeEventListener('pointermove', resize)
+        window.removeEventListener('pointerup', finish)
+        window.removeEventListener('pointercancel', finish)
+      }
+      window.addEventListener('pointermove', resize)
+      window.addEventListener('pointerup', finish, { once: true })
+      window.addEventListener('pointercancel', finish, { once: true })
+      event.preventDefault()
+    }
+
+  const desktopGridStyle: CSSProperties | undefined = isDesktop
+    ? {
+        gridTemplateColumns: `${layout.leftCollapsed ? 0 : layout.leftWidth}px 12px minmax(460px, 1fr) 12px ${layout.rightCollapsed ? 0 : layout.rightWidth}px`
+      }
+    : undefined
 
   return (
     <main
@@ -194,14 +350,17 @@ export function StudyStudio({
             'grid-cols-1 grid-rows-[minmax(260px,44vh)_minmax(240px,40vh)_minmax(320px,1fr)] lg:grid-cols-[minmax(340px,.88fr)_minmax(420px,1.12fr)] lg:grid-rows-[minmax(220px,.68fr)_minmax(220px,.52fr)]',
           activeScene === 'output' &&
             'grid-cols-1 grid-rows-[minmax(220px,36vh)_minmax(220px,34vh)_minmax(420px,1fr)] lg:grid-cols-[minmax(300px,.55fr)_minmax(520px,1.45fr)] lg:grid-rows-[minmax(220px,.54fr)_minmax(220px,.46fr)]',
-          'xl:grid-cols-[minmax(310px,.86fr)_minmax(560px,1.55fr)_minmax(300px,.78fr)] xl:grid-rows-[minmax(240px,.46fr)_minmax(280px,.54fr)]'
+          'xl:gap-x-0 xl:gap-y-3',
+          'xl:grid-cols-[minmax(310px,.86fr)_12px_minmax(560px,1.55fr)_12px_minmax(300px,.78fr)] xl:grid-rows-[minmax(240px,.46fr)_minmax(280px,.54fr)]'
         )}
+        ref={gridRef}
+        style={desktopGridStyle}
       >
         <StudioRegion
           className={cn(
             activeScene === 'note' && 'lg:col-start-1 lg:row-start-1',
             activeScene === 'output' && 'lg:col-start-1 lg:row-start-1',
-            'xl:col-start-2 xl:row-start-1 xl:block'
+            'xl:col-start-3 xl:row-start-1 xl:block'
           )}
           label={labels.regions.video}
           region="video"
@@ -212,7 +371,7 @@ export function StudyStudio({
           className={cn(
             activeScene === 'note' && 'lg:col-start-1 lg:row-start-2',
             activeScene === 'output' && 'lg:col-start-1 lg:row-start-2',
-            'xl:col-start-2 xl:row-start-2 xl:block'
+            'xl:col-start-3 xl:row-start-2 xl:block'
           )}
           label={labels.regions.transcript}
           region="transcript"
@@ -220,21 +379,59 @@ export function StudyStudio({
           {transcript}
         </StudioRegion>
         <StudioRegion
-          className="lg:col-start-2 lg:row-span-2 lg:row-start-1 xl:col-start-3 xl:row-span-2 xl:row-start-1 xl:block"
+          className="lg:col-start-2 lg:row-span-2 lg:row-start-1 xl:col-start-5 xl:row-span-2 xl:row-start-1 xl:block"
+          collapsedOnDesktop={layout.rightCollapsed}
           hidden={activeScene !== 'note'}
           label={labels.regions.note}
           region="note"
         >
           {note}
         </StudioRegion>
+        <LayoutHandle
+          collapsed={layout.rightCollapsed}
+          collapseLabel={labels.layout.collapseNote}
+          expandLabel={labels.layout.expandNote}
+          onDrag={beginResize('right')}
+          onNudge={(delta) =>
+            setLayout((current) => ({
+              ...current,
+              rightCollapsed: false,
+              rightWidth: clampStudySideWidth(current.rightWidth + delta * 16)
+            }))
+          }
+          onToggle={() =>
+            setLayout((current) => ({ ...current, rightCollapsed: !current.rightCollapsed }))
+          }
+          resizeLabel={labels.layout.resizeNote}
+          side="right"
+        />
         <StudioRegion
           className="lg:col-start-2 lg:row-span-2 lg:row-start-1 xl:col-start-1 xl:row-span-2 xl:row-start-1 xl:block"
+          collapsedOnDesktop={layout.leftCollapsed}
           hidden={activeScene !== 'output'}
           label={labels.regions.output}
           region="output"
         >
           {output}
         </StudioRegion>
+        <LayoutHandle
+          collapsed={layout.leftCollapsed}
+          collapseLabel={labels.layout.collapseOutput}
+          expandLabel={labels.layout.expandOutput}
+          onDrag={beginResize('left')}
+          onNudge={(delta) =>
+            setLayout((current) => ({
+              ...current,
+              leftCollapsed: false,
+              leftWidth: clampStudySideWidth(current.leftWidth + delta * 16)
+            }))
+          }
+          onToggle={() =>
+            setLayout((current) => ({ ...current, leftCollapsed: !current.leftCollapsed }))
+          }
+          resizeLabel={labels.layout.resizeOutput}
+          side="left"
+        />
       </div>
     </main>
   )
