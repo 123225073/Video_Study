@@ -1,6 +1,6 @@
 {
   "name": "fengsha-video-learning",
-  "version": "3.5.0",
+  "version": "3.5.1",
   "description": "Windows-first local video learning workspace with transcripts, timeline notes, subtitles, and AI study tools",
   "main": "./out/main/index.js",
   "author": "Fengsha, based on VidBee",
@@ -11,7 +11,8 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
-    "test:learning": "tsx scripts/test-learning-workspace.ts && tsx scripts/test-learning-ai-generation.ts && tsx scripts/test-learning-image-workflow.ts && tsx scripts/test-strict-mermaid-parser.ts && tsx scripts/test-interactive-mindmap.ts && tsx scripts/test-learning-deletion.ts && tsx scripts/test-media-playback-url.ts",
+    "test:learning": "tsx scripts/test-learning-workspace.ts && tsx scripts/test-learning-ai-generation.ts && tsx scripts/test-learning-image-workflow.ts && tsx scripts/test-strict-mermaid-parser.ts && tsx scripts/test-interactive-mindmap.ts && tsx scripts/test-learning-deletion.ts && tsx scripts/test-media-playback-url.ts && tsx scripts/test-transcription-queue.ts",
+    "test:transcription-queue": "tsx scripts/test-transcription-queue.ts",
     "test:ai-image": "electron -r tsx/cjs scripts/test-ai-image-runner.ts",
     "test:quit-security": "tsx scripts/test-quit-security.ts",
     "test:e2e:learning": "node scripts/e2e-learning-studio.mjs",

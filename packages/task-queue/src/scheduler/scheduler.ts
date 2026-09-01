@@ -53,6 +53,11 @@ export class Scheduler {
   )
   /** taskId → 1 currently consuming a slot. */
   private readonly running = new Set<string>()
+  /**
+   * Keep the reserved group independent from TaskStore lifetime. A running
+   * task can be removed from history before its child process reports finish.
+   */
+  private readonly runningGroupKeys = new Map<string, string>()
   /** groupKey → number of tasks currently consuming a slot. */
   private readonly perGroupRunning = new Map<string, number>()
   /** groupKey → explicit per-group cap. Null means unlimited. */
@@ -122,11 +127,7 @@ export class Scheduler {
         if (isLive(id)) {
           continue
         }
-        this.running.delete(id)
-        const task = this.opts.getTask(id)
-        if (task?.groupKey) {
-          this.decGroup(task.groupKey)
-        }
+        this.releaseReservation(id)
       }
     })
     await this.tryDispatch()
@@ -146,11 +147,7 @@ export class Scheduler {
    */
   async releaseSlot(taskId: string): Promise<void> {
     await this.mutex.runExclusive(() => {
-      if (!this.running.has(taskId)) return
-      this.running.delete(taskId)
-      const t = this.opts.getTask(taskId)
-      const groupKey = t?.groupKey
-      if (groupKey) this.decGroup(groupKey)
+      this.releaseReservation(taskId)
     })
     await this.tryDispatch()
   }
@@ -166,9 +163,7 @@ export class Scheduler {
         const victim = this.pickDemoteVictim()
         if (!victim) break
         toDemote.push(victim)
-        this.running.delete(victim)
-        const t = this.opts.getTask(victim)
-        if (t?.groupKey) this.decGroup(t.groupKey)
+        this.releaseReservation(victim)
       }
     })
     for (const id of toDemote) {
@@ -231,6 +226,7 @@ export class Scheduler {
         const t = this.opts.getTask(candidate.taskId)
         if (!t) continue
         this.running.add(candidate.taskId)
+        this.runningGroupKeys.set(candidate.taskId, t.groupKey)
         this.incGroup(t.groupKey)
         toDispatch.push(candidate.taskId)
       }
@@ -247,10 +243,7 @@ export class Scheduler {
         // the task synchronously, in which case we would already have been
         // told via `releaseSlot`. Idempotent.
         await this.mutex.runExclusive(() => {
-          if (this.running.delete(id)) {
-            const t = this.opts.getTask(id)
-            if (t?.groupKey) this.decGroup(t.groupKey)
-          }
+          this.releaseReservation(id)
         })
       }
     }
@@ -310,6 +303,18 @@ export class Scheduler {
 
   private incGroup(groupKey: string): void {
     this.perGroupRunning.set(groupKey, (this.perGroupRunning.get(groupKey) ?? 0) + 1)
+  }
+
+  private releaseReservation(taskId: string): boolean {
+    if (!this.running.delete(taskId)) {
+      return false
+    }
+    const groupKey = this.runningGroupKeys.get(taskId) ?? this.opts.getTask(taskId)?.groupKey
+    this.runningGroupKeys.delete(taskId)
+    if (groupKey) {
+      this.decGroup(groupKey)
+    }
+    return true
   }
 
   private decGroup(groupKey: string): void {
