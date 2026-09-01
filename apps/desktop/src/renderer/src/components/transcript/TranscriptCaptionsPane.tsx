@@ -20,7 +20,7 @@ import { Input } from '@renderer/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
 import { useStreamingTranscript } from '@renderer/hooks/use-streaming-transcript'
 import { shareImageFileName } from '@renderer/lib/capture-prompt-share'
-import { formatClock } from '@renderer/lib/format-clock'
+import { formatClock, formatTranscriptTimeRange } from '@renderer/lib/format-clock'
 import { ipcServices } from '@renderer/lib/ipc'
 import type {
   FloatingAnchorRect,
@@ -1869,7 +1869,7 @@ const CaptionRow = memo(function CaptionRow({
   const { t } = useTranslation()
   const speakerName = resolveSpeaker(segment.speakerId)
   const words = wordsForSegment(segment)
-  const timeLabel = formatClock(segment.startMs / 1000)
+  const timeLabel = formatTranscriptTimeRange(segment.startMs, segment.endMs)
   /**
    * From search, jump to this caption in the transcript. Otherwise seek playback.
    */

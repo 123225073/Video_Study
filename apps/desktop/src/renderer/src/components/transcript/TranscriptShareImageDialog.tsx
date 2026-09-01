@@ -230,11 +230,7 @@ export function TranscriptShareImageDialog({
             aria-label={t('learning.imageStudio.viewerDescription')}
             className={cn(
               'grid size-full touch-none place-items-start overflow-hidden',
-              panZoom.zoom > 1
-                ? panZoom.dragging
-                  ? 'cursor-grabbing'
-                  : 'cursor-grab'
-                : 'cursor-default'
+              panZoom.dragging ? 'cursor-grabbing' : 'cursor-grab'
             )}
             data-testid="transcript-share-image-preview"
             onDoubleClick={panZoom.reset}

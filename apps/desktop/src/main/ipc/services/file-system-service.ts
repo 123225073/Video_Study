@@ -7,6 +7,7 @@ import { promisify } from 'node:util'
 import { BrowserWindow, clipboard, dialog, Notification, ShareMenu, shell } from 'electron'
 import { type IpcContext, IpcMethod, IpcService } from 'electron-ipc-decorator'
 import { isSafeExternalUrl } from '../../lib/external-navigation'
+import { ffmpegManager } from '../../lib/ffmpeg-manager'
 import { mediaFileDialogFilters } from '../../lib/import-local-media'
 import { getPortableDownloadsPath, isPortableMode } from '../../portable'
 import { scopedLoggers } from '../../utils/logger'
@@ -164,6 +165,64 @@ class FileSystemService extends IpcService {
     const normalizedPath = path.normalize(this.sanitizePath(result.filePath))
     await fs.writeFile(normalizedPath, Buffer.from(new Uint8Array(options.data)))
     return { path: normalizedPath }
+  }
+
+  /**
+   * Extract the exact current frame from a local video without relying on a cross-origin canvas.
+   */
+  @IpcMethod()
+  async captureVideoFrame(
+    _context: IpcContext,
+    options: { filePath: string; timeSeconds: number }
+  ): Promise<string> {
+    const normalizedPath = path.normalize(this.sanitizePath(options.filePath))
+    const stats = await fs.stat(normalizedPath).catch(() => null)
+    if (!stats?.isFile()) {
+      throw new Error('Video file is unavailable')
+    }
+    const timeSeconds = Number.isFinite(options.timeSeconds) ? Math.max(0, options.timeSeconds) : 0
+    const ffmpegPath = await ffmpegManager.ensureInitialized()
+    const output = await new Promise<Buffer>((resolve, reject) => {
+      execFile(
+        ffmpegPath,
+        [
+          '-hide_banner',
+          '-loglevel',
+          'error',
+          '-ss',
+          timeSeconds.toFixed(3),
+          '-i',
+          normalizedPath,
+          '-map',
+          '0:v:0',
+          '-frames:v',
+          '1',
+          '-vf',
+          'scale=w=1600:h=1600:force_original_aspect_ratio=decrease',
+          '-f',
+          'image2pipe',
+          '-vcodec',
+          'png',
+          '-compression_level',
+          '6',
+          'pipe:1'
+        ],
+        { encoding: 'buffer', maxBuffer: 24 * 1024 * 1024, windowsHide: true },
+        (error, stdout) => {
+          if (error) {
+            reject(error)
+            return
+          }
+          const bytes = Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout)
+          if (bytes.length === 0) {
+            reject(new Error('Video frame extraction produced no image'))
+            return
+          }
+          resolve(bytes)
+        }
+      )
+    })
+    return `data:image/png;base64,${output.toString('base64')}`
   }
 
   /**

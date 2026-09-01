@@ -8,6 +8,10 @@ import { usePromptRun } from '@renderer/hooks/use-prompt-run'
 import { validateGeneratedLearningMermaid } from '@renderer/lib/beautiful-mermaid-plugin'
 import { ipcServices } from '@renderer/lib/ipc'
 import {
+  parseLearningMindmap,
+  serializeLearningMindmapDocument
+} from '@renderer/lib/learning-mindmap'
+import {
   learningTimestampFromTarget,
   linkifyLearningTimestamps
 } from '@renderer/lib/learning-timestamps'
@@ -16,6 +20,7 @@ import { decideMermaidRecoveryAction } from '@renderer/lib/strict-mermaid-parser
 import { parseGeneratedLearningMermaid } from '@renderer/lib/study-studio/ai-generation'
 import type { TranscriptSelection } from '@renderer/lib/study-studio/types'
 import type { AiSettingsSnapshot } from '@shared/ai-types'
+import type { CompanionCapturePayload } from '@shared/companion-types'
 import { APP_PROTOCOL } from '@shared/constants'
 import type {
   LearningAiWorkflowId,
@@ -123,6 +128,7 @@ const TEMPLATE_OPTIONS = {
 type TemplateId = keyof typeof TEMPLATE_OPTIONS
 
 interface LearningWorkbenchPaneProps {
+  capturedFrame?: CompanionCapturePayload | null
   downloadId: string
   onSeek: (seconds: number) => void
   selectedQuote?: TranscriptSelection | null
@@ -247,6 +253,7 @@ const emptyState = (module: LearningModuleDefinition): ReactNode => (
 )
 
 export function LearningWorkbenchPane({
+  capturedFrame,
   downloadId,
   onSeek,
   selectedQuote,
@@ -304,6 +311,12 @@ export function LearningWorkbenchPane({
     }
     setModuleId('question')
   }, [selectedQuote, selectionIntent])
+
+  useEffect(() => {
+    if (capturedFrame?.action === 'frame' && capturedFrame.screenshotDataUrl) {
+      setModuleId('image')
+    }
+  }, [capturedFrame])
 
   useEffect(() => {
     const snapshot = promptRun.run
@@ -438,6 +451,40 @@ export function LearningWorkbenchPane({
     toast.success('已复制 Markdown')
   }
 
+  const saveDiagramSource = async (source: string): Promise<void> => {
+    const document = parseLearningMindmap(source)
+    const normalizedSource =
+      document.sourceFormat === 'legacy-flowchart'
+        ? serializeLearningMindmapDocument(document)
+        : source
+    const code = parseGeneratedLearningMermaid(normalizedSource)
+    await validateGeneratedLearningMermaid(code)
+    const content = `\`\`\`mermaid\n${code}\n\`\`\``
+    const marker = moduleMarker('diagram')
+    const previous = [...(notebook?.blocks ?? [])]
+      .reverse()
+      .find((block) => block.sourceSegmentIds.includes(marker))
+    const now = Date.now()
+    const saved = await ipcServices.learning.upsertBlock({
+      block: {
+        attachmentPath: null,
+        completed: previous?.completed ?? false,
+        content,
+        createdAt: previous?.createdAt ?? now,
+        id: previous?.id ?? `ai-module-diagram-${now}`,
+        kind: 'ai',
+        quote: previous?.quote ?? module.label,
+        sourceSegmentIds: [marker],
+        timestampMs: null,
+        updatedAt: now
+      },
+      downloadId
+    })
+    setNotebook(saved)
+    setValidatedDiagramOutput(content)
+    setDiagramValidationError(null)
+  }
+
   const exportObsidian = async (): Promise<void> => {
     try {
       const latest = await ipcServices.learning.get(downloadId)
@@ -541,6 +588,7 @@ export function LearningWorkbenchPane({
       {moduleId === 'image' ? (
         <div className="min-h-0 flex-1">
           <LearningImageStudio
+            capturedFrame={capturedFrame}
             downloadId={downloadId}
             key={downloadId}
             selectedQuote={selectionIntent === 'quote-card' ? selectedQuote : null}
@@ -623,7 +671,12 @@ export function LearningWorkbenchPane({
             ) : null}
             <div ref={outputRef}>
               {moduleId === 'diagram' && output && !running && !diagramValidationError ? (
-                <InteractiveLearningMindmap onSeek={onSeek} source={output} />
+                <InteractiveLearningMindmap
+                  onSeek={onSeek}
+                  onSourceChange={saveDiagramSource}
+                  source={output}
+                  sourceTitle={sourceTitle}
+                />
               ) : output ? (
                 <div className="learning-ai-output rounded-xl border border-border/70 bg-background p-4 shadow-sm [&_a]:cursor-pointer [&_a]:text-amber-700 [&_a]:underline-offset-4 hover:[&_a]:underline">
                   <Response className="text-sm leading-6" isAnimating={running}>

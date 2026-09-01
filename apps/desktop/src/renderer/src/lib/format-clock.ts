@@ -36,6 +36,12 @@ export const formatPlayerClock = (seconds: number): string => {
 }
 
 /**
+ * Format a transcript segment as an explicit `HH:MM:SS - HH:MM:SS` range.
+ */
+export const formatTranscriptTimeRange = (startMs: number, endMs: number): string =>
+  `${formatPlayerClock(startMs / 1000)} - ${formatPlayerClock(Math.max(startMs, endMs) / 1000)}`
+
+/**
  * Clamp a seek target to the playable range.
  */
 export const clampSeekSeconds = (next: number, duration: number): number => {

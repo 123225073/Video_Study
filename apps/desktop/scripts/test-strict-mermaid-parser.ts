@@ -5,6 +5,10 @@ import {
   wasAutomaticMermaidRepairAttempted
 } from '../src/renderer/src/lib/automatic-mermaid-repair'
 import {
+  parseLearningMindmap,
+  serializeLearningMindmapDocument
+} from '../src/renderer/src/lib/learning-mindmap'
+import {
   decideMermaidRecoveryAction,
   validateLearningFlowchartStructure,
   validateLearningMindmapStructure
@@ -41,6 +45,14 @@ const run = (): void => {
   }
   assert.equal(decideMermaidRecoveryAction(false), 'repair-once')
   assert.equal(decideMermaidRecoveryAction(true), 'reject')
+  const legacySource =
+    'flowchart LR\n  source[原始视频] --> concept[核心概念]\n  concept --> apply[实践方法]'
+  const normalizedLegacy = serializeLearningMindmapDocument(parseLearningMindmap(legacySource))
+  assert.equal(
+    validateLearningMindmapStructure(normalizedLegacy),
+    true,
+    'Normalized legacy diagrams must satisfy the strict mindmap structure contract'
+  )
   const values = new Map<string, string>()
   const storage = {
     getItem: (key: string) => values.get(key) ?? null,

@@ -3,8 +3,14 @@ import {
   collectCollapsibleMindmapNodeIds,
   collectDefaultCollapsedMindmapNodeIds,
   layoutLearningMindmap,
-  parseLearningMindmap
+  parseLearningMindmap,
+  serializeLearningMindmapDocument
 } from '../src/renderer/src/lib/learning-mindmap'
+import {
+  buildLearningMindmapJson,
+  buildLearningMindmapSvg,
+  learningMindmapFileStem
+} from '../src/renderer/src/lib/learning-mindmap-export'
 
 const parsed = parseLearningMindmap(`\`\`\`mermaid
 mindmap
@@ -69,6 +75,9 @@ assert.deepEqual(
   legacy.root.children[0]?.children.map((node) => node.label),
   ['实践方法', '复盘']
 )
+const normalizedLegacy = serializeLearningMindmapDocument(legacy)
+assert.match(normalizedLegacy, /^mindmap\n/u)
+assert.equal(parseLearningMindmap(normalizedLegacy).root.children[0]?.label, '核心概念')
 
 assert.throws(
   () => parseLearningMindmap('mindmap\n  Root\n    click Child "https://example.com"'),
@@ -76,5 +85,26 @@ assert.throws(
 )
 assert.throws(() => parseLearningMindmap('mindmap\n  Root\n      Skipped level'), /jumps/u)
 assert.throws(() => parseLearningMindmap('sequenceDiagram\n  A->>B: no'), /Unsupported/u)
+
+const exportedSvg = buildLearningMindmapSvg(`mindmap
+  视频学习
+    理论基础
+      <script>alert(1)</script>`)
+assert.match(exportedSvg, /^<\?xml/u)
+assert.match(exportedSvg, /视频学习/u)
+assert.match(exportedSvg, /&lt;script&gt;/u)
+assert.match(exportedSvg, /&lt;\/script&gt;/u)
+assert.doesNotMatch(exportedSvg, /<script>/u)
+
+const longLabelTail = '这是一个很长的节点标签，导出时必须完整换行并保留最后这段关键内容'
+const longLabelSvg = buildLearningMindmapSvg(`mindmap\n  视频学习\n    ${longLabelTail}`)
+assert.match(longLabelSvg.replace(/<[^>]+>/gu, ''), /最后这段关键内容/u)
+assert.doesNotMatch(longLabelSvg, /…/u)
+
+const exportedJson = JSON.parse(buildLearningMindmapJson('mindmap\n  视频学习\n    实践方法'))
+assert.equal(exportedJson.root.label, '视频学习')
+assert.equal(exportedJson.root.children[0].label, '实践方法')
+assert.equal(learningMindmapFileStem('课程:思维导图?'), '课程_思维导图_')
+assert.equal(learningMindmapFileStem('', 'Mind Map'), 'Mind Map')
 
 process.stdout.write('Interactive learning mindmap checks passed.\n')

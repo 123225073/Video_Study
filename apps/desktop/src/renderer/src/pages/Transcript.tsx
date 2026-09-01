@@ -410,7 +410,7 @@ export function TranscriptPage() {
     }
   )
   const [bilingualTranslation, setBilingualTranslation] = useState(true)
-  const [, setCompanionCapture] = useState<CompanionCapturePayload | null>(null)
+  const [companionCapture, setCompanionCapture] = useState<CompanionCapturePayload | null>(null)
   const session = useAtomValue(playbackSessionAtom)
   const clock = useAtomValue(playbackClockAtom)
   const controls = useAtomValue(playbackControlsAtom)
@@ -612,60 +612,52 @@ export function TranscriptPage() {
   )
   const title = download?.title ?? t('transcript.title')
   const captureCurrentFrame = useCallback((): void => {
-    const video = document.querySelector<HTMLVideoElement>('video')
-    if (!(video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA)) {
+    if (!mediaPath) {
       toast.error(t('learning.captureFrameUnavailable'))
       return
     }
-    try {
-      const sourceWidth = video.videoWidth
-      const sourceHeight = video.videoHeight
-      if (!(sourceWidth > 0 && sourceHeight > 0)) {
-        throw new Error('Video frame dimensions are unavailable')
+    void (async () => {
+      try {
+        const screenshotDataUrl = await ipcServices.fs.captureVideoFrame({
+          filePath: mediaPath,
+          timeSeconds: currentTime
+        })
+        setCompanionCapture({
+          action: 'frame',
+          captionCues: currentSegment
+            ? [
+                {
+                  endSeconds: currentSegment.endMs / 1000,
+                  startSeconds: currentSegment.startMs / 1000,
+                  text: currentSegment.text
+                }
+              ]
+            : [],
+          captionLanguage: snapshot?.record?.language ?? null,
+          captionText: currentSegment?.text ?? '',
+          currentTimeSeconds: currentTime,
+          durationSeconds: duration || null,
+          pageUrl:
+            download?.url ?? `https://local.fengsha.invalid/${encodeURIComponent(downloadId)}`,
+          platform: 'other',
+          screenshotDataUrl,
+          selectedText: '',
+          title
+        })
+        selectStudyScene('output')
+        toast.success(t('learning.frameCaptured'))
+      } catch (error) {
+        logger.warn('Failed to capture the current video frame', error)
+        toast.error(t('learning.captureFrameUnavailable'))
       }
-      const scale = Math.min(1, 1600 / Math.max(sourceWidth, sourceHeight))
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.max(1, Math.round(sourceWidth * scale))
-      canvas.height = Math.max(1, Math.round(sourceHeight * scale))
-      const context = canvas.getContext('2d')
-      if (!context) {
-        throw new Error('Canvas is unavailable')
-      }
-      context.drawImage(video, 0, 0, canvas.width, canvas.height)
-      const screenshotDataUrl = canvas.toDataURL('image/jpeg', 0.88)
-      setCompanionCapture({
-        action: 'frame',
-        captionCues: currentSegment
-          ? [
-              {
-                endSeconds: currentSegment.endMs / 1000,
-                startSeconds: currentSegment.startMs / 1000,
-                text: currentSegment.text
-              }
-            ]
-          : [],
-        captionLanguage: snapshot?.record?.language ?? null,
-        captionText: currentSegment?.text ?? '',
-        currentTimeSeconds: currentTime,
-        durationSeconds: duration || null,
-        pageUrl: download?.url ?? `https://local.fengsha.invalid/${encodeURIComponent(downloadId)}`,
-        platform: 'other',
-        screenshotDataUrl,
-        selectedText: '',
-        title
-      })
-      selectStudyScene('output')
-      toast.success(t('learning.frameCaptured'))
-    } catch (error) {
-      logger.warn('Failed to capture the current video frame', error)
-      toast.error(t('learning.captureFrameUnavailable'))
-    }
+    })()
   }, [
     currentSegment,
     currentTime,
     download?.url,
     downloadId,
     duration,
+    mediaPath,
     selectStudyScene,
     snapshot?.record?.language,
     t,
@@ -1548,6 +1540,7 @@ export function TranscriptPage() {
         onSceneChange={selectStudyScene}
         output={
           <LearningWorkbenchPane
+            capturedFrame={companionCapture}
             downloadId={downloadId}
             onSeek={seek}
             selectedQuote={outputSelectionDownloadId === downloadId ? outputSelection : null}

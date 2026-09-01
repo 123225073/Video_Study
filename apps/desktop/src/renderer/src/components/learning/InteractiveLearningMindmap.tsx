@@ -5,26 +5,47 @@ import {
   DialogDescription,
   DialogTitle
 } from '@renderer/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@renderer/components/ui/dropdown-menu'
+import { Textarea } from '@renderer/components/ui/textarea'
 import { usePanZoom } from '@renderer/hooks/use-pan-zoom'
+import { ipcServices } from '@renderer/lib/ipc'
 import {
   collectCollapsibleMindmapNodeIds,
   collectDefaultCollapsedMindmapNodeIds,
   layoutLearningMindmap,
-  parseLearningMindmap
+  parseLearningMindmap,
+  serializeLearningMindmapDocument
 } from '@renderer/lib/learning-mindmap'
+import {
+  buildLearningMindmapJson,
+  buildLearningMindmapSvg,
+  learningMindmapFileStem,
+  mindmapSvgToPng
+} from '@renderer/lib/learning-mindmap-export'
 import { cn } from '@renderer/lib/utils'
 import {
   ChevronRight,
   ChevronsDown,
   ChevronsUp,
   Clock3,
+  Download,
   Expand,
+  FileImage,
+  FileJson,
+  FileText,
+  Pencil,
   Scan,
   ZoomIn,
   ZoomOut
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 const MIN_ZOOM = 0.55
 const MAX_ZOOM = 2.4
@@ -53,7 +74,9 @@ interface InteractiveLearningMindmapProps {
   initialOffset?: { x: number; y: number }
   initialZoom?: number
   onSeek?: (seconds: number) => void
+  onSourceChange?: (source: string) => Promise<void> | void
   source: string
+  sourceTitle?: string
 }
 
 /** Interactive, inert tree view for AI-generated Mermaid learning mindmaps. */
@@ -64,7 +87,9 @@ export function InteractiveLearningMindmap({
   initialOffset,
   initialZoom = 1,
   onSeek,
-  source
+  onSourceChange,
+  source,
+  sourceTitle = ''
 }: InteractiveLearningMindmapProps) {
   const { t } = useTranslation()
   const viewportRef = useRef<HTMLDivElement | null>(null)
@@ -85,10 +110,22 @@ export function InteractiveLearningMindmap({
         : new Set<string>(),
     [parsed.document]
   )
+  const editableSource = useMemo(
+    () =>
+      parsed.document?.sourceFormat === 'legacy-flowchart'
+        ? serializeLearningMindmapDocument(parsed.document)
+        : source.trim(),
+    [parsed.document, source]
+  )
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
     () => initialCollapsed ?? defaultCollapsed
   )
   const [fullscreen, setFullscreen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editDraft, setEditDraft] = useState(editableSource)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const [viewport, setViewport] = useState({ height: 480, width: 900 })
   const previousSourceRef = useRef(source)
   const panZoom = usePanZoom({
@@ -122,7 +159,9 @@ export function InteractiveLearningMindmap({
     previousSourceRef.current = source
     setCollapsed(defaultCollapsed)
     panZoom.reset()
-  }, [defaultCollapsed, panZoom.reset, source])
+    setEditDraft(editableSource)
+    setEditError(null)
+  }, [defaultCollapsed, editableSource, panZoom.reset, source])
 
   const layout = useMemo(
     () =>
@@ -153,6 +192,58 @@ export function InteractiveLearningMindmap({
   const setAllCollapsed = (): void => {
     if (parsed.document) {
       setCollapsed(collectCollapsibleMindmapNodeIds(parsed.document.root))
+    }
+  }
+
+  const saveEdit = async (): Promise<void> => {
+    try {
+      parseLearningMindmap(editDraft)
+      setSaving(true)
+      await onSourceChange?.(editDraft.trim())
+      setEditing(false)
+      setEditError(null)
+      toast.success(t('learning.mindmapViewer.editSaved'))
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const downloadMindmap = async (format: 'json' | 'markdown' | 'png' | 'svg'): Promise<void> => {
+    if (downloading) {
+      return
+    }
+    setDownloading(true)
+    try {
+      const fileStem = learningMindmapFileStem(
+        sourceTitle || parsed.document?.root.label || '',
+        t('learning.mindmapViewer.defaultFileName')
+      )
+      const svg = format === 'png' || format === 'svg' ? buildLearningMindmapSvg(source) : ''
+      const saved =
+        format === 'png'
+          ? await ipcServices.fs.saveBinaryFile({
+              data: await mindmapSvgToPng(svg),
+              defaultFileName: `${fileStem}.png`
+            })
+          : await ipcServices.fs.saveTextFile({
+              content:
+                format === 'svg'
+                  ? svg
+                  : format === 'json'
+                    ? buildLearningMindmapJson(source)
+                    : source,
+              defaultFileName: `${fileStem}.${format === 'markdown' ? 'md' : format}`
+            })
+      if (saved) {
+        toast.success(t('learning.mindmapViewer.downloaded'))
+      }
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : String(error))
+      toast.error(t('learning.mindmapViewer.downloadFailed'))
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -193,7 +284,59 @@ export function InteractiveLearningMindmap({
               : t('learning.mindmapViewer.hint')}
           </p>
         </div>
-        <div className="flex items-center gap-1" role="toolbar">
+        <div
+          className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1"
+          role="toolbar"
+        >
+          {onSourceChange ? (
+            <Button
+              aria-label={t('learning.mindmapViewer.edit')}
+              data-testid="learning-mindmap-edit"
+              onClick={() => {
+                setEditDraft(editableSource)
+                setEditError(null)
+                setEditing(true)
+              }}
+              size="sm"
+              title={t('learning.mindmapViewer.edit')}
+              type="button"
+              variant="ghost"
+            >
+              <Pencil />
+              <span className="hidden 2xl:inline">{t('learning.mindmapViewer.edit')}</span>
+            </Button>
+          ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label={t('learning.mindmapViewer.download')}
+                data-testid="learning-mindmap-download"
+                disabled={downloading}
+                size="sm"
+                title={t('learning.mindmapViewer.download')}
+                type="button"
+                variant="ghost"
+              >
+                <Download />
+                <span className="hidden 2xl:inline">{t('learning.mindmapViewer.download')}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => void downloadMindmap('png')}>
+                <FileImage /> PNG
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void downloadMindmap('svg')}>
+                <FileImage /> SVG
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void downloadMindmap('markdown')}>
+                <FileText /> Markdown
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void downloadMindmap('json')}>
+                <FileJson /> JSON
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <span className="mx-1 h-5 w-px bg-border" />
           <Button
             aria-label={t('learning.mindmapViewer.expandAll')}
             onClick={() => setCollapsed(new Set())}
@@ -268,11 +411,7 @@ export function InteractiveLearningMindmap({
       <div
         className={cn(
           'relative min-h-[300px] flex-1 touch-none overflow-hidden bg-[radial-gradient(circle_at_center,color-mix(in_oklab,var(--border)_45%,transparent)_1px,transparent_1px)] bg-[size:20px_20px]',
-          panZoom.zoom > 1
-            ? panZoom.dragging
-              ? 'cursor-grabbing'
-              : 'cursor-grab'
-            : 'cursor-default'
+          panZoom.dragging ? 'cursor-grabbing' : 'cursor-grab'
         )}
         onDragStart={(event) => event.preventDefault()}
         onPointerCancel={panZoom.onPointerCancel}
@@ -346,7 +485,9 @@ export function InteractiveLearningMindmap({
                   title={expandable ? t('learning.mindmapViewer.toggleNode') : undefined}
                   type="button"
                 >
-                  <span className="line-clamp-3 text-xs leading-4">{node.label}</span>
+                  <span className="line-clamp-3 text-xs leading-4" title={node.label}>
+                    {node.label}
+                  </span>
                 </button>
                 {expandable ? (
                   <button
@@ -390,7 +531,11 @@ export function InteractiveLearningMindmap({
       </div>
       {allowFullscreen ? (
         <Dialog onOpenChange={setFullscreen} open={fullscreen}>
-          <DialogContent className="h-[92vh] max-w-[96vw] overflow-hidden p-3 sm:max-w-[96vw]">
+          <DialogContent
+            className="overflow-hidden p-2"
+            data-testid="learning-mindmap-fullscreen-dialog"
+            style={{ height: 'calc(100vh - 16px)', maxWidth: 'none', width: 'calc(100vw - 16px)' }}
+          >
             <DialogTitle className="sr-only">{t('learning.mindmapViewer.fullscreen')}</DialogTitle>
             <DialogDescription className="sr-only">
               {t('learning.mindmapViewer.fullscreenDescription')}
@@ -402,8 +547,52 @@ export function InteractiveLearningMindmap({
               initialOffset={panZoom.offset}
               initialZoom={panZoom.zoom}
               onSeek={onSeek}
+              onSourceChange={onSourceChange}
               source={source}
+              sourceTitle={sourceTitle}
             />
+          </DialogContent>
+        </Dialog>
+      ) : null}
+      {onSourceChange ? (
+        <Dialog onOpenChange={setEditing} open={editing}>
+          <DialogContent className="flex h-[88vh] max-w-[94vw] flex-col overflow-hidden p-0 sm:max-w-[94vw]">
+            <div className="shrink-0 border-border/60 border-b px-5 py-4">
+              <DialogTitle>{t('learning.mindmapViewer.editTitle')}</DialogTitle>
+              <DialogDescription>{t('learning.mindmapViewer.editDescription')}</DialogDescription>
+            </div>
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[minmax(320px,.72fr)_minmax(480px,1.28fr)]">
+              <div className="flex min-h-0 flex-col gap-2">
+                <Textarea
+                  aria-label={t('learning.mindmapViewer.editSource')}
+                  className="min-h-0 flex-1 resize-none font-mono text-xs leading-5"
+                  onChange={(event) => {
+                    setEditDraft(event.target.value)
+                    setEditError(null)
+                  }}
+                  spellCheck={false}
+                  value={editDraft}
+                />
+                {editError ? (
+                  <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-destructive text-xs">
+                    {editError}
+                  </p>
+                ) : null}
+              </div>
+              <InteractiveLearningMindmap
+                allowFullscreen={false}
+                className="min-h-0"
+                source={editDraft}
+              />
+            </div>
+            <div className="flex shrink-0 justify-end gap-2 border-border/60 border-t px-5 py-3">
+              <Button onClick={() => setEditing(false)} type="button" variant="ghost">
+                {t('learning.mindmapViewer.cancel')}
+              </Button>
+              <Button disabled={saving} onClick={() => void saveEdit()} type="button">
+                {saving ? t('learning.mindmapViewer.saving') : t('learning.mindmapViewer.save')}
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       ) : null}

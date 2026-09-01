@@ -87,11 +87,7 @@ export function LearningImageViewer({
           <div
             aria-label={t('learning.imageStudio.viewerDescription')}
             className={`grid min-h-0 flex-1 touch-none place-items-center overflow-hidden bg-[radial-gradient(circle_at_center,_#292524_0,_#0c0a09_62%)] p-8 ${
-              panZoom.zoom > 1
-                ? panZoom.dragging
-                  ? 'cursor-grabbing'
-                  : 'cursor-grab'
-                : 'cursor-zoom-in'
+              panZoom.dragging ? 'cursor-grabbing' : 'cursor-grab'
             }`}
             onDoubleClick={panZoom.reset}
             onDragStart={(event) => event.preventDefault()}

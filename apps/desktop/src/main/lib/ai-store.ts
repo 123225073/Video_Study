@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { copyFileSync, existsSync } from 'node:fs'
+import path from 'node:path'
 import { app, safeStorage } from 'electron'
 import {
   aiProviderNeedsApiKey,
@@ -8,6 +10,7 @@ import {
 import {
   canonicalizeAiPromptContent,
   createDefaultAiPrompts,
+  isAiPromptPresetId,
   mergeDefaultAiPrompts
 } from '../../shared/ai-prompts'
 import type {
@@ -149,6 +152,12 @@ class AiStore {
     const stored = this.readState()
     const merged = mergeDefaultAiPrompts(stored.prompts)
     if (merged !== stored.prompts) {
+      const sourcePath = path.join(app.getPath('userData'), 'ai.json')
+      const backupPath = path.join(app.getPath('userData'), 'ai.pre-v3.6.0.json')
+      if (existsSync(sourcePath) && !existsSync(backupPath)) {
+        copyFileSync(sourcePath, backupPath)
+        log.info('ai prompt cleanup backup created', { backupPath })
+      }
       this.store.set('prompts', merged)
     }
   }
@@ -378,15 +387,20 @@ class AiStore {
     }
     const state = this.readState()
     const now = Date.now()
-    const existing = input.id ? state.prompts.find((prompt) => prompt.id === input.id) : undefined
+    const requestedId = input.id?.trim()
+    const existing = requestedId
+      ? state.prompts.find((prompt) => prompt.id === requestedId)
+      : undefined
     const nextSort = state.prompts.reduce((max, prompt) => Math.max(max, prompt.sortOrder), -1) + 1
+    const recordId = existing?.id ?? requestedId ?? randomUUID()
+    const isPreset = existing?.isPreset ?? isAiPromptPresetId(recordId)
     const record: AiPrompt = {
-      id: existing?.id ?? randomUUID(),
+      id: recordId,
       title,
       icon: input.icon,
-      content: existing?.isPreset ? canonicalizeAiPromptContent(existing.id, content) : content,
+      content: isPreset ? canonicalizeAiPromptContent(recordId, content) : content,
       enabled: input.enabled ?? existing?.enabled ?? true,
-      isPreset: existing?.isPreset ?? false,
+      isPreset,
       sortOrder: existing?.sortOrder ?? nextSort,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now

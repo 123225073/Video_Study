@@ -68,7 +68,7 @@ export const usePanZoom = ({
       const interactiveTarget = (event.target as HTMLElement).closest(
         'button, a, input, textarea, select, [role="button"]'
       )
-      if (event.button !== 0 || zoom <= restingZoom || interactiveTarget) {
+      if (event.button !== 0 || interactiveTarget) {
         return
       }
       event.preventDefault()
@@ -82,7 +82,7 @@ export const usePanZoom = ({
       }
       setDragging(true)
     },
-    [offset.x, offset.y, restingZoom, zoom]
+    [offset.x, offset.y]
   )
 
   const onPointerMove = useCallback((event: PointerEvent<HTMLElement>): void => {

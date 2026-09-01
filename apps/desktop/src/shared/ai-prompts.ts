@@ -1,5 +1,11 @@
 import { languageList, languages, normalizeLanguageCode } from '@vidbee/i18n/languages'
 import type { AiPrompt, AiPromptIconId } from './ai-types'
+import type { LearningAiWorkflowId } from './learning-types'
+import { LEARNING_AI_PROMPT_METADATA } from './learning-workflow/ai-prompts'
+import {
+  createDefaultLearningAiSettings,
+  isLegacyDefaultLearningPrompt
+} from './learning-workflow/defaults'
 
 /** Replaced with the current UI language name before a prompt is shown or sent. */
 export const AI_PROMPT_UI_LANGUAGE_TOKEN = '{{uiLanguage}}'
@@ -384,6 +390,84 @@ const DEPRECATED_PRESET_IDS = new Set([
   'split-paragraphs'
 ])
 
+/** Built-in prompts superseded by the focused learning workspace. */
+export const RETIRED_LEARNING_PROMPT_IDS = new Set([
+  'concept-glossary',
+  'extract-statistics',
+  'generate-faq',
+  'learning-action-plan',
+  'learning-diagram',
+  'learning-outline',
+  'learning-podcast-script',
+  'paraphrase-content'
+])
+
+const LEARNING_WORKFLOW_TITLE_BY_PROMPT_ID = new Map(
+  Object.values(LEARNING_AI_PROMPT_METADATA).map((metadata) => [metadata.promptId, metadata.title])
+)
+const LEARNING_WORKFLOW_TITLES = new Set(LEARNING_WORKFLOW_TITLE_BY_PROMPT_ID.values())
+const LEARNING_WORKFLOW_ID_BY_TITLE = new Map<string, LearningAiWorkflowId>(
+  Object.entries(LEARNING_AI_PROMPT_METADATA).map(([id, metadata]) => [
+    metadata.title,
+    id as LearningAiWorkflowId
+  ])
+)
+const DEFAULT_LEARNING_PROMPT_BY_ID = new Map(
+  createDefaultLearningAiSettings(0).prompts.map((prompt) => [
+    prompt.id,
+    prompt.systemPrompt.trim()
+  ])
+)
+
+const promptSignature = (prompt: AiPrompt): string =>
+  JSON.stringify([prompt.title.trim(), prompt.icon, prompt.content.trim()])
+
+const isOfficialLearningWorkflowPrompt = (prompt: AiPrompt): boolean => {
+  const workflowId = LEARNING_WORKFLOW_ID_BY_TITLE.get(prompt.title.trim())
+  if (!workflowId) {
+    return false
+  }
+  const content = prompt.content.trim()
+  return (
+    content === DEFAULT_LEARNING_PROMPT_BY_ID.get(workflowId) ||
+    isLegacyDefaultLearningPrompt(workflowId, content)
+  )
+}
+
+/**
+ * Remove repeated workflow records created by the historical unstable-id sync.
+ * A single customized record is preserved; only repeated, byte-identical system-title records are removed.
+ */
+const withoutDuplicatedLearningWorkflowPrompts = (prompts: AiPrompt[]): AiPrompt[] => {
+  const presetSignatures = new Set(prompts.filter((prompt) => prompt.isPreset).map(promptSignature))
+  const withoutOfficialCopies = prompts.filter(
+    (prompt) =>
+      prompt.isPreset ||
+      !(isOfficialLearningWorkflowPrompt(prompt) || presetSignatures.has(promptSignature(prompt)))
+  )
+  const newestBySignature = new Map<string, AiPrompt>()
+  for (const prompt of withoutOfficialCopies) {
+    if (prompt.isPreset || !LEARNING_WORKFLOW_TITLES.has(prompt.title.trim())) {
+      continue
+    }
+    const signature = promptSignature(prompt)
+    const current = newestBySignature.get(signature)
+    if (
+      !current ||
+      prompt.updatedAt > current.updatedAt ||
+      (prompt.updatedAt === current.updatedAt && prompt.createdAt > current.createdAt)
+    ) {
+      newestBySignature.set(signature, prompt)
+    }
+  }
+  return withoutOfficialCopies.filter(
+    (prompt) =>
+      prompt.isPreset ||
+      !LEARNING_WORKFLOW_TITLES.has(prompt.title.trim()) ||
+      newestBySignature.get(promptSignature(prompt)) === prompt
+  )
+}
+
 /** Format rules used by the first structured official bodies. */
 const SUPERSEDED_FORMAT_RULES =
   'Keep each list marker on the same line as the item text. Do not wrap the whole reply in a code fence. Do not add a preamble or closing remarks. Use the same language as the transcript.'
@@ -545,17 +629,19 @@ export const isAiPromptPresetId = (id: string): boolean => PRESET_IDS.has(id)
  * @param now Timestamp written onto createdAt/updatedAt.
  */
 export const createDefaultAiPrompts = (now: number = Date.now()): AiPrompt[] =>
-  AI_PROMPT_PRESETS.map((preset, index) => ({
-    id: preset.id,
-    title: preset.title,
-    icon: preset.icon,
-    content: preset.content,
-    enabled: true,
-    isPreset: true,
-    sortOrder: index,
-    createdAt: now,
-    updatedAt: now
-  }))
+  AI_PROMPT_PRESETS.filter((preset) => !RETIRED_LEARNING_PROMPT_IDS.has(preset.id)).map(
+    (preset, index) => ({
+      id: preset.id,
+      title: preset.title,
+      icon: preset.icon,
+      content: preset.content,
+      enabled: true,
+      isPreset: true,
+      sortOrder: index,
+      createdAt: now,
+      updatedAt: now
+    })
+  )
 
 /**
  * Replace a stored built-in prompt body when it still matches an older official seed.
@@ -575,6 +661,32 @@ const withCurrentPresetContent = (prompt: AiPrompt, now: number): AiPrompt => {
   return { ...prompt, content: seed.content, updatedAt: now }
 }
 
+const migrateRetiredPrompt = (prompt: AiPrompt): AiPrompt | null => {
+  if (!RETIRED_LEARNING_PROMPT_IDS.has(prompt.id)) {
+    return prompt
+  }
+  const seed = PRESET_SEED_BY_ID.get(prompt.id)
+  const officialBodies = [seed?.content, ...(SUPERSEDED_PRESET_CONTENT[prompt.id] ?? [])].filter(
+    (content): content is string => Boolean(content)
+  )
+  const matchesOfficialPreset = Boolean(
+    seed &&
+      prompt.isPreset &&
+      prompt.title === seed.title &&
+      prompt.icon === seed.icon &&
+      prompt.enabled &&
+      officialBodies.some((content) => content.trim() === prompt.content.trim())
+  )
+  if (matchesOfficialPreset) {
+    return null
+  }
+  return {
+    ...prompt,
+    id: `customized-${prompt.id}-${prompt.createdAt}-${prompt.updatedAt}`,
+    isPreset: false
+  }
+}
+
 /**
  * Re-insert any missing built-in prompts without overwriting user edits,
  * refresh unedited official prompt bodies to the current seed, and drop
@@ -587,7 +699,14 @@ export const mergeDefaultAiPrompts = (
   existing: AiPrompt[],
   now: number = Date.now()
 ): AiPrompt[] => {
-  const kept = existing.filter((prompt) => !DEPRECATED_PRESET_IDS.has(prompt.id))
+  const retained = existing.flatMap((prompt) => {
+    if (DEPRECATED_PRESET_IDS.has(prompt.id)) {
+      return []
+    }
+    const migrated = migrateRetiredPrompt(prompt)
+    return migrated ? [migrated] : []
+  })
+  const kept = withoutDuplicatedLearningWorkflowPrompts(retained)
   const present = new Set(kept.map((prompt) => prompt.id))
   const missing = createDefaultAiPrompts(now).filter((prompt) => !present.has(prompt.id))
   const refreshed = kept.map((prompt) => withCurrentPresetContent(prompt, now))

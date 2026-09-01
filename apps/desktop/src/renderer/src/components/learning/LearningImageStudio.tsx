@@ -8,6 +8,7 @@ import { usePromptRun } from '@renderer/hooks/use-prompt-run'
 import { ipcServices } from '@renderer/lib/ipc'
 import { cropLearningImageToAspect } from '@renderer/lib/learning-image-processing'
 import { logger } from '@renderer/lib/logger'
+import type { CompanionCapturePayload } from '@shared/companion-types'
 import {
   formatGenerationElapsed,
   imageApiSizeForAspect,
@@ -34,6 +35,7 @@ import { toast } from 'sonner'
 
 const IMAGE_PROMPT_ID = 'image-prompt-optimizer'
 const IMAGE_MARKER = 'generated-image:'
+const CAPTURED_FRAME_MARKER = 'captured-video-frame:'
 const IMAGE_DRAFT_VERSION = 1
 
 const PURPOSES: LearningImagePurpose[] = ['explain', 'share', 'cover']
@@ -53,6 +55,7 @@ interface LearningImageDraft {
 }
 
 interface LearningImageStudioProps {
+  capturedFrame?: CompanionCapturePayload | null
   downloadId: string
   selectedQuote?: { startMs: number; text: string } | null
   sourceTitle: string
@@ -116,7 +119,10 @@ const imageDraftSignature = (draft: LearningImageDraft): string =>
   [draft.request.trim(), draft.purpose, draft.style, draft.aspectRatio].join('\n')
 
 const isGeneratedImageBlock = (block: LearningBlock): boolean =>
-  block.kind === 'screenshot' && block.sourceSegmentIds.some((id) => id.startsWith(IMAGE_MARKER))
+  block.kind === 'screenshot' &&
+  block.sourceSegmentIds.some(
+    (id) => id.startsWith(IMAGE_MARKER) || id.startsWith(CAPTURED_FRAME_MARKER)
+  )
 
 const safeImageName = (title: string): string => {
   const name =
@@ -151,6 +157,7 @@ const buildImagePrompt = ({
   ].join('\n')
 
 export function LearningImageStudio({
+  capturedFrame,
   downloadId,
   selectedQuote,
   sourceTitle,
@@ -221,6 +228,38 @@ export function LearningImageStudio({
       active = false
     }
   }, [downloadId])
+
+  useEffect(() => {
+    if (!(capturedFrame?.action === 'frame' && capturedFrame.screenshotDataUrl)) {
+      return
+    }
+    const timestampMs = Math.round(capturedFrame.currentTimeSeconds * 1000)
+    const blockId = `captured-video-frame-${timestampMs}`
+    if (notebook?.blocks?.some((block) => block.id === blockId)) {
+      return
+    }
+    void ipcServices.learning
+      .upsertBlock({
+        block: {
+          attachmentPath: capturedFrame.screenshotDataUrl,
+          completed: false,
+          content: capturedFrame.selectedText || capturedFrame.captionText,
+          createdAt: Date.now(),
+          id: blockId,
+          kind: 'screenshot',
+          quote: t('learning.captureFrame'),
+          sourceSegmentIds: [`${CAPTURED_FRAME_MARKER}${timestampMs}`],
+          timestampMs,
+          updatedAt: Date.now()
+        },
+        downloadId
+      })
+      .then(setNotebook)
+      .catch((error) => {
+        logger.error('Failed to persist captured video frame', error)
+        toast.error(t('learning.saveFailed'))
+      })
+  }, [capturedFrame, downloadId, notebook?.blocks, t])
 
   useEffect(() => {
     if (

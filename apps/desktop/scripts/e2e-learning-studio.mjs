@@ -123,7 +123,7 @@ await fs.writeFile(
               attachmentPath: null,
               completed: false,
               content:
-                '```mermaid\nmindmap\n  root((视频学习))\n    证据链\n      原始证据 00:00:05\n      深层结论\n    形成可复用洞察\n```',
+                '```mermaid\nflowchart LR\n  root["视频学习"] --> evidence["证据链"]\n  evidence --> source["原始证据 00:00:05"]\n  evidence --> deep["深层结论"]\n  root --> insight["形成可复用洞察"]\n```',
               createdAt: fixtureNow + 1,
               id: 'validated-learning-diagram',
               kind: 'ai',
@@ -384,7 +384,8 @@ try {
   await page.evaluate(() => {
     window.location.hash = '#/settings?tab=prompts'
   })
-  await page.getByText('生成思维导图', { exact: true }).first().waitFor({ timeout: 30_000 })
+  await page.getByText('优化生图提示词', { exact: true }).first().waitFor({ timeout: 30_000 })
+  assert.equal(await page.getByText('生成思维导图', { exact: true }).count(), 0)
   assert.equal(await page.getByText('文字大纲', { exact: true }).count(), 0)
   assert.equal(await page.getByText('AI 学习播客', { exact: true }).count(), 0)
 
@@ -814,6 +815,33 @@ try {
     )
     await mindmap.getByRole('button', { exact: true, name: '展开“证据链”' }).click()
     await mindmap.getByText('深层结论', { exact: true }).waitFor()
+    await mindmap.getByRole('button', { exact: true, name: '编辑' }).click()
+    const mindmapEditDialog = page.getByRole('dialog')
+    const mindmapEditor = mindmapEditDialog.getByRole('textbox', { name: '思维导图源码' })
+    await mindmapEditor.waitFor()
+    await mindmapEditor.fill((await mindmapEditor.inputValue()).replace('深层结论', '修改后的结论'))
+    await mindmapEditDialog.getByRole('button', { exact: true, name: '全部展开' }).click()
+    await mindmapEditDialog.getByText('修改后的结论', { exact: true }).waitFor()
+    await mindmapEditDialog.getByRole('button', { exact: true, name: '保存修改' }).click()
+    await mindmapEditDialog.waitFor({ state: 'hidden' })
+    await mindmap.getByRole('button', { exact: true, name: '展开“证据链”' }).click()
+    await mindmap.getByText('修改后的结论', { exact: true }).waitFor()
+    const defaultMindmapViewport = mindmap.getByRole('application')
+    const defaultMindmapTransform = defaultMindmapViewport.locator(':scope > div').first()
+    const defaultMindmapBeforeDrag = await defaultMindmapTransform.evaluate(
+      (element) => element.style.transform
+    )
+    const defaultMindmapBox = await defaultMindmapViewport.boundingBox()
+    assert.ok(defaultMindmapBox, 'default mind-map viewport must be measurable')
+    await page.mouse.move(defaultMindmapBox.x + 24, defaultMindmapBox.y + 24)
+    await page.mouse.down()
+    await page.mouse.move(defaultMindmapBox.x + 84, defaultMindmapBox.y + 54, { steps: 4 })
+    await page.mouse.up()
+    assert.notEqual(
+      await defaultMindmapTransform.evaluate((element) => element.style.transform),
+      defaultMindmapBeforeDrag,
+      'mind-map must be draggable at its fitted default zoom'
+    )
     await mindmap.getByRole('button', { exact: true, name: '放大' }).click()
     const parentMindmapZoom = await mindmap.getAttribute('data-zoom')
     await mindmap.getByRole('button', { exact: true, name: '全屏查看思维导图' }).click()
@@ -821,7 +849,7 @@ try {
     await fullscreenMindmap.waitFor()
     const fullscreenMindmapCanvas = fullscreenMindmap.getByTestId('interactive-learning-mindmap')
     await fullscreenMindmapCanvas.waitFor()
-    await fullscreenMindmapCanvas.getByText('深层结论', { exact: true }).waitFor()
+    await fullscreenMindmapCanvas.getByText('修改后的结论', { exact: true }).waitFor()
     assert.equal(
       await fullscreenMindmapCanvas.getAttribute('data-zoom'),
       parentMindmapZoom,
@@ -869,10 +897,28 @@ try {
     await outputRegion.getByRole('button', { exact: true, name: '打开生成图片查看器' }).click()
     const imageViewer = page.getByRole('dialog')
     await imageViewer.waitFor()
-    await imageViewer.getByRole('button', { exact: true, name: '放大' }).click()
-    await imageViewer.getByText('125%', { exact: true }).waitFor()
     const imageViewport = imageViewer.getByRole('application')
     const imageTransform = imageViewport.locator(':scope > div').first()
+    const defaultImageTransform = await imageTransform.evaluate(
+      (element) => element.style.transform
+    )
+    const defaultImageBox = await imageViewport.boundingBox()
+    assert.ok(defaultImageBox, 'default image viewer viewport must be measurable')
+    await page.mouse.move(defaultImageBox.x + defaultImageBox.width / 2, defaultImageBox.y + 40)
+    await page.mouse.down()
+    await page.mouse.move(
+      defaultImageBox.x + defaultImageBox.width / 2 + 70,
+      defaultImageBox.y + 75,
+      { steps: 4 }
+    )
+    await page.mouse.up()
+    assert.notEqual(
+      await imageTransform.evaluate((element) => element.style.transform),
+      defaultImageTransform,
+      'image must be draggable at its fitted default zoom'
+    )
+    await imageViewer.getByRole('button', { exact: true, name: '放大' }).click()
+    await imageViewer.getByText('125%', { exact: true }).waitFor()
     const transformBeforeDrag = await imageTransform.evaluate((element) => element.style.transform)
     const imageViewportBox = await imageViewport.boundingBox()
     assert.ok(imageViewportBox, 'image viewer viewport must be measurable')

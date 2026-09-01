@@ -289,6 +289,27 @@ export const parseLearningMindmap = (rawSource: string): LearningMindmapDocument
     : parseLegacyFlowchart(source)
 }
 
+const encodeMindmapLabel = (node: LearningMindmapNode): string => {
+  const label = node.evidenceLabel ? `${node.label} [${node.evidenceLabel}]` : node.label
+  return label.replaceAll('&', '&amp;').replaceAll('"', '&quot;')
+}
+
+/** Serialize either supported source format into the editable safe mindmap grammar. */
+export const serializeLearningMindmapDocument = (document: LearningMindmapDocument): string => {
+  const lines = ['mindmap']
+  let nodeIndex = 0
+  const visit = (node: LearningMindmapNode, depth: number): void => {
+    const nodeId = `n${nodeIndex}`
+    nodeIndex += 1
+    lines.push(`${'  '.repeat(depth + 1)}${nodeId}["${encodeMindmapLabel(node)}"]`)
+    node.children.forEach((child) => {
+      visit(child, depth + 1)
+    })
+  }
+  visit(document.root, 0)
+  return lines.join('\n')
+}
+
 /** Collect stable ids for every branch that can be collapsed. */
 export const collectCollapsibleMindmapNodeIds = (root: LearningMindmapNode): Set<string> => {
   const ids = new Set<string>()

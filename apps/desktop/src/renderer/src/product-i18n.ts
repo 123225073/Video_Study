@@ -102,8 +102,18 @@ const en = {
       you: 'You'
     },
     mindmapViewer: {
+      cancel: 'Cancel',
       collapseAll: 'Collapse all',
       collapseNode: 'Collapse {{label}}',
+      defaultFileName: 'learning-mind-map',
+      download: 'Download',
+      downloaded: 'Mind map downloaded',
+      downloadFailed: 'Could not download the mind map',
+      edit: 'Edit',
+      editDescription: 'Edit the safe Mermaid mindmap source and preview changes immediately.',
+      editSaved: 'Mind map updated',
+      editSource: 'Mind map source',
+      editTitle: 'Edit mind map',
       expandAll: 'Expand all',
       expandNode: 'Expand {{label}}',
       fit: 'Fit to view',
@@ -112,6 +122,8 @@ const en = {
       hint: 'Select a branch to reveal or hide deeper knowledge.',
       invalid: 'This mind map could not be displayed safely.',
       legacy: 'Interactive view converted from a historical Mermaid flowchart.',
+      save: 'Save changes',
+      saving: 'Saving…',
       seek: 'Play evidence at {{time}}',
       title: 'Interactive mind map',
       toggleNode: 'Expand or collapse this branch',
@@ -145,7 +157,7 @@ const en = {
       title: 'Browser learning companion'
     },
     continue: 'Continue',
-    captureFrame: 'Capture frame',
+    captureFrame: 'Capture video frame',
     captureFrameUnavailable: 'A video frame is not available yet',
     sidebar: {
       collapse: 'Hide navigation sidebar',
@@ -237,7 +249,7 @@ const en = {
         minimal: 'Quiet minimal'
       },
       title: 'One Visual, Full Meaning',
-      viewerDescription: 'Zoom with the mouse wheel or buttons, and drag while zoomed in.',
+      viewerDescription: 'Zoom with the mouse wheel or buttons, then drag in any direction.',
       viewerTitle: 'Image preview',
       zoomIn: 'Zoom in',
       zoomOut: 'Zoom out'
@@ -679,8 +691,18 @@ const zh = {
       you: '我'
     },
     mindmapViewer: {
+      cancel: '取消',
       collapseAll: '全部收起',
       collapseNode: '收起“{{label}}”',
+      defaultFileName: '学习思维导图',
+      download: '下载',
+      downloaded: '思维导图已下载',
+      downloadFailed: '思维导图下载失败',
+      edit: '编辑',
+      editDescription: '编辑安全的 Mermaid mindmap 源码，并实时预览修改效果。',
+      editSaved: '思维导图已更新',
+      editSource: '思维导图源码',
+      editTitle: '编辑思维导图',
       expandAll: '全部展开',
       expandNode: '展开“{{label}}”',
       fit: '适应视图',
@@ -689,6 +711,8 @@ const zh = {
       hint: '点击分支节点可展开或收起更深层知识。',
       invalid: '这份思维导图无法安全显示。',
       legacy: '已将历史 Mermaid 流程图转换为可交互思维导图。',
+      save: '保存修改',
+      saving: '正在保存…',
       seek: '跳到 {{time}} 播放证据',
       title: '交互式思维导图',
       toggleNode: '展开或收起这个分支',
@@ -719,7 +743,7 @@ const zh = {
       title: '浏览器学习助手'
     },
     continue: '继续学习',
-    captureFrame: '截取当前画面',
+    captureFrame: '截取视频画面',
     captureFrameUnavailable: '当前没有可截取的视频画面',
     sidebar: {
       collapse: '隐藏导航栏',
@@ -808,7 +832,7 @@ const zh = {
         minimal: '极简高级'
       },
       title: '一图胜千言',
-      viewerDescription: '使用鼠标滚轮或按钮缩放，放大后可拖动画面查看细节。',
+      viewerDescription: '使用鼠标滚轮或按钮缩放，并可向任意方向拖动画面查看细节。',
       viewerTitle: '图片预览',
       zoomIn: '放大',
       zoomOut: '缩小'

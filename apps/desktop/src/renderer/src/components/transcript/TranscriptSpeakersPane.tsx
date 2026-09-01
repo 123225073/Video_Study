@@ -37,7 +37,7 @@ interface TranscriptSpeakersPaneProps {
 /**
  * Show speaker talking-time shares, a clickable speech timeline, and an Info tab.
  *
- * The pane keeps a min height so a portrait video frame cannot flex-shrink it away.
+ * The pane stays compact so the video keeps the available vertical space.
  */
 export function TranscriptSpeakersPane({
   canAdjustSpeakers = false,
@@ -80,7 +80,7 @@ export function TranscriptSpeakersPane({
 
   return (
     <section
-      className="min-h-48 flex-1 overflow-y-auto border-border/60 border-t bg-background"
+      className="max-h-44 shrink-0 overflow-y-auto border-border/60 border-t bg-background"
       data-testid="transcript-speakers"
     >
       <div className="sticky top-0 z-10 border-border/60 border-b bg-background px-4">

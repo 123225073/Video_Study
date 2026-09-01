@@ -351,7 +351,7 @@ export function StudyStudio({
           activeScene === 'output' &&
             'grid-cols-1 grid-rows-[minmax(220px,36vh)_minmax(220px,34vh)_minmax(420px,1fr)] lg:grid-cols-[minmax(300px,.55fr)_minmax(520px,1.45fr)] lg:grid-rows-[minmax(220px,.54fr)_minmax(220px,.46fr)]',
           'xl:gap-x-0 xl:gap-y-2',
-          'xl:grid-cols-[minmax(300px,.82fr)_10px_minmax(540px,1.62fr)_10px_minmax(286px,.74fr)] xl:grid-rows-[minmax(230px,.44fr)_minmax(280px,.56fr)]'
+          'xl:grid-cols-[minmax(300px,.82fr)_10px_minmax(540px,1.62fr)_10px_minmax(286px,.74fr)] xl:grid-rows-[minmax(330px,.54fr)_minmax(260px,.46fr)]'
         )}
         ref={gridRef}
         style={desktopGridStyle}
